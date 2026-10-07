@@ -1,0 +1,221 @@
+package discord
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+)
+
+// Payload is a JSON request body. Only the keys present are sent, and a nil
+// value clears the field on Discord's side.
+type Payload map[string]any
+
+// GetGuild fetches a guild.
+func (c *Client) GetGuild(ctx context.Context, guildID string) (*Guild, error) {
+	var g Guild
+	return &g, c.do(ctx, http.MethodGet, "/guilds/"+guildID, nil, &g)
+}
+
+// ModifyGuild updates guild settings.
+func (c *Client) ModifyGuild(ctx context.Context, guildID string, p Payload) (*Guild, error) {
+	var g Guild
+	return &g, c.do(ctx, http.MethodPatch, "/guilds/"+guildID, p, &g)
+}
+
+// ListRoles lists the roles of a guild.
+func (c *Client) ListRoles(ctx context.Context, guildID string) ([]Role, error) {
+	var roles []Role
+	return roles, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/roles", nil, &roles)
+}
+
+// GetRole fetches a single guild role.
+func (c *Client) GetRole(ctx context.Context, guildID, roleID string) (*Role, error) {
+	var r Role
+	return &r, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/roles/"+roleID, nil, &r)
+}
+
+// CreateRole creates a guild role.
+func (c *Client) CreateRole(ctx context.Context, guildID string, p Payload) (*Role, error) {
+	var r Role
+	return &r, c.do(ctx, http.MethodPost, "/guilds/"+guildID+"/roles", p, &r)
+}
+
+// ModifyRole updates a guild role.
+func (c *Client) ModifyRole(ctx context.Context, guildID, roleID string, p Payload) (*Role, error) {
+	var r Role
+	return &r, c.do(ctx, http.MethodPatch, "/guilds/"+guildID+"/roles/"+roleID, p, &r)
+}
+
+// DeleteRole deletes a guild role.
+func (c *Client) DeleteRole(ctx context.Context, guildID, roleID string) error {
+	return c.do(ctx, http.MethodDelete, "/guilds/"+guildID+"/roles/"+roleID, nil, nil)
+}
+
+// ModifyRolePositions moves several roles in a single request.
+func (c *Client) ModifyRolePositions(ctx context.Context, guildID string, updates []PositionUpdate) error {
+	return c.do(ctx, http.MethodPatch, "/guilds/"+guildID+"/roles", updates, nil)
+}
+
+// ListChannels lists the channels of a guild.
+func (c *Client) ListChannels(ctx context.Context, guildID string) ([]Channel, error) {
+	var channels []Channel
+	return channels, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/channels", nil, &channels)
+}
+
+// GetChannel fetches a channel.
+func (c *Client) GetChannel(ctx context.Context, channelID string) (*Channel, error) {
+	var ch Channel
+	return &ch, c.do(ctx, http.MethodGet, "/channels/"+channelID, nil, &ch)
+}
+
+// CreateChannel creates a guild channel.
+func (c *Client) CreateChannel(ctx context.Context, guildID string, p Payload) (*Channel, error) {
+	var ch Channel
+	return &ch, c.do(ctx, http.MethodPost, "/guilds/"+guildID+"/channels", p, &ch)
+}
+
+// ModifyChannel updates a channel.
+func (c *Client) ModifyChannel(ctx context.Context, channelID string, p Payload) (*Channel, error) {
+	var ch Channel
+	return &ch, c.do(ctx, http.MethodPatch, "/channels/"+channelID, p, &ch)
+}
+
+// DeleteChannel deletes a channel.
+func (c *Client) DeleteChannel(ctx context.Context, channelID string) error {
+	return c.do(ctx, http.MethodDelete, "/channels/"+channelID, nil, nil)
+}
+
+// ModifyChannelPositions moves several channels in a single request.
+func (c *Client) ModifyChannelPositions(ctx context.Context, guildID string, updates []PositionUpdate) error {
+	return c.do(ctx, http.MethodPatch, "/guilds/"+guildID+"/channels", updates, nil)
+}
+
+// EditChannelPermission creates or replaces a permission overwrite.
+func (c *Client) EditChannelPermission(ctx context.Context, channelID string, o Overwrite) error {
+	body := Payload{"type": o.Type, "allow": o.Allow, "deny": o.Deny}
+	return c.do(ctx, http.MethodPut, "/channels/"+channelID+"/permissions/"+o.ID, body, nil)
+}
+
+// DeleteChannelPermission removes a permission overwrite.
+func (c *Client) DeleteChannelPermission(ctx context.Context, channelID, overwriteID string) error {
+	return c.do(ctx, http.MethodDelete, "/channels/"+channelID+"/permissions/"+overwriteID, nil, nil)
+}
+
+// GetMember fetches a guild member.
+func (c *Client) GetMember(ctx context.Context, guildID, userID string) (*Member, error) {
+	var m Member
+	return &m, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/members/"+userID, nil, &m)
+}
+
+// SearchMembers returns members whose username or nickname starts with query.
+func (c *Client) SearchMembers(ctx context.Context, guildID, query string) ([]Member, error) {
+	var members []Member
+	path := "/guilds/" + guildID + "/members/search?limit=1000&query=" + url.QueryEscape(query)
+	return members, c.do(ctx, http.MethodGet, path, nil, &members)
+}
+
+// AddMemberRole grants a role to a member.
+func (c *Client) AddMemberRole(ctx context.Context, guildID, userID, roleID string) error {
+	return c.do(ctx, http.MethodPut, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
+}
+
+// RemoveMemberRole revokes a role from a member.
+func (c *Client) RemoveMemberRole(ctx context.Context, guildID, userID, roleID string) error {
+	return c.do(ctx, http.MethodDelete, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
+}
+
+// CreateWebhook creates a channel webhook.
+func (c *Client) CreateWebhook(ctx context.Context, channelID string, p Payload) (*Webhook, error) {
+	var w Webhook
+	return &w, c.do(ctx, http.MethodPost, "/channels/"+channelID+"/webhooks", p, &w)
+}
+
+// GetWebhook fetches a webhook.
+func (c *Client) GetWebhook(ctx context.Context, webhookID string) (*Webhook, error) {
+	var w Webhook
+	return &w, c.do(ctx, http.MethodGet, "/webhooks/"+webhookID, nil, &w)
+}
+
+// ModifyWebhook updates a webhook.
+func (c *Client) ModifyWebhook(ctx context.Context, webhookID string, p Payload) (*Webhook, error) {
+	var w Webhook
+	return &w, c.do(ctx, http.MethodPatch, "/webhooks/"+webhookID, p, &w)
+}
+
+// DeleteWebhook deletes a webhook.
+func (c *Client) DeleteWebhook(ctx context.Context, webhookID string) error {
+	return c.do(ctx, http.MethodDelete, "/webhooks/"+webhookID, nil, nil)
+}
+
+// CreateInvite creates a channel invite.
+func (c *Client) CreateInvite(ctx context.Context, channelID string, p Payload) (*Invite, error) {
+	var i Invite
+	return &i, c.do(ctx, http.MethodPost, "/channels/"+channelID+"/invites", p, &i)
+}
+
+// ListChannelInvites lists a channel's invites with their metadata.
+func (c *Client) ListChannelInvites(ctx context.Context, channelID string) ([]Invite, error) {
+	var invites []Invite
+	return invites, c.do(ctx, http.MethodGet, "/channels/"+channelID+"/invites", nil, &invites)
+}
+
+// DeleteInvite revokes an invite.
+func (c *Client) DeleteInvite(ctx context.Context, code string) error {
+	return c.do(ctx, http.MethodDelete, "/invites/"+url.PathEscape(code), nil, nil)
+}
+
+// CreateMessage posts a message to a channel.
+func (c *Client) CreateMessage(ctx context.Context, channelID string, p Payload) (*Message, error) {
+	var m Message
+	return &m, c.do(ctx, http.MethodPost, "/channels/"+channelID+"/messages", p, &m)
+}
+
+// GetMessage fetches a message.
+func (c *Client) GetMessage(ctx context.Context, channelID, messageID string) (*Message, error) {
+	var m Message
+	return &m, c.do(ctx, http.MethodGet, "/channels/"+channelID+"/messages/"+messageID, nil, &m)
+}
+
+// EditMessage updates a message.
+func (c *Client) EditMessage(ctx context.Context, channelID, messageID string, p Payload) (*Message, error) {
+	var m Message
+	return &m, c.do(ctx, http.MethodPatch, "/channels/"+channelID+"/messages/"+messageID, p, &m)
+}
+
+// DeleteMessage deletes a message.
+func (c *Client) DeleteMessage(ctx context.Context, channelID, messageID string) error {
+	return c.do(ctx, http.MethodDelete, "/channels/"+channelID+"/messages/"+messageID, nil, nil)
+}
+
+// PinMessage pins a message in its channel.
+func (c *Client) PinMessage(ctx context.Context, channelID, messageID string) error {
+	return c.do(ctx, http.MethodPut, "/channels/"+channelID+"/messages/pins/"+messageID, nil, nil)
+}
+
+// UnpinMessage unpins a message.
+func (c *Client) UnpinMessage(ctx context.Context, channelID, messageID string) error {
+	return c.do(ctx, http.MethodDelete, "/channels/"+channelID+"/messages/pins/"+messageID, nil, nil)
+}
+
+// GetEmoji fetches a custom guild emoji.
+func (c *Client) GetEmoji(ctx context.Context, guildID, emojiID string) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/emojis/"+emojiID, nil, &e)
+}
+
+// CreateEmoji uploads a custom guild emoji.
+func (c *Client) CreateEmoji(ctx context.Context, guildID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPost, "/guilds/"+guildID+"/emojis", p, &e)
+}
+
+// ModifyEmoji updates a custom guild emoji.
+func (c *Client) ModifyEmoji(ctx context.Context, guildID, emojiID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPatch, "/guilds/"+guildID+"/emojis/"+emojiID, p, &e)
+}
+
+// DeleteEmoji deletes a custom guild emoji.
+func (c *Client) DeleteEmoji(ctx context.Context, guildID, emojiID string) error {
+	return c.do(ctx, http.MethodDelete, "/guilds/"+guildID+"/emojis/"+emojiID, nil, nil)
+}
