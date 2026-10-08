@@ -42,7 +42,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 
 | Kind | Names |
 |------|-------|
-| Server | `discord_server_settings`, `data.discord_server` |
+| Server | `discord_server_settings`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server` |
 | Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role` |
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel` |
 | Permissions | `discord_channel_permission` |
@@ -65,6 +65,8 @@ This provider is informed by the issues and pull requests of
 - Forum channels support tags, default reactions, sort order and layout, and tag IDs are preserved when the tag list
   changes.
 - Bots cannot create servers, so `discord_server_settings` adopts an existing server.
+- Onboarding prompts and options are matched by title, so reordering them keeps their IDs. Destroying the onboarding,
+  welcome screen or widget resource disables the feature and leaves its content in place.
 
 ## Development
 
