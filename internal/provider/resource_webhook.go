@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -47,6 +48,7 @@ type webhookModel struct {
 	ServerID        types.String `tfsdk:"server_id"`
 	Token           types.String `tfsdk:"token"`
 	URL             types.String `tfsdk:"url"`
+	StoreSecrets    types.Bool   `tfsdk:"store_secrets"`
 	AuditLogReason  types.String `tfsdk:"audit_log_reason"`
 }
 
@@ -63,7 +65,9 @@ func (r *webhookResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	keep := []planmodifier.String{stringplanmodifier.UseStateForUnknown()}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages a channel webhook. The webhook URL and token are secrets and are stored in Terraform state.",
+		MarkdownDescription: "Manages a channel webhook. The webhook URL and token are secrets. They are stored in " +
+			"Terraform state unless `store_secrets` is `false`; the `discord_webhook` ephemeral resource (Terraform 1.10 " +
+			"or later) reads them without storing them.",
 		Attributes: map[string]schema.Attribute{
 			"audit_log_reason": auditLogReasonAttribute(),
 			"id":               idAttribute("Webhook ID."),
@@ -99,17 +103,26 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Computed:            true,
 				PlanModifiers:       keep,
 			},
+			"store_secrets": schema.BoolAttribute{
+				MarkdownDescription: "Whether to store `token` and `url` in Terraform state. Set it to `false` to keep " +
+					"them out of state, and read them with the `discord_webhook` ephemeral resource instead. Defaults to " +
+					"`true`. An imported webhook starts with `false`, so the import itself never stores the secrets; with " +
+					"`true` in the configuration, the next apply stores them.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(true),
+			},
 			"token": schema.StringAttribute{
-				MarkdownDescription: "Secure token of the webhook.",
+				MarkdownDescription: "Secure token of the webhook. Null when `store_secrets` is `false`.",
 				Computed:            true,
 				Sensitive:           true,
-				PlanModifiers:       keep,
+				PlanModifiers:       []planmodifier.String{storedSecret{}},
 			},
 			"url": schema.StringAttribute{
-				MarkdownDescription: "URL for executing the webhook.",
+				MarkdownDescription: "URL for executing the webhook. Null when `store_secrets` is `false`.",
 				Computed:            true,
 				Sensitive:           true,
-				PlanModifiers:       keep,
+				PlanModifiers:       []planmodifier.String{storedSecret{}},
 			},
 		},
 	}
@@ -119,15 +132,59 @@ func (r *webhookResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = clientFromResource(req, resp)
 }
 
+// storedSecret plans the token and URL: null when store_secrets is false,
+// otherwise the stored value, or unknown until the apply that stores it.
+type storedSecret struct{}
+
+func (storedSecret) Description(context.Context) string {
+	return "Null unless store_secrets is true."
+}
+
+func (m storedSecret) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (storedSecret) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+	var store types.Bool
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("store_secrets"), &store)...)
+	switch {
+	case store.IsUnknown():
+		resp.PlanValue = types.StringUnknown()
+	case !store.ValueBool():
+		resp.PlanValue = types.StringNull()
+	case !req.StateValue.IsNull():
+		resp.PlanValue = req.StateValue
+	default:
+		resp.PlanValue = types.StringUnknown()
+	}
+}
+
 func (m *webhookModel) apply(w *discord.Webhook) {
 	m.ID = types.StringValue(w.ID)
 	m.ChannelID = types.StringValue(w.ChannelID)
 	m.Name = stringPtrValue(w.Name)
 	m.AvatarHash = stringPtrValue(w.Avatar)
 	m.ServerID = types.StringValue(w.GuildID)
-	if w.Token != "" {
+	m.Token, m.URL = types.StringNull(), types.StringNull()
+	if m.StoreSecrets.ValueBool() && w.Token != "" {
 		m.Token = types.StringValue(w.Token)
-		m.URL = types.StringValue(webhookURLPrefix + w.ID + "/" + w.Token)
+		m.URL = types.StringValue(webhookURL(w))
+	}
+}
+
+func webhookURL(w *discord.Webhook) string {
+	return webhookURLPrefix + w.ID + "/" + w.Token
+}
+
+// ImportState imports with store_secrets false, so that importing never
+// writes the token to state.
+func (r *webhookResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	r.resourceIdentity.ImportState(ctx, req, resp)
+	if !resp.Diagnostics.HasError() {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("store_secrets"), false)...)
 	}
 }
 
@@ -173,6 +230,10 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	clearImageOnDrift(state.AvatarHash, w.Avatar, &state.Avatar, &state.AvatarWOVersion)
+	// State written before store_secrets existed holds the secrets.
+	if state.StoreSecrets.IsNull() {
+		state.StoreSecrets = types.BoolValue(true)
+	}
 	state.apply(w)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -205,12 +266,24 @@ func (r *webhookResource) Update(ctx context.Context, req resource.UpdateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	w, err := r.client.ModifyWebhook(ctx, state.ID.ValueString(), payload)
-	if err != nil {
-		apiError(&resp.Diagnostics, "update webhook", err)
-		return
+	var w *discord.Webhook
+	var err error
+	if len(payload) > 0 {
+		w, err = r.client.ModifyWebhook(ctx, state.ID.ValueString(), payload)
+		if err != nil {
+			apiError(&resp.Diagnostics, "update webhook", err)
+			return
+		}
 	}
-	plan.Token, plan.URL = state.Token, state.URL
+	// A change to store_secrets alone, or a response without the token,
+	// needs the webhook read back.
+	if w == nil || (plan.StoreSecrets.ValueBool() && w.Token == "") {
+		w, err = r.client.GetWebhook(ctx, state.ID.ValueString())
+		if err != nil {
+			apiError(&resp.Diagnostics, "read webhook", err)
+			return
+		}
+	}
 	plan.apply(w)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
