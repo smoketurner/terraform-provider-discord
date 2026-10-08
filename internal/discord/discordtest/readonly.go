@@ -365,6 +365,8 @@ func (s *Server) listPins(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// getStandardSticker serves GET /stickers/{id}, which returns standard
+// stickers and, like Discord, guild stickers too.
 func (s *Server) getStandardSticker(w http.ResponseWriter, r *http.Request) {
 	for _, p := range StickerPacks {
 		for _, st := range p.Stickers {
@@ -372,6 +374,14 @@ func (s *Server) getStandardSticker(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, st)
 				return
 			}
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, stickers := range s.stickers {
+		if st, ok := stickers[r.PathValue("sticker")]; ok {
+			writeJSON(w, http.StatusOK, st)
+			return
 		}
 	}
 	notFound(w, "Sticker", 10060)
