@@ -116,6 +116,9 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		newServerSettingsResource,
 		newIncidentActionsResource,
+		newServerWidgetResource,
+		newWelcomeScreenResource,
+		newOnboardingResource,
 		newRoleResource,
 		newRoleEveryoneResource,
 		newRolePositionsResource,
