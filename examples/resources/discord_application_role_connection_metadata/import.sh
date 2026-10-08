@@ -1,0 +1,1 @@
+terraform import discord_application_role_connection_metadata.this <application_id>

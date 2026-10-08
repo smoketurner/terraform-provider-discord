@@ -205,13 +205,77 @@ type Application struct {
 	Tags                    []string `json:"tags,omitempty"`
 	ApproximateGuildCount   int64    `json:"approximate_guild_count"`
 	InteractionsEndpointURL *string  `json:"interactions_endpoint_url"`
+	// The fields below are the settings Edit Current Application changes.
+	// Discord omits the optional ones that are not set.
+	CoverImage                     *string                          `json:"cover_image,omitempty"`
+	CustomInstallURL               *string                          `json:"custom_install_url,omitempty"`
+	InstallParams                  *InstallParams                   `json:"install_params,omitempty"`
+	IntegrationTypesConfig         map[string]IntegrationTypeConfig `json:"integration_types_config,omitempty"`
+	RoleConnectionsVerificationURL *string                          `json:"role_connections_verification_url"`
+	EventWebhooksURL               *string                          `json:"event_webhooks_url,omitempty"`
+	EventWebhooksStatus            int64                            `json:"event_webhooks_status,omitempty"`
+	EventWebhooksTypes             []string                         `json:"event_webhooks_types,omitempty"`
+}
+
+// Application flags that Edit Current Application can change: the intents
+// for bots in fewer than 100 servers.
+const (
+	ApplicationFlagGatewayPresenceLimited       = 1 << 13
+	ApplicationFlagGatewayGuildMembersLimited   = 1 << 15
+	ApplicationFlagGatewayMessageContentLimited = 1 << 19
+)
+
+// ApplicationLimitedIntentFlags are all the flags Edit Current Application
+// can change.
+const ApplicationLimitedIntentFlags = ApplicationFlagGatewayPresenceLimited |
+	ApplicationFlagGatewayGuildMembersLimited | ApplicationFlagGatewayMessageContentLimited
+
+// Application event webhook statuses.
+const (
+	EventWebhooksDisabled          = 1
+	EventWebhooksEnabled           = 2
+	EventWebhooksDisabledByDiscord = 3
+)
+
+// Application integration types, the keys of IntegrationTypesConfig.
+const (
+	IntegrationTypeGuildInstall = "0"
+	IntegrationTypeUserInstall  = "1"
+)
+
+// InstallParams are the OAuth2 scopes and bot permissions of an application's
+// default install link.
+type InstallParams struct {
+	Scopes      []string `json:"scopes"`
+	Permissions string   `json:"permissions"`
+}
+
+// IntegrationTypeConfig configures one installation context of an
+// application. Its presence in IntegrationTypesConfig makes the context
+// supported.
+type IntegrationTypeConfig struct {
+	OAuth2InstallParams *InstallParams `json:"oauth2_install_params,omitempty"`
+}
+
+// RoleConnectionMetadata is a requirement an application offers for linked
+// roles. Type is a comparison such as 7, boolean equal.
+type RoleConnectionMetadata struct {
+	Type                     int64             `json:"type"`
+	Key                      string            `json:"key"`
+	Name                     string            `json:"name"`
+	NameLocalizations        map[string]string `json:"name_localizations,omitempty"`
+	Description              string            `json:"description"`
+	DescriptionLocalizations map[string]string `json:"description_localizations,omitempty"`
 }
 
 // Member is a user's membership in a guild. CommunicationDisabledUntil is
 // when the member's timeout ends; null or a time in the past means none.
+// Avatar and Banner are hashes of the member's server profile images.
 type Member struct {
 	User                       *User    `json:"user"`
 	Nick                       *string  `json:"nick"`
+	Avatar                     *string  `json:"avatar"`
+	Banner                     *string  `json:"banner"`
 	Roles                      []string `json:"roles"`
 	JoinedAt                   string   `json:"joined_at"`
 	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`

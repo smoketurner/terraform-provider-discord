@@ -47,7 +47,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `discord_channel_follower`, `data.discord_channel` |
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member` |
-| Users and application | `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
+| Users and application | `discord_bot_user`, `discord_bot_member`, `discord_application_settings`, `discord_application_role_connection_metadata`, `discord_application_emoji`, `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
 | Webhooks | `discord_webhook`, `discord_webhook_message`, `ephemeral.discord_webhook` (Terraform 1.10+) |
 | Other | `discord_invite`, `discord_message`, `discord_message_reaction`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `discord_auto_moderation_rule`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds` |
 | Events | `discord_scheduled_event`, `discord_stage_instance` |

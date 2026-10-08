@@ -265,6 +265,39 @@ resource "discord_server_template" "test" {
 `
 		identities["discord_server_template.test"] = map[string]string{"server_id": "server_id", "code": "id"}
 	}
+	// These change the bot and its application, so live runs leave them
+	// out.
+	if !env.live {
+		cfg += `
+resource "discord_bot_user" "test" {
+  username = "tf-acc-identity"
+}
+resource "discord_bot_member" "test" {
+  server_id = local.server_id
+  nick      = "tf-acc-identity"
+}
+resource "discord_application_settings" "test" {
+  description = "tf-acc-identity"
+}
+resource "discord_application_role_connection_metadata" "test" {
+  records = [{
+    type        = "boolean_equal"
+    key         = "identity"
+    name        = "Identity"
+    description = "tf-acc-identity"
+  }]
+}
+resource "discord_application_emoji" "test" {
+  name  = "tf_acc_identity"
+  image = "` + onePixelPNG + `"
+}
+`
+		identities["discord_bot_user.test"] = map[string]string{"user_id": "id"}
+		identities["discord_bot_member.test"] = map[string]string{"server_id": "server_id"}
+		identities["discord_application_settings.test"] = map[string]string{"application_id": "id"}
+		identities["discord_application_role_connection_metadata.test"] = map[string]string{"application_id": "application_id"}
+		identities["discord_application_emoji.test"] = map[string]string{"application_id": "application_id", "emoji_id": "id"}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep
@@ -274,7 +307,7 @@ resource "discord_server_template" "test" {
 		// Uploaded files cannot be read back, so the imported resources
 		// plan to set them.
 		step.ExpectNonEmptyPlan = slices.Contains([]string{
-			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test",
+			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test", "discord_application_emoji.test",
 		}, name)
 		steps = append(steps, step)
 	}

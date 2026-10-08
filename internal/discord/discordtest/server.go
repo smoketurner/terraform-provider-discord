@@ -59,6 +59,11 @@ type Server struct {
 	money    *monetization
 	app      *discord.Application
 	commands map[string]*discord.ApplicationCommand
+	// appEmojis are the application's emojis, roleConnections its role
+	// connection metadata, and botBios the bot's server profile bios.
+	appEmojis       map[string]*discord.Emoji
+	roleConnections []discord.RoleConnectionMetadata
+	botBios         map[string]string
 	// stickerFiles and soundData hold the uploaded files, which Discord
 	// never returns.
 	stickerFiles map[string]Upload
@@ -89,31 +94,34 @@ type Server struct {
 // @everyone role and one member. Call Close when done.
 func NewServer() *Server {
 	s := &Server{
-		nextID:       200000000000000000,
-		guilds:       map[string]*discord.Guild{},
-		roles:        map[string]map[string]*discord.Role{},
-		channels:     map[string]*discord.Channel{},
-		threads:      map[string]*discord.Thread{},
-		members:      map[string]map[string]*discord.Member{},
-		bans:         map[string]map[string]*discord.Ban{GuildID: {}},
-		webhooks:     map[string]*discord.Webhook{},
-		posters:      map[string]string{},
-		invites:      map[string]*discord.Invite{},
-		messages:     map[string]*discord.Message{},
-		emojis:       map[string]map[string]*discord.Emoji{},
-		automod:      map[string]map[string]*discord.AutoModerationRule{},
-		stickers:     map[string]map[string]*discord.Sticker{},
-		sounds:       map[string]map[string]*discord.SoundboardSound{},
-		stickerFiles: map[string]Upload{},
-		soundData:    map[string]string{},
-		events:       map[string]*discord.ScheduledEvent{},
-		stages:       map[string]*discord.StageInstance{},
-		failNext:     map[string]int{},
-		botUserID:    "100000000000000003",
-		hidden:       map[string]bool{},
-		denied:       map[string]bool{},
-		follows:      map[string]string{},
-		reactions:    map[string]map[string][]string{},
+		nextID:          200000000000000000,
+		guilds:          map[string]*discord.Guild{},
+		roles:           map[string]map[string]*discord.Role{},
+		channels:        map[string]*discord.Channel{},
+		threads:         map[string]*discord.Thread{},
+		members:         map[string]map[string]*discord.Member{},
+		bans:            map[string]map[string]*discord.Ban{GuildID: {}},
+		webhooks:        map[string]*discord.Webhook{},
+		posters:         map[string]string{},
+		invites:         map[string]*discord.Invite{},
+		messages:        map[string]*discord.Message{},
+		emojis:          map[string]map[string]*discord.Emoji{},
+		automod:         map[string]map[string]*discord.AutoModerationRule{},
+		stickers:        map[string]map[string]*discord.Sticker{},
+		sounds:          map[string]map[string]*discord.SoundboardSound{},
+		stickerFiles:    map[string]Upload{},
+		soundData:       map[string]string{},
+		events:          map[string]*discord.ScheduledEvent{},
+		stages:          map[string]*discord.StageInstance{},
+		failNext:        map[string]int{},
+		botUserID:       "100000000000000003",
+		hidden:          map[string]bool{},
+		denied:          map[string]bool{},
+		follows:         map[string]string{},
+		reactions:       map[string]map[string][]string{},
+		appEmojis:       map[string]*discord.Emoji{},
+		botBios:         map[string]string{},
+		roleConnections: []discord.RoleConnectionMetadata{},
 	}
 	s.guilds[GuildID] = &discord.Guild{
 		ID:                GuildID,
@@ -212,6 +220,7 @@ func NewServer() *Server {
 	s.handleUsers(mux)
 	s.handleApplicationCommands(mux)
 	s.handleOperations(mux)
+	s.handleApplications(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
@@ -963,6 +972,9 @@ func (s *Server) deletePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) member(w http.ResponseWriter, r *http.Request) (*discord.Member, bool) {
+	if r.PathValue("user") == s.botUserID {
+		return s.botMember(w, r)
+	}
 	m, ok := s.members[r.PathValue("guild")][r.PathValue("user")]
 	if !ok {
 		notFound(w, "Member", 10007)
