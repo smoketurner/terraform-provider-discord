@@ -424,3 +424,85 @@ func TestAuditLogReasonEndpoints(t *testing.T) {
 		}
 	}
 }
+
+func TestRedactPath(t *testing.T) {
+	for in, want := range map[string]string{
+		"/webhooks/123/s3cr3t":                          "/webhooks/123/:token",
+		"/webhooks/123/s3cr3t?wait=true&thread_id=9":    "/webhooks/123/:token?wait=true&thread_id=9",
+		"/webhooks/123/s3cr3t/messages/456?thread_id=9": "/webhooks/123/:token/messages/456?thread_id=9",
+		"/webhooks/123":                                 "/webhooks/123",
+		"/channels/123/webhooks":                        "/channels/123/webhooks",
+	} {
+		if got := redactPath(in); got != want {
+			t.Errorf("redactPath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestWebhookRequestsOmitBotToken(t *testing.T) {
+	var requests []string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("%s %s: Authorization = %q", r.Method, r.URL.Path, got)
+		}
+		requests = append(requests, r.Method+" "+r.URL.RequestURI())
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"5","channel_id":"7"}`))
+	})
+	ctx := context.Background()
+	if _, err := c.ExecuteWebhook(ctx, "1", "tok", "", Payload{"content": "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ExecuteWebhook(ctx, "1", "tok", "7", Payload{"content": "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.GetWebhookMessage(ctx, "1", "tok", "5", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.EditWebhookMessage(ctx, "1", "tok", "5", "7", Payload{"content": "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteWebhookMessage(ctx, "1", "tok", "5", "7"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"POST /webhooks/1/tok?wait=true",
+		"POST /webhooks/1/tok?wait=true&thread_id=7",
+		"GET /webhooks/1/tok/messages/5",
+		"PATCH /webhooks/1/tok/messages/5?thread_id=7",
+		"DELETE /webhooks/1/tok/messages/5?thread_id=7",
+	}
+	if !slices.Equal(requests, want) {
+		t.Errorf("requests = %q, want %q", requests, want)
+	}
+}
+
+func TestWebhookErrorsRedactToken(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"Unknown Message","code":10008}`))
+	})
+	_, err := c.GetWebhookMessage(context.Background(), "1", "s3cr3t", "5", "")
+	if !IsNotFound(err) || strings.Contains(err.Error(), "s3cr3t") || !strings.Contains(err.Error(), "/webhooks/1/:token/messages/5") {
+		t.Errorf("err = %v", err)
+	}
+
+	c = newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`not json`))
+	})
+	_, err = c.ExecuteWebhook(context.Background(), "1", "s3cr3t", "", Payload{})
+	if err == nil || strings.Contains(err.Error(), "s3cr3t") {
+		t.Errorf("err = %v", err)
+	}
+
+	srv := httptest.NewServer(http.NotFoundHandler())
+	srv.Close()
+	c = NewClient(srv.URL, "x", "test")
+	_, err = c.ExecuteWebhook(context.Background(), "1", "s3cr3t", "", Payload{})
+	if err == nil || strings.Contains(err.Error(), "s3cr3t") || !strings.Contains(err.Error(), "/webhooks/1/:token") {
+		t.Errorf("err = %v", err)
+	}
+}

@@ -137,7 +137,7 @@ resource "discord_webhook" "test" {
 				ResourceName:            address,
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"avatar_wo_version"},
+				ImportStateVerifyIgnore: []string{"avatar_wo_version", "store_secrets", "token", "url"},
 			},
 			{
 				// Switching to the stored argument uploads it.

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -20,8 +21,9 @@ import (
 )
 
 var (
-	_ provider.Provider              = &discordProvider{}
-	_ provider.ProviderWithFunctions = &discordProvider{}
+	_ provider.Provider                       = &discordProvider{}
+	_ provider.ProviderWithFunctions          = &discordProvider{}
+	_ provider.ProviderWithEphemeralResources = &discordProvider{}
 )
 
 type discordProvider struct {
@@ -110,6 +112,7 @@ func (p *discordProvider) Configure(ctx context.Context, req provider.ConfigureR
 	client.SetAuditLogReason(reason)
 	resp.ResourceData = client
 	resp.DataSourceData = client
+	resp.EphemeralResourceData = client
 }
 
 func (p *discordProvider) Resources(_ context.Context) []func() resource.Resource {
@@ -131,6 +134,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newMemberRoleResource,
 		newMemberRolesResource,
 		newWebhookResource,
+		newWebhookMessageResource,
 		newInviteResource,
 		newMessageResource,
 		newThreadResource,
@@ -144,6 +148,12 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newRoleDataSource,
 		newChannelDataSource,
 		newMemberDataSource,
+	}
+}
+
+func (p *discordProvider) EphemeralResources(_ context.Context) []func() ephemeral.EphemeralResource {
+	return []func() ephemeral.EphemeralResource{
+		newWebhookEphemeralResource,
 	}
 }
 

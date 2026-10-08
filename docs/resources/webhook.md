@@ -3,12 +3,12 @@
 page_title: "discord_webhook Resource - discord"
 subcategory: ""
 description: |-
-  Manages a channel webhook. The webhook URL and token are secrets and are stored in Terraform state.
+  Manages a channel webhook. The webhook URL and token are secrets. They are stored in Terraform state unless store_secrets is false; the discord_webhook ephemeral resource (Terraform 1.10 or later) reads them without storing them.
 ---
 
 # discord_webhook (Resource)
 
-Manages a channel webhook. The webhook URL and token are secrets and are stored in Terraform state.
+Manages a channel webhook. The webhook URL and token are secrets. They are stored in Terraform state unless `store_secrets` is `false`; the `discord_webhook` ephemeral resource (Terraform 1.10 or later) reads them without storing them.
 
 ## Example Usage
 
@@ -50,14 +50,15 @@ output "deploy_webhook_url" {
 - `avatar` (String) Default avatar as a data URI, e.g. `"data:image/png;base64,${filebase64("avatar.png")}"`. Stored in state; prefer `avatar_wo` on Terraform 1.11 or later.
 - `avatar_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Default avatar as a data URI. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `avatar_wo_version`. Conflicts with `avatar`.
 - `avatar_wo_version` (Number) Version of `avatar_wo`. Setting or changing it uploads `avatar_wo`; removing it removes the avatar unless `avatar` is set.
+- `store_secrets` (Boolean) Whether to store `token` and `url` in Terraform state. Set it to `false` to keep them out of state, and read them with the `discord_webhook` ephemeral resource instead. Defaults to `true`. An imported webhook starts with `false`, so the import itself never stores the secrets; with `true` in the configuration, the next apply stores them.
 
 ### Read-Only
 
 - `avatar_hash` (String) Hash of the current avatar. A change made outside Terraform makes the next plan upload the configured avatar again.
 - `id` (String) Webhook ID.
 - `server_id` (String) ID of the server the webhook belongs to.
-- `token` (String, Sensitive) Secure token of the webhook.
-- `url` (String, Sensitive) URL for executing the webhook.
+- `token` (String, Sensitive) Secure token of the webhook. Null when `store_secrets` is `false`.
+- `url` (String, Sensitive) URL for executing the webhook. Null when `store_secrets` is `false`.
 
 ## Import
 

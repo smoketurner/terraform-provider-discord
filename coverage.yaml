@@ -97,7 +97,7 @@ operations:
   delete_user_message_reaction: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
   delete_webhook: {status: covered, by: [discord_webhook]}
   delete_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
-  delete_webhook_message: {status: planned, issue: 34}
+  delete_webhook_message: {status: covered, by: [discord_webhook_message]}
   deprecated_create_pin: {status: out_of_scope, reason: "deprecated in favor of create_pin"}
   deprecated_delete_pin: {status: out_of_scope, reason: "deprecated in favor of delete_pin"}
   deprecated_list_pins: {status: out_of_scope, reason: "deprecated in favor of list_pins"}
@@ -105,7 +105,7 @@ operations:
   edit_lobby_channel_link: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   execute_github_compatible_webhook: {status: out_of_scope, reason: "GitHub payload format for external services"}
   execute_slack_compatible_webhook: {status: out_of_scope, reason: "Slack payload format for external services"}
-  execute_webhook: {status: planned, issue: 34}
+  execute_webhook: {status: covered, by: [discord_webhook_message]}
   follow_channel: {status: planned, issue: 32}
   get_active_guild_threads: {status: planned, issue: 41}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
@@ -165,9 +165,9 @@ operations:
   get_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   get_user: {status: planned, issue: 42}
   get_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
-  get_webhook: {status: covered, by: [discord_webhook]}
+  get_webhook: {status: covered, by: [discord_webhook, discord_webhook_message, ephemeral.discord_webhook]}
   get_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
-  get_webhook_message: {status: planned, issue: 34}
+  get_webhook_message: {status: covered, by: [discord_webhook_message]}
   guild_role_member_counts: {status: planned, issue: 46}
   guild_search: {status: pending_docs}
   invite_resolve: {status: planned, issue: 46}
@@ -258,5 +258,5 @@ operations:
   update_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
   update_webhook: {status: covered, by: [discord_webhook]}
   update_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
-  update_webhook_message: {status: planned, issue: 34}
+  update_webhook_message: {status: covered, by: [discord_webhook_message]}
   upload_application_attachment: {status: pending_docs}
