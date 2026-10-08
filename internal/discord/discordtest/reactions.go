@@ -13,14 +13,9 @@ import (
 )
 
 func (s *Server) handleReactions(mux *http.ServeMux) {
-	mux.HandleFunc("GET /users/@me", s.getCurrentUser)
 	mux.HandleFunc("PUT /channels/{channel}/messages/{message}/reactions/{emoji}/@me", s.addOwnReaction)
 	mux.HandleFunc("DELETE /channels/{channel}/messages/{message}/reactions/{emoji}/@me", s.deleteOwnReaction)
 	mux.HandleFunc("GET /channels/{channel}/messages/{message}/reactions/{emoji}", s.listReactions)
-}
-
-func (s *Server) getCurrentUser(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, discord.User{ID: s.botUserID, Username: "bot", Discriminator: "0", Bot: true})
 }
 
 var customEmojiRegexp = regexp.MustCompile(`^[A-Za-z0-9_]{2,32}:([0-9]+)$`)

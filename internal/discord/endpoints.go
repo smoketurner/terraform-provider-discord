@@ -299,12 +299,6 @@ func (c *Client) ListReactions(ctx context.Context, channelID, messageID, emoji,
 	return users, c.do(ctx, http.MethodGet, path, nil, &users)
 }
 
-// GetCurrentUser fetches the bot's own user.
-func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
-	var u User
-	return &u, c.do(ctx, http.MethodGet, "/users/@me", nil, &u)
-}
-
 // GetEmoji fetches a custom guild emoji.
 func (c *Client) GetEmoji(ctx context.Context, guildID, emojiID string) (*Emoji, error) {
 	var e Emoji
@@ -410,4 +404,22 @@ func (c *Client) GetOnboarding(ctx context.Context, guildID string) (*Onboarding
 func (c *Client) ModifyOnboarding(ctx context.Context, guildID string, p Payload) (*Onboarding, error) {
 	var o Onboarding
 	return &o, c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/onboarding", p, &o)
+}
+
+// GetUser fetches a user by ID.
+func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
+	var u User
+	return &u, c.do(ctx, http.MethodGet, "/users/"+userID, nil, &u)
+}
+
+// GetCurrentUser fetches the bot's own user.
+func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
+	var u User
+	return &u, c.do(ctx, http.MethodGet, "/users/@me", nil, &u)
+}
+
+// GetCurrentApplication fetches the application the bot token belongs to.
+func (c *Client) GetCurrentApplication(ctx context.Context) (*Application, error) {
+	var a Application
+	return &a, c.do(ctx, http.MethodGet, "/applications/@me", nil, &a)
 }
