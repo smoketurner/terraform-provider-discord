@@ -252,24 +252,3 @@ func (r *incidentActionsResource) Delete(ctx context.Context, req resource.Delet
 		apiError(&resp.Diagnostics, "lift incident actions", err)
 	}
 }
-
-// rfc3339Validator accepts RFC 3339 timestamps.
-type rfc3339Validator struct{}
-
-func (rfc3339Validator) Description(context.Context) string {
-	return "must be an RFC 3339 timestamp, e.g. 2006-01-02T15:04:05Z"
-}
-
-func (v rfc3339Validator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v rfc3339Validator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if !isSet(req.ConfigValue) {
-		return
-	}
-	if _, err := time.Parse(time.RFC3339Nano, req.ConfigValue.ValueString()); err != nil {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid timestamp",
-			fmt.Sprintf("Value %s, got %q.", v.Description(ctx), req.ConfigValue.ValueString()))
-	}
-}

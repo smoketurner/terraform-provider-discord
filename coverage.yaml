@@ -47,7 +47,7 @@ operations:
   create_guild_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
   create_guild_emoji: {status: covered, by: [discord_emoji]}
   create_guild_role: {status: covered, by: [discord_role]}
-  create_guild_scheduled_event: {status: planned, issue: 17}
+  create_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   create_guild_scheduled_event_exception: {status: pending_docs}
   create_guild_soundboard_sound: {status: planned, issue: 26}
   create_guild_sticker: {status: planned, issue: 16}
@@ -60,7 +60,7 @@ operations:
   create_message: {status: covered, by: [discord_message]}
   create_or_join_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_pin: {status: covered, by: [discord_message]}
-  create_stage_instance: {status: planned, issue: 27}
+  create_stage_instance: {status: covered, by: [discord_stage_instance]}
   create_thread: {status: covered, by: [discord_thread]}
   create_thread_from_message: {status: covered, by: [discord_thread]}
   create_webhook: {status: covered, by: [discord_webhook]}
@@ -81,7 +81,7 @@ operations:
   delete_guild_member: {status: out_of_scope, reason: "kicking members is moderation, not configuration"}
   delete_guild_member_role: {status: covered, by: [discord_member_role]}
   delete_guild_role: {status: covered, by: [discord_role]}
-  delete_guild_scheduled_event: {status: planned, issue: 17}
+  delete_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   delete_guild_scheduled_event_exception: {status: pending_docs}
   delete_guild_soundboard_sound: {status: planned, issue: 26}
   delete_guild_sticker: {status: planned, issue: 16}
@@ -92,7 +92,7 @@ operations:
   delete_my_message_reaction: {status: planned, issue: 33}
   delete_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   delete_pin: {status: covered, by: [discord_message]}
-  delete_stage_instance: {status: planned, issue: 27}
+  delete_stage_instance: {status: covered, by: [discord_stage_instance]}
   delete_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   delete_user_message_reaction: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
   delete_webhook: {status: covered, by: [discord_webhook]}
@@ -131,7 +131,7 @@ operations:
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: planned, issue: 44}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
-  get_guild_scheduled_event: {status: planned, issue: 17}
+  get_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   get_guild_soundboard_sound: {status: planned, issue: 26}
   get_guild_sticker: {status: planned, issue: 16}
   get_guild_template: {status: planned, issue: 29}
@@ -159,7 +159,7 @@ operations:
   get_sku_subscription: {status: planned, issue: 47}
   get_sku_subscriptions: {status: planned, issue: 47}
   get_soundboard_default_sounds: {status: planned, issue: 46}
-  get_stage_instance: {status: planned, issue: 27}
+  get_stage_instance: {status: covered, by: [discord_stage_instance]}
   get_sticker: {status: planned, issue: 46}
   get_sticker_pack: {status: planned, issue: 46}
   get_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
@@ -237,7 +237,7 @@ operations:
   update_guild_incident_actions: {status: covered, by: [discord_server_incident_actions]}
   update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}
   update_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
-  update_guild_scheduled_event: {status: planned, issue: 17}
+  update_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   update_guild_scheduled_event_exception: {status: pending_docs}
   update_guild_soundboard_sound: {status: planned, issue: 26}
   update_guild_sticker: {status: planned, issue: 16}
@@ -252,7 +252,7 @@ operations:
   update_my_user: {status: planned, issue: 24}
   update_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   update_self_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
-  update_stage_instance: {status: planned, issue: 27}
+  update_stage_instance: {status: covered, by: [discord_stage_instance]}
   update_user_message_external_moderation_metadata: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
   update_voice_channel_status: {status: planned, issue: 40}
   update_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
