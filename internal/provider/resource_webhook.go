@@ -35,14 +35,15 @@ type webhookResource struct {
 }
 
 type webhookModel struct {
-	ID         types.String `tfsdk:"id"`
-	ChannelID  types.String `tfsdk:"channel_id"`
-	Name       types.String `tfsdk:"name"`
-	Avatar     types.String `tfsdk:"avatar"`
-	AvatarHash types.String `tfsdk:"avatar_hash"`
-	ServerID   types.String `tfsdk:"server_id"`
-	Token      types.String `tfsdk:"token"`
-	URL        types.String `tfsdk:"url"`
+	ID             types.String `tfsdk:"id"`
+	ChannelID      types.String `tfsdk:"channel_id"`
+	Name           types.String `tfsdk:"name"`
+	Avatar         types.String `tfsdk:"avatar"`
+	AvatarHash     types.String `tfsdk:"avatar_hash"`
+	ServerID       types.String `tfsdk:"server_id"`
+	Token          types.String `tfsdk:"token"`
+	URL            types.String `tfsdk:"url"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newWebhookResource() resource.Resource { return &webhookResource{} }
@@ -56,7 +57,8 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a channel webhook. The webhook URL and token are secrets and are stored in Terraform state.",
 		Attributes: map[string]schema.Attribute{
-			"id": idAttribute("Webhook ID."),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Webhook ID."),
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the channel the webhook posts to. Changing it moves the webhook.",
 				Required:            true,
@@ -122,6 +124,7 @@ func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	p := discord.Payload{"name": plan.Name.ValueString()}
 	putKnownString(p, "avatar", plan.Avatar)
 	w, err := r.client.CreateWebhook(ctx, plan.ChannelID.ValueString(), p)
@@ -153,12 +156,16 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *webhookResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan, state webhookModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	desired, current := discord.Payload{}, discord.Payload{}
 	for p, m := range map[*discord.Payload]*webhookModel{&desired: &plan, &current: &state} {
 		putString(*p, "name", m.Name)
@@ -181,6 +188,7 @@ func (r *webhookResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	if err := r.client.DeleteWebhook(ctx, state.ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete webhook", err)
 	}

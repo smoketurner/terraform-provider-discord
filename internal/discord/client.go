@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,6 +29,10 @@ type Client struct {
 	token      string
 	userAgent  string
 	httpClient *http.Client
+
+	// auditLogReason is sent on requests to endpoints that support it unless
+	// the request's context carries its own reason.
+	auditLogReason string
 
 	mu          sync.Mutex
 	buckets     map[string]*bucket
@@ -53,6 +58,32 @@ func NewClient(baseURL, token, version string) *Client {
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 		buckets:    map[string]*bucket{},
 	}
+}
+
+// SetAuditLogReason sets the reason recorded in the audit log for changes made
+// through the client. An empty reason sends none. Call it before the client is
+// used.
+func (c *Client) SetAuditLogReason(reason string) {
+	c.auditLogReason = reason
+}
+
+// MaxAuditLogReasonLength is the most characters Discord accepts in an audit
+// log reason.
+const MaxAuditLogReasonLength = 512
+
+type auditLogReasonKey struct{}
+
+// WithAuditLogReason returns a context whose requests record reason in the
+// audit log in place of the client's default. Endpoints that do not support
+// the header never receive it.
+func WithAuditLogReason(ctx context.Context, reason string) context.Context {
+	return context.WithValue(ctx, auditLogReasonKey{}, reason)
+}
+
+// encodeAuditLogReason URL-encodes a reason as Discord requires. Spaces become
+// %20 rather than "+", which decodes the same under path and form rules.
+func encodeAuditLogReason(reason string) string {
+	return strings.ReplaceAll(url.QueryEscape(reason), "+", "%20")
 }
 
 // NormalizeToken strips surrounding whitespace and an optional "Bot " prefix.
@@ -142,15 +173,42 @@ func (c *Client) waitGlobal(ctx context.Context) error {
 	return sleep(ctx, time.Until(until))
 }
 
-// do performs a request, honoring Discord rate limits and retrying on 429 and
-// transient gateway errors. A nil body sends no payload; out may be nil.
+// do performs a request to an endpoint that does not accept an audit log
+// reason.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
-	var payload []byte
-	if body != nil {
-		var err error
-		if payload, err = json.Marshal(body); err != nil {
-			return fmt.Errorf("encoding request body: %w", err)
-		}
+	return c.request(ctx, method, path, "", body, out)
+}
+
+// doAudited performs a request to an endpoint whose documentation says it
+// supports the X-Audit-Log-Reason header.
+func (c *Client) doAudited(ctx context.Context, method, path string, body, out any) error {
+	reason := c.auditLogReason
+	if r, ok := ctx.Value(auditLogReasonKey{}).(string); ok {
+		reason = r
+	}
+	return c.request(ctx, method, path, reason, body, out)
+}
+
+// request performs a request, honoring Discord rate limits and retrying on
+// 429 and transient gateway errors. A nil body sends no payload, a *Multipart
+// is sent as multipart/form-data and anything else as JSON; out may be nil.
+// A non-empty reason is sent in the X-Audit-Log-Reason header.
+func (c *Client) request(ctx context.Context, method, path, reason string, body, out any) error {
+	payload, contentType, err := encodeBody(body)
+	if err != nil {
+		return err
+	}
+	if len(payload) > MaxRequestSize {
+		return fmt.Errorf("%s %s: request body is %d bytes, %w", method, path, len(payload), ErrRequestTooLarge)
+	}
+	header := http.Header{}
+	header.Set("Authorization", "Bot "+c.token)
+	header.Set("User-Agent", c.userAgent)
+	if contentType != "" {
+		header.Set("Content-Type", contentType)
+	}
+	if reason != "" {
+		header.Set("X-Audit-Log-Reason", encodeAuditLogReason(reason))
 	}
 
 	b := c.bucketFor(routeKey(method, path))
@@ -167,7 +225,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 			return err
 		}
 
-		resp, err := c.send(ctx, method, path, payload)
+		resp, err := c.send(ctx, method, path, header, payload)
 		if err != nil {
 			return err
 		}
@@ -207,7 +265,24 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 }
 
-func (c *Client) send(ctx context.Context, method, path string, payload []byte) (*http.Response, error) {
+// encodeBody serializes a request body once so that retries resend the same
+// bytes, including the same multipart boundary.
+func encodeBody(body any) ([]byte, string, error) {
+	switch b := body.(type) {
+	case nil:
+		return nil, "", nil
+	case *Multipart:
+		return b.encode()
+	default:
+		payload, err := json.Marshal(b)
+		if err != nil {
+			return nil, "", fmt.Errorf("encoding request body: %w", err)
+		}
+		return payload, "application/json", nil
+	}
+}
+
+func (c *Client) send(ctx context.Context, method, path string, header http.Header, payload []byte) (*http.Response, error) {
 	var reader io.Reader
 	if payload != nil {
 		reader = bytes.NewReader(payload)
@@ -216,11 +291,7 @@ func (c *Client) send(ctx context.Context, method, path string, payload []byte) 
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bot "+c.token)
-	req.Header.Set("User-Agent", c.userAgent)
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	req.Header = header.Clone()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, path, err)

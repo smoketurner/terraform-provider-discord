@@ -44,6 +44,7 @@ resource "discord_forum_channel" "help" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `available_tags` (Attributes List) Tags that can be applied to posts (at most 20). Tags are matched by name on update so existing tag IDs, and posts using them, are preserved. (see [below for nested schema](#nestedatt--available_tags))
 - `category_id` (String) ID of the parent category channel. Omit to place the channel outside any category.
 - `default_auto_archive_duration` (Number) Default minutes of inactivity after which new threads are archived: `60`, `1440`, `4320` or `10080`.

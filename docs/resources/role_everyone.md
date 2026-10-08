@@ -29,6 +29,10 @@ resource "discord_role_everyone" "everyone" {
 - `permissions` (String) Permission bitfield as a decimal string. Use `provider::discord::permissions([...])` to build it.
 - `server_id` (String) ID of the server (guild).
 
+### Optional
+
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
+
 ### Read-Only
 
 - `id` (String) Role ID (identical to the server ID).

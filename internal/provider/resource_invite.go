@@ -29,15 +29,16 @@ type inviteResource struct {
 }
 
 type inviteModel struct {
-	ID        types.String `tfsdk:"id"`
-	ChannelID types.String `tfsdk:"channel_id"`
-	MaxAge    types.Int64  `tfsdk:"max_age"`
-	MaxUses   types.Int64  `tfsdk:"max_uses"`
-	Temporary types.Bool   `tfsdk:"temporary"`
-	Unique    types.Bool   `tfsdk:"unique"`
-	Code      types.String `tfsdk:"code"`
-	URL       types.String `tfsdk:"url"`
-	ExpiresAt types.String `tfsdk:"expires_at"`
+	ID             types.String `tfsdk:"id"`
+	ChannelID      types.String `tfsdk:"channel_id"`
+	MaxAge         types.Int64  `tfsdk:"max_age"`
+	MaxUses        types.Int64  `tfsdk:"max_uses"`
+	Temporary      types.Bool   `tfsdk:"temporary"`
+	Unique         types.Bool   `tfsdk:"unique"`
+	Code           types.String `tfsdk:"code"`
+	URL            types.String `tfsdk:"url"`
+	ExpiresAt      types.String `tfsdk:"expires_at"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newInviteResource() resource.Resource { return &inviteResource{} }
@@ -53,7 +54,8 @@ func (r *inviteResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"An invite that expires or is revoked outside Terraform is created again on the next apply. Reading invites " +
 			"requires the Manage Channels permission on the channel.",
 		Attributes: map[string]schema.Attribute{
-			"id": idAttribute("Invite code."),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Invite code."),
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the channel to invite to.",
 				Required:            true,
@@ -133,6 +135,7 @@ func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	inv, err := r.client.CreateInvite(ctx, plan.ChannelID.ValueString(), discord.Payload{
 		"max_age":   plan.MaxAge.ValueInt64(),
 		"max_uses":  plan.MaxUses.ValueInt64(),
@@ -179,7 +182,10 @@ func (r *inviteResource) Read(ctx context.Context, req resource.ReadRequest, res
 	resp.State.RemoveResource(ctx)
 }
 
-func (r *inviteResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *inviteResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	resp.Diagnostics.AddError("Unexpected update", "All discord_invite arguments force replacement.")
 }
 
@@ -189,6 +195,7 @@ func (r *inviteResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	if err := r.client.DeleteInvite(ctx, state.ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete invite", err)
 	}

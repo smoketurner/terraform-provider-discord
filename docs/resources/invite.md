@@ -32,6 +32,7 @@ output "invite_url" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `max_age` (Number) Seconds until the invite expires, between `0` (never) and `604800` (7 days). Defaults to `86400`.
 - `max_uses` (Number) Maximum number of uses between `0` (unlimited) and `100`. Defaults to `0`.
 - `temporary` (Boolean) Whether the invite grants temporary membership. Defaults to `false`.

@@ -28,13 +28,14 @@ type emojiResource struct {
 }
 
 type emojiModel struct {
-	ID       types.String `tfsdk:"id"`
-	ServerID types.String `tfsdk:"server_id"`
-	Name     types.String `tfsdk:"name"`
-	Image    types.String `tfsdk:"image"`
-	Roles    types.Set    `tfsdk:"roles"`
-	Animated types.Bool   `tfsdk:"animated"`
-	Managed  types.Bool   `tfsdk:"managed"`
+	ID             types.String `tfsdk:"id"`
+	ServerID       types.String `tfsdk:"server_id"`
+	Name           types.String `tfsdk:"name"`
+	Image          types.String `tfsdk:"image"`
+	Roles          types.Set    `tfsdk:"roles"`
+	Animated       types.Bool   `tfsdk:"animated"`
+	Managed        types.Bool   `tfsdk:"managed"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newEmojiResource() resource.Resource { return &emojiResource{} }
@@ -47,8 +48,9 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a custom server emoji. Requires the Create Expressions permission.",
 		Attributes: map[string]schema.Attribute{
-			"id":        idAttribute("Emoji ID."),
-			"server_id": serverIDAttribute(),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Emoji ID."),
+			"server_id":        serverIDAttribute(),
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Emoji name (2-32 letters, digits or underscores).",
 				Required:            true,
@@ -117,6 +119,7 @@ func (r *emojiResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	roles := plan.roles(ctx, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -152,11 +155,15 @@ func (r *emojiResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 func (r *emojiResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan emojiModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	roles := plan.roles(ctx, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -178,6 +185,7 @@ func (r *emojiResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	err := r.client.DeleteEmoji(ctx, state.ServerID.ValueString(), state.ID.ValueString())
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete emoji", err)

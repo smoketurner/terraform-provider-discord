@@ -22,9 +22,10 @@ type roleEveryoneResource struct {
 }
 
 type roleEveryoneModel struct {
-	ID          types.String `tfsdk:"id"`
-	ServerID    types.String `tfsdk:"server_id"`
-	Permissions types.String `tfsdk:"permissions"`
+	ID             types.String `tfsdk:"id"`
+	ServerID       types.String `tfsdk:"server_id"`
+	Permissions    types.String `tfsdk:"permissions"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newRoleEveryoneResource() resource.Resource { return &roleEveryoneResource{} }
@@ -38,8 +39,9 @@ func (r *roleEveryoneResource) Schema(_ context.Context, _ resource.SchemaReques
 		MarkdownDescription: "Manages the permissions of a server's `@everyone` role. The role always exists, so " +
 			"destroying this resource only removes it from Terraform state and leaves the permissions unchanged.",
 		Attributes: map[string]schema.Attribute{
-			"id":        idAttribute("Role ID (identical to the server ID)."),
-			"server_id": serverIDAttribute(),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Role ID (identical to the server ID)."),
+			"server_id":        serverIDAttribute(),
 			"permissions": schema.StringAttribute{
 				MarkdownDescription: "Permission bitfield as a decimal string. Use `provider::discord::permissions([...])` to build it.",
 				Required:            true,
@@ -70,6 +72,7 @@ func (r *roleEveryoneResource) Create(ctx context.Context, req resource.CreateRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	if err := r.write(ctx, &plan); err != nil {
 		apiError(&resp.Diagnostics, "update @everyone role", err)
 		return
@@ -98,11 +101,15 @@ func (r *roleEveryoneResource) Read(ctx context.Context, req resource.ReadReques
 }
 
 func (r *roleEveryoneResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan roleEveryoneModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	if err := r.write(ctx, &plan); err != nil {
 		apiError(&resp.Diagnostics, "update @everyone role", err)
 		return

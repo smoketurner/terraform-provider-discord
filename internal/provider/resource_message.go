@@ -40,6 +40,7 @@ type messageModel struct {
 	Pinned          types.Bool   `tfsdk:"pinned"`
 	AllowedMentions types.Set    `tfsdk:"allowed_mentions"`
 	AuthorID        types.String `tfsdk:"author_id"`
+	AuditLogReason  types.String `tfsdk:"audit_log_reason"`
 }
 
 type embedModel struct {
@@ -92,6 +93,8 @@ func (r *messageResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		MarkdownDescription: "Manages a message posted by the bot, such as a rules or welcome message. Edits are applied " +
 			"in place. If the message is deleted outside Terraform it is posted again on the next apply.",
 		Attributes: map[string]schema.Attribute{
+			"audit_log_reason": auditLogReasonAttributeFor("pinning, unpinning and deleting the message " +
+				"(Discord records no reason for posting or editing it)"),
 			"id": idAttribute("Message ID."),
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the channel to post in.",
@@ -362,6 +365,7 @@ func (r *messageResource) Create(ctx context.Context, req resource.CreateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	p, diags := plan.payload(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -408,12 +412,16 @@ func (r *messageResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *messageResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan, state messageModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	plan.ID = state.ID
 	desired, diags := plan.payload(ctx)
 	resp.Diagnostics.Append(diags...)
@@ -453,6 +461,7 @@ func (r *messageResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	err := r.client.DeleteMessage(ctx, state.ChannelID.ValueString(), state.ID.ValueString())
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete message", err)
