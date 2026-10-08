@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -137,7 +139,18 @@ func (r *onboardingResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Default:    stringdefault.StaticString("default"),
 				Validators: []validator.String{onboardingModes.validator()},
 			},
-			"default_channel_ids": snowflakeSet("Channels every new member is added to (at most 500).", 500),
+			"default_channel_ids": schema.SetAttribute{
+				MarkdownDescription: "Channels every new member is added to (1 to 500). Omit to leave the default " +
+					"channels as they are: Discord fills them in itself and does not clear them when an empty list is sent.",
+				ElementType:   types.StringType,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
+				Validators: []validator.Set{
+					setvalidator.SizeBetween(1, 500),
+					setvalidator.ValueStringsAre(snowflakeValidator()),
+				},
+			},
 			"prompts": schema.ListNestedAttribute{
 				MarkdownDescription: "Questions shown during onboarding and in Channels & Roles, in order (at most 15). " +
 					"Prompts are matched by title, and options by title within their prompt, so reordering keeps their IDs; " +
@@ -245,8 +258,9 @@ func (r *onboardingResource) ValidateConfig(ctx context.Context, req resource.Va
 	if resp.Diagnostics.HasError() || !m.Enabled.ValueBool() || m.Mode.IsUnknown() {
 		return
 	}
+	// Omitted default channels are Discord's, which are not known here.
 	channels := map[string]bool{}
-	if !addKnownIDs(channels, m.DefaultChannelIDs) {
+	if m.DefaultChannelIDs.IsNull() || !addKnownIDs(channels, m.DefaultChannelIDs) {
 		return
 	}
 	if m.Mode.ValueString() == "advanced" {
@@ -436,9 +450,9 @@ func (m *onboardingModel) payload(ctx context.Context, now time.Time) (discord.P
 		promptTypes.put(prompt, "type", p.Type)
 		out = append(out, prompt)
 	}
-	pl := discord.Payload{
-		"prompts":             out,
-		"default_channel_ids": setStrings(ctx, m.DefaultChannelIDs, &diags),
+	pl := discord.Payload{"prompts": out}
+	if !m.DefaultChannelIDs.IsNull() && !m.DefaultChannelIDs.IsUnknown() {
+		pl["default_channel_ids"] = setStrings(ctx, m.DefaultChannelIDs, &diags)
 	}
 	putBool(pl, "enabled", m.Enabled)
 	onboardingModes.put(pl, "mode", m.Mode)
@@ -489,7 +503,7 @@ func (m *onboardingModel) apply(ctx context.Context, o *discord.Onboarding) diag
 	m.ID = m.ServerID
 	m.Enabled = types.BoolValue(o.Enabled)
 	m.Mode = onboardingModes.name(o.Mode)
-	m.DefaultChannelIDs = optionalSet(ctx, m.DefaultChannelIDs, o.DefaultChannelIDs, &diags)
+	m.DefaultChannelIDs = stringSetValue(ctx, o.DefaultChannelIDs, &diags)
 	if len(prompts) == 0 && m.Prompts.IsNull() {
 		return diags
 	}

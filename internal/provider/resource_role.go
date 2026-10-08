@@ -62,7 +62,8 @@ func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest,
 func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages a server role. Role ordering is managed separately with `discord_role_positions` " +
-			"so that several roles can be reordered atomically.",
+			"so that several roles can be reordered atomically. Discord creates a role at position 1, the bottom of the " +
+			"list above `@everyone`, sharing that position with older roles there, which stay above it.",
 		Attributes: map[string]schema.Attribute{
 			"audit_log_reason": auditLogReasonAttribute(),
 			"id":               idAttribute("Role ID."),

@@ -70,7 +70,12 @@ resource "discord_stage_instance" "test" {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(stageAddress, "topic", "Town hall, part 2"),
-					func(*terraform.State) error { writes = env.writes(); return nil },
+					func(*terraform.State) error {
+						if env.fake != nil {
+							writes = env.writes()
+						}
+						return nil
+					},
 				),
 				ConfigStateChecks: []statecheck.StateCheck{ids.AddStateValue(stageAddress, tfjsonpath.New("id"))},
 			},
@@ -83,6 +88,10 @@ resource "discord_stage_instance" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckNoResourceAttr(stageAddress, "send_start_notification"),
 					func(*terraform.State) error {
+						// Only the fake records requests.
+						if env.fake == nil {
+							return nil
+						}
 						if n := env.writes(); n != writes {
 							return fmt.Errorf("changing send_start_notification sent %d requests", n-writes)
 						}

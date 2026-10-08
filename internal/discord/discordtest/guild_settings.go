@@ -183,9 +183,11 @@ func (s *Server) modifyOnboarding(w http.ResponseWriter, r *http.Request) {
 	next := gs.onboarding
 	set(body, "enabled", &next.Enabled)
 	set(body, "mode", &next.Mode)
-	set(body, "default_channel_ids", &next.DefaultChannelIDs)
-	if next.DefaultChannelIDs == nil {
-		next.DefaultChannelIDs = []string{}
+	// Discord keeps the default channels when an empty list is sent.
+	var channels []string
+	set(body, "default_channel_ids", &channels)
+	if len(channels) > 0 {
+		next.DefaultChannelIDs = channels
 	}
 	if raw, ok := body["prompts"]; ok {
 		var prompts []promptRequest

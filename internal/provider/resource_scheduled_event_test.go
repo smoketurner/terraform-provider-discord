@@ -227,7 +227,7 @@ resource "discord_scheduled_event" "test" {
 				Config: event(`
   entity_type = "stage_instance"
   channel_id  = discord_voice_channel.test.id`),
-				ExpectError: regexp.MustCompile(`channel_id must be a channel of the event's entity type`),
+				ExpectError: regexp.MustCompile(`(?i)invalid\s+channel\s+type\s+for\s+event`),
 			},
 			{
 				Config: event(`

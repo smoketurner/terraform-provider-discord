@@ -345,7 +345,7 @@ resource "discord_role_positions" "test" {
 					for _, r := range roles {
 						current = append(current, discord.Positioned{ID: r.ID, Position: r.Position})
 					}
-					got := discord.OrderOf(current, []string{a, b, unlisted})
+					got := discord.RoleOrder.OrderOf(current, []string{a, b, unlisted})
 					if want := []string{b, a, unlisted}; !slices.Equal(got, want) {
 						return fmt.Errorf("role order from the bottom = %v, want %v", got, want)
 					}

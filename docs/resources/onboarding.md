@@ -68,7 +68,7 @@ resource "discord_onboarding" "main" {
 ### Optional
 
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
-- `default_channel_ids` (Set of String) Channels every new member is added to (at most 500).
+- `default_channel_ids` (Set of String) Channels every new member is added to (1 to 500). Omit to leave the default channels as they are: Discord fills them in itself and does not clear them when an empty list is sent.
 - `mode` (String) Which channels count towards the requirements for enabling onboarding: `default` counts default channels only, `advanced` also counts channels added by prompt options. Defaults to `default`.
 - `prompts` (Attributes List) Questions shown during onboarding and in Channels & Roles, in order (at most 15). Prompts are matched by title, and options by title within their prompt, so reordering keeps their IDs; renaming one replaces it. (see [below for nested schema](#nestedatt--prompts))
 

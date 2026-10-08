@@ -641,14 +641,11 @@ func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	guildID := r.PathValue("guild")
+	// A new role gets position 1 without moving other roles, so it shares
+	// the position with older roles there and sorts below them.
 	role := &discord.Role{ID: s.newID(), Name: "new role", Permissions: s.roles[guildID][guildID].Permissions, Position: 1, Colors: &discord.RoleColors{}}
 	if !s.applyRole(w, g, role, body) {
 		return
-	}
-	for _, other := range s.roles[guildID] {
-		if other.ID != guildID {
-			other.Position++
-		}
 	}
 	s.roles[guildID][role.ID] = role
 	writeJSON(w, http.StatusOK, role)
@@ -1274,7 +1271,8 @@ func (s *Server) removeBan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// belowBot reports whether role is displayed below the bot's highest role.
+// belowBot reports whether role is below the bot's highest role. Of two
+// roles that share a position, the older one is higher.
 // A bot without roles is treated as able to manage every role.
 func (s *Server) belowBot(guildID string, role *discord.Role) bool {
 	bot, ok := s.members[guildID][s.botUserID]
@@ -1283,7 +1281,7 @@ func (s *Server) belowBot(guildID string, role *discord.Role) bool {
 	}
 	for _, id := range bot.Roles {
 		top := s.roles[guildID][id]
-		if top != nil && (role.Position < top.Position || role.Position == top.Position && compareIDs(role.ID, top.ID) < 0) {
+		if top != nil && (role.Position < top.Position || role.Position == top.Position && compareIDs(role.ID, top.ID) > 0) {
 			return true
 		}
 	}

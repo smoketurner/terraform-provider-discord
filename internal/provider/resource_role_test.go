@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -268,8 +269,43 @@ resource "discord_role" "c" {
 }
 `
 
+// requireRoomBelowBot skips live runs unless the bot's highest role is at
+// position 4 or higher. Discord creates roles at position 1, sharing it with
+// the roles already there and sorting below them, so separating three new
+// roles moves them up to position 3, which must stay below the bot's role.
+func (e *testEnv) requireRoomBelowBot() {
+	e.t.Helper()
+	if !e.live {
+		return
+	}
+	ctx := context.Background()
+	me, err := e.client.GetCurrentUser(ctx)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	member, err := e.client.GetMember(ctx, e.serverID, me.ID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	roles, err := e.client.ListRoles(ctx, e.serverID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	var top int64
+	for _, r := range roles {
+		if slices.Contains(member.Roles, r.ID) {
+			top = max(top, r.Position)
+		}
+	}
+	if top < 4 {
+		e.t.Skipf("the bot's highest role is at position %d; reordering new roles needs it at position 4 or higher, "+
+			"so add three roles below it in the Discord client", top)
+	}
+}
+
 func TestAccRolePositions(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireRoomBelowBot()
 	roles := rolesInOrder
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
@@ -316,7 +352,6 @@ func TestAccRolePositionsLocked(t *testing.T) {
 	env := newTestEnv(t)
 	env.requireFake()
 	botRole := env.fake.AddBotRole(env.serverID)
-	var aID, bID string
 	positions := func(ids string) string {
 		return env.config(rolesInOrder + `
 resource "discord_role_positions" "test" {
@@ -327,26 +362,16 @@ resource "discord_role_positions" "test" {
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: env.config(rolesInOrder),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					captureAttr("discord_role.a", "id", &aID),
-					captureAttr("discord_role.b", "id", &bID),
-				),
-			},
-			{
-				// a and b share the position just below the bot's role, so
-				// separating them would push the bot's role up.
-				PreConfig: func() {
-					env.fake.SetRolePosition(env.serverID, aID, 1)
-					env.fake.SetRolePosition(env.serverID, bID, 1)
-					env.fake.SetRolePosition(env.serverID, botRole, 2)
-				},
-				Config:      positions(`[discord_role.a.id, discord_role.b.id]`),
+				// The new roles share position 1 with the bot's older role,
+				// which is above them; separating them would push the bot's
+				// role up, as on a server where it is the only role.
+				Config:      positions(`[discord_role.b.id, discord_role.a.id]`),
 				ExpectError: regexp.MustCompile(`(?s)moves ` + botRole + ` to position \d+.*it is managed by an\s+integration`),
 			},
 			{
+				// Putting a above the bot's role would move it above it.
 				Config:      positions(`[discord_role.a.id, "` + botRole + `"]`),
-				ExpectError: regexp.MustCompile(`(?s)moves ` + botRole + `.*bot cannot move it`),
+				ExpectError: regexp.MustCompile(`(?s)the new position is not below the\s+bot's highest role`),
 			},
 			{
 				Config:      positions(`["` + env.serverID + `", discord_role.a.id]`),

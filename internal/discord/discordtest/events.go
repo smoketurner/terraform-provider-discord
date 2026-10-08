@@ -169,7 +169,7 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		}
 		ch, ok := s.channels[*e.ChannelID]
 		if !ok || ch.GuildID != e.GuildID || ch.Type != want {
-			return errors.New("channel_id must be a channel of the event's entity type")
+			return errors.New("GUILD_SCHEDULED_EVENT_INVALID_CHANNEL_TYPE: invalid channel type for event")
 		}
 	case discord.ScheduledEventEntityExternal:
 		if e.ChannelID != nil {

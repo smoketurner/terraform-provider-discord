@@ -19,9 +19,9 @@ func apply(current []Positioned, updates []PositionUpdate) []Positioned {
 	return out
 }
 
-func displayOrder(items []Positioned) []string {
+func displayOrder(o Ordering, items []Positioned) []string {
 	sorted := slices.Clone(items)
-	SortByPosition(sorted)
+	o.Sort(sorted)
 	ids := make([]string, len(sorted))
 	for i, p := range sorted {
 		ids[i] = p.ID
@@ -31,8 +31,8 @@ func displayOrder(items []Positioned) []string {
 
 // wantOrder is the display order after reordering: the current order with the
 // slots of the listed items filled in the desired order.
-func wantOrder(current []Positioned, desired []string) []string {
-	ids := displayOrder(current)
+func wantOrder(o Ordering, current []Positioned, desired []string) []string {
+	ids := displayOrder(o, current)
 	listed := map[string]bool{}
 	var order []string
 	for _, id := range desired {
@@ -50,12 +50,12 @@ func wantOrder(current []Positioned, desired []string) []string {
 }
 
 // checkReorder verifies the invariants Reorder promises for any input.
-func checkReorder(t *testing.T, current []Positioned, desired []string) []PositionUpdate {
+func checkReorder(t *testing.T, o Ordering, current []Positioned, desired []string) []PositionUpdate {
 	t.Helper()
-	updates := Reorder(current, desired)
+	updates := o.Reorder(current, desired)
 	after := apply(current, updates)
-	want := wantOrder(current, desired)
-	if got := displayOrder(after); !slices.Equal(got, want) {
+	want := wantOrder(o, current, desired)
+	if got := displayOrder(o, after); !slices.Equal(got, want) {
 		t.Errorf("display order after %v = %v, want %v", updates, got, want)
 	}
 
@@ -97,7 +97,7 @@ func checkReorder(t *testing.T, current []Positioned, desired []string) []Positi
 		}
 	}
 
-	if again := Reorder(after, desired); len(again) != 0 {
+	if again := o.Reorder(after, desired); len(again) != 0 {
 		t.Errorf("reorder is not idempotent: %v", again)
 	}
 	return updates
@@ -181,7 +181,7 @@ func TestReorder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updates := checkReorder(t, tt.current, tt.desired)
+			updates := checkReorder(t, ChannelOrder, tt.current, tt.desired)
 			if !slices.Equal(updates, tt.wantUpdates) {
 				t.Errorf("updates = %v, want %v", updates, tt.wantUpdates)
 			}
@@ -207,14 +207,33 @@ func TestReorderRandom(t *testing.T) {
 			desired = append(desired, "999")
 		}
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			checkReorder(t, current, desired)
+			checkReorder(t, ChannelOrder, current, desired)
+			checkReorder(t, RoleOrder, current, desired)
 		})
 	}
 }
 
-func TestSortByPositionTiesBySnowflake(t *testing.T) {
+func TestSortTies(t *testing.T) {
 	items := []Positioned{{"300", 1}, {"1000", 1}, {"20", 1}, {"5", 0}}
-	if got, want := displayOrder(items), []string{"5", "20", "300", "1000"}; !slices.Equal(got, want) {
-		t.Errorf("order = %v, want %v", got, want)
+	if got, want := displayOrder(ChannelOrder, items), []string{"5", "20", "300", "1000"}; !slices.Equal(got, want) {
+		t.Errorf("channel order = %v, want %v", got, want)
+	}
+	if got, want := displayOrder(RoleOrder, items), []string{"5", "1000", "300", "20"}; !slices.Equal(got, want) {
+		t.Errorf("role order = %v, want %v", got, want)
+	}
+	if !RoleOrder.Below(Positioned{"1000", 1}, Positioned{"20", 1}) || RoleOrder.Below(Positioned{"20", 1}, Positioned{"1000", 1}) {
+		t.Error("a newer role tied with an older one is not below it")
+	}
+}
+
+// Roles created at the bottom share position 1; the older role is higher.
+func TestReorderRoleTies(t *testing.T) {
+	current := []Positioned{{"1", 0}, {"10", 1}, {"11", 1}, {"12", 1}}
+	if updates := RoleOrder.Reorder(current, []string{"12", "11", "10"}); len(updates) != 0 {
+		t.Errorf("roles already in order moved: %v", updates)
+	}
+	updates := checkReorder(t, RoleOrder, current, []string{"10", "11", "12"})
+	if want := []PositionUpdate{{"11", 2}, {"12", 3}}; !slices.Equal(updates, want) {
+		t.Errorf("updates = %v, want %v", updates, want)
 	}
 }
