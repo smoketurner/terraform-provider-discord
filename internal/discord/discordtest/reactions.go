@@ -21,9 +21,14 @@ func (s *Server) handleReactions(mux *http.ServeMux) {
 var customEmojiRegexp = regexp.MustCompile(`^[A-Za-z0-9_]{2,32}:([0-9]+)$`)
 
 // knownEmoji mimics Discord's check of the emoji path segment: a unicode
-// emoji, or "name:id" of an existing custom emoji.
-func (s *Server) knownEmoji(emoji string) bool {
+// emoji, or "name:id" of a custom emoji. Adding a reaction needs the custom
+// emoji to exist; reactions with a deleted custom emoji stay on the message
+// and can still be listed and removed.
+func (s *Server) knownEmoji(emoji string, adding bool) bool {
 	if m := customEmojiRegexp.FindStringSubmatch(emoji); m != nil {
+		if !adding {
+			return true
+		}
 		name, _, _ := strings.Cut(emoji, ":")
 		for _, emojis := range s.emojis {
 			if e, ok := emojis[m[1]]; ok && e.Name == name {
@@ -37,13 +42,13 @@ func (s *Server) knownEmoji(emoji string) bool {
 
 // reactionTarget resolves the message and emoji of a reaction request, or
 // writes the error Discord returns.
-func (s *Server) reactionTarget(w http.ResponseWriter, r *http.Request) (*discord.Message, string, bool) {
+func (s *Server) reactionTarget(w http.ResponseWriter, r *http.Request, adding bool) (*discord.Message, string, bool) {
 	m, ok := s.message(w, r)
 	if !ok {
 		return nil, "", false
 	}
 	emoji := r.PathValue("emoji")
-	if !s.knownEmoji(emoji) {
+	if !s.knownEmoji(emoji, adding) {
 		writeError(w, http.StatusBadRequest, 10014, "Unknown Emoji")
 		return nil, "", false
 	}
@@ -53,7 +58,7 @@ func (s *Server) reactionTarget(w http.ResponseWriter, r *http.Request) (*discor
 func (s *Server) addOwnReaction(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m, emoji, ok := s.reactionTarget(w, r)
+	m, emoji, ok := s.reactionTarget(w, r, true)
 	if !ok {
 		return
 	}
@@ -64,7 +69,7 @@ func (s *Server) addOwnReaction(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteOwnReaction(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m, emoji, ok := s.reactionTarget(w, r)
+	m, emoji, ok := s.reactionTarget(w, r, false)
 	if !ok {
 		return
 	}
@@ -80,7 +85,7 @@ func compareIDs(a, b string) int {
 func (s *Server) listReactions(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m, emoji, ok := s.reactionTarget(w, r)
+	m, emoji, ok := s.reactionTarget(w, r, false)
 	if !ok {
 		return
 	}

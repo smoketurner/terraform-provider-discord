@@ -165,7 +165,7 @@ func TestListSoundboardSounds(t *testing.T) {
 	defer s.Close()
 	c := discord.NewClient(s.URL, Token, "test")
 	for _, name := range []string{"one", "two"} {
-		if _, err := c.CreateSoundboardSound(t.Context(), GuildID, discord.Payload{"name": name, "sound": "data:audio/ogg;base64,T2dnUw=="}); err != nil {
+		if _, err := c.CreateSoundboardSound(t.Context(), GuildID, discord.Payload{"name": name, "sound": "data:audio/mpeg;base64,//sYwA=="}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -188,7 +188,7 @@ func TestSoundboardSoundValidation(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
 	c := discord.NewClient(s.URL, Token, "test")
-	const data = "data:audio/ogg;base64,T2dnUw=="
+	const data = "data:audio/mpeg;base64,//sYwA=="
 	for _, p := range []discord.Payload{
 		{"name": "no sound"},
 		{"name": "volume", "sound": data, "volume": 2},
@@ -207,5 +207,26 @@ func TestSoundboardSoundValidation(t *testing.T) {
 	}
 	if got, err := c.ModifySoundboardSound(t.Context(), GuildID, sound.SoundID, discord.Payload{"volume": nil}); err != nil || got.Volume != 1 {
 		t.Errorf("volume reset: %+v, %v", got, err)
+	}
+}
+
+func TestValidSound(t *testing.T) {
+	for _, tt := range []struct {
+		name, data string
+		want       bool
+	}{
+		{"mp3 frame", "data:audio/mpeg;base64,//sYwA==", true},
+		{"mp3 frame after id3 tag", "data:audio/mpeg;base64,SUQzBAAAAAAAAP/7GMA=", true},
+		{"ogg opus", "data:audio/ogg;base64,T2dnUwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE9wdXNIZWFk", true},
+		{"id3 tag only", "data:audio/mpeg;base64,SUQzBAAAAAAAAA==", false},
+		{"truncated id3 tag", "data:audio/mpeg;base64,SUQzBAAAAAAAAf/7GMA=", false},
+		{"ogg signature only", "data:audio/ogg;base64,T2dnUw==", false},
+		{"free bitrate", "data:audio/mpeg;base64,//sIwA==", false},
+		{"not base64", "data:audio/mpeg;base64,!!", false},
+		{"no comma", "data:audio/mpeg", false},
+	} {
+		if got := validSound(tt.data); got != tt.want {
+			t.Errorf("%s: validSound = %t, want %t", tt.name, got, tt.want)
+		}
 	}
 }

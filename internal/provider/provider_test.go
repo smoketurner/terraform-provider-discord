@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -82,6 +83,29 @@ func (e *testEnv) requireFake() {
 	}
 }
 
+// mediaChannels reports whether the server can have media channels, a beta
+// Discord limits to servers with Server Subscriptions enabled. The fake
+// server is given the feature.
+func (e *testEnv) mediaChannels() bool {
+	e.t.Helper()
+	if !e.live {
+		e.fake.AddGuildFeatures(discordtest.MediaChannelFeature)
+		return true
+	}
+	g, err := e.client.GetGuild(context.Background(), e.serverID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return slices.Contains(g.Features, discordtest.MediaChannelFeature)
+}
+
+func (e *testEnv) requireMediaChannels() {
+	e.t.Helper()
+	if !e.mediaChannels() {
+		e.t.Skip("media channels require the server to have Server Subscriptions enabled (" + discordtest.MediaChannelFeature + ")")
+	}
+}
+
 // config prefixes HCL with a server_id local.
 func (e *testEnv) config(hcl string) string {
 	return fmt.Sprintf("locals {\n  server_id = %q\n  user_id = %q\n}\n", e.serverID, e.userID) + hcl
@@ -110,6 +134,16 @@ func (e *testEnv) outsideTerraform(f func(ctx context.Context, c *discord.Client
 			e.t.Fatalf("changing state outside Terraform: %v", err)
 		}
 	}
+}
+
+// cleanup deletes an object a test created outside Terraform when the test
+// ends, whether it passed or not. Objects already gone are ignored.
+func (e *testEnv) cleanup(del func(ctx context.Context, c *discord.Client) error) {
+	e.t.Cleanup(func() {
+		if err := del(context.Background(), e.client); err != nil && !discord.IsNotFound(err) {
+			e.t.Errorf("cleaning up: %v", err)
+		}
+	})
 }
 
 func TestProviderMissingToken(t *testing.T) {

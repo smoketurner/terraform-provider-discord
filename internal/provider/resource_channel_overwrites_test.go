@@ -190,6 +190,7 @@ resource "discord_channel_permission" "members" {
 
 func TestAccChannelInitialPermissionOverwritesSentOnCreate(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	env.requireFake()
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{{

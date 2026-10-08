@@ -43,7 +43,7 @@ resource "discord_thread" "test" {
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
-				Config: post("How do I deploy?", "I need help deploying.\n", "0", `
+				Config: post("tf-acc-how-do-i-deploy", "I need help deploying.\n", "0", `
   pinned                = true
   rate_limit_per_user   = 30
   auto_archive_duration = 1440`),
@@ -68,7 +68,7 @@ resource "discord_thread" "test" {
 			// the configured one.
 			importStep("discord_thread.test", "message"),
 			{
-				Config: post("Deploying with Terraform", "Solved: use Terraform.", "1", `
+				Config: post("tf-acc-deploying-with-terraform", "Solved: use Terraform.", "1", `
   pinned                = true
   rate_limit_per_user   = 30
   auto_archive_duration = 1440`),
@@ -76,7 +76,7 @@ resource "discord_thread" "test" {
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction("discord_thread.test", plancheck.ResourceActionUpdate)},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("discord_thread.test", "name", "Deploying with Terraform"),
+					resource.TestCheckResourceAttr("discord_thread.test", "name", "tf-acc-deploying-with-terraform"),
 					resource.TestCheckResourceAttr("discord_thread.test", "message.content", "Solved: use Terraform."),
 					resource.TestCheckResourceAttrPair("discord_thread.test", "applied_tags.0", "discord_forum_channel.test", "available_tags.1.id"),
 					resource.TestCheckResourceAttr("discord_thread.test", "pinned", "true"),
@@ -89,7 +89,7 @@ resource "discord_thread" "test" {
 					_, err := c.ModifyThread(ctx, threadID, discord.Payload{"archived": true})
 					return err
 				}),
-				Config: post("Deploying with Terraform", "Solved: use Terraform.", "1", `
+				Config: post("tf-acc-deploying-with-terraform", "Solved: use Terraform.", "1", `
   pinned                = true
   rate_limit_per_user   = 30
   auto_archive_duration = 1440`),
@@ -101,7 +101,7 @@ resource "discord_thread" "test" {
 			{
 				// With archived = true the starter message is edited between
 				// unarchiving and archiving the post again.
-				Config: post("Deploying with Terraform", "Archived answer.", "1", `
+				Config: post("tf-acc-deploying-with-terraform", "Archived answer.", "1", `
   archived = true
   pinned   = false`),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -120,7 +120,7 @@ resource "discord_thread" "test" {
 					_, err := c.EditMessage(ctx, threadID, threadID, discord.Payload{"content": "edited by a moderator"})
 					return err
 				}),
-				Config: post("Deploying with Terraform", "Archived answer.", "1", `
+				Config: post("tf-acc-deploying-with-terraform", "Archived answer.", "1", `
   archived = true
   pinned   = false`),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -136,7 +136,7 @@ resource "discord_thread" "test" {
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
 					return c.DeleteChannel(ctx, threadID)
 				}),
-				Config: post("Deploying with Terraform", "Archived answer.", "1", `
+				Config: post("tf-acc-deploying-with-terraform", "Archived answer.", "1", `
   archived = true
   pinned   = false`),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
@@ -150,6 +150,7 @@ resource "discord_thread" "test" {
 
 func TestAccThreadMediaPostStarterMessage(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	media := `
 resource "discord_media_channel" "test" {
   server_id = local.server_id
@@ -162,7 +163,7 @@ resource "discord_media_channel" "test" {
 				Config: env.config(media + `
 resource "discord_thread" "test" {
   channel_id = discord_media_channel.test.id
-  name       = "Gallery"
+  name       = "tf-acc-gallery"
   message    = { embeds = [{ title = "Screenshots" }] }
 }`),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -176,7 +177,7 @@ resource "discord_thread" "test" {
 				Config: env.config(media + `
 resource "discord_thread" "test" {
   channel_id = discord_media_channel.test.id
-  name       = "Gallery"
+  name       = "tf-acc-gallery"
 }`),
 				Check: resource.TestCheckNoResourceAttr("discord_thread.test", "message"),
 			},
@@ -203,15 +204,15 @@ resource "discord_message" "test" {
 resource "discord_thread" "from_message" {
   channel_id = discord_text_channel.test.id
   message_id = discord_message.test.id
-  name       = "Release discussion"
+  name       = "tf-acc-release-discussion"
 }
 resource "discord_thread" "news" {
   channel_id = discord_announcement_channel.test.id
-  name       = "Announcement follow-up"
+  name       = "tf-acc-announcement-follow-up"
 }
 resource "discord_thread" "private" {
   channel_id = discord_text_channel.test.id
-  name       = "Moderators"
+  name       = "tf-acc-moderators"
   private    = true
   invitable  = false
 }
@@ -220,7 +221,7 @@ resource "discord_thread" "private" {
 		return env.config(channels + fmt.Sprintf(`
 resource "discord_thread" "test" {
   channel_id = discord_text_channel.test.id
-  name       = "Public thread"
+  name       = "tf-acc-public-thread"
   %s
 }`, extra))
 	}
@@ -315,7 +316,7 @@ resource "discord_text_channel" "test" {
 }
 resource "discord_thread" "test" {
   channel_id = discord_text_channel.test.id
-  name       = "Archived"
+  name       = "tf-acc-archived"
   archived   = true
   locked     = true
 }`),
@@ -395,25 +396,25 @@ resource "discord_thread" "test" {
 resource "discord_thread" "test" {
   channel_id = discord_forum_channel.test.id
   name       = "x"
-}`, `whose posts\s+need a starter message`),
+}`, `whose\s+posts\s+need\s+a\s+starter\s+message`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_forum_channel.test.id
   name       = "x"
   private    = true
-}`, `forum or media channel, which has no\s+private threads`),
+}`, `forum\s+or\s+media\s+channel,\s+which\s+has\s+no\s+private\s+threads`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_text_channel.test.id
   name       = "x"
   message    = { content = "x" }
-}`, `is not a forum or media channel`),
+}`, `is\s+not\s+a\s+forum\s+or\s+media\s+channel`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_announcement_channel.test.id
   name       = "x"
   private    = true
-}`, `announcement channel, which has no\s+private threads`),
+}`, `announcement\s+channel,\s+which\s+has\s+no\s+private\s+threads`),
 		},
 	})
 }
@@ -449,7 +450,7 @@ func TestAccThreadAuditLogReason(t *testing.T) {
 		return env.config(threadForum + fmt.Sprintf(`
 resource "discord_thread" "test" {
   channel_id       = discord_forum_channel.test.id
-  name             = "Audited"
+  name             = "tf-acc-audited"
   pinned           = true
   message          = { content = %q }
   audit_log_reason = "Thread for ops"

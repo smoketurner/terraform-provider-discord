@@ -82,7 +82,8 @@ func (r *stageInstanceResource) Schema(_ context.Context, _ resource.SchemaReque
 			},
 			"scheduled_event_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the scheduled event the stage is for. Discord only accepts it when the stage " +
-					"is opened, so changing it closes the stage and opens it again.",
+					"is opened, so changing it closes the stage and opens it again. Opening the stage starts the event, and closing " +
+					"it completes the event, which a `discord_scheduled_event` then removes from state.",
 				Optional:   true,
 				Computed:   true,
 				Validators: []validator.String{snowflakeValidator()},

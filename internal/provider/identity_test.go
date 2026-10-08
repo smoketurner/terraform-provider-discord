@@ -93,10 +93,6 @@ resource "discord_forum_channel" "test" {
   server_id = local.server_id
   name      = "tf-acc-identity"
 }
-resource "discord_media_channel" "test" {
-  server_id = local.server_id
-  name      = "tf-acc-identity"
-}
 resource "discord_channel_permission" "test" {
   channel_id   = discord_text_channel.test.id
   overwrite_id = discord_role.test.id
@@ -185,7 +181,6 @@ resource "discord_application_command" "test" {
 		"discord_announcement_channel.test":    {"channel_id": "id"},
 		"discord_stage_channel.test":           {"channel_id": "id"},
 		"discord_forum_channel.test":           {"channel_id": "id"},
-		"discord_media_channel.test":           {"channel_id": "id"},
 		"discord_channel_permission.test":      {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
 		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
 		"discord_message_reaction.test":        {"channel_id": "channel_id", "message_id": "message_id", "emoji": "emoji"},
@@ -201,6 +196,15 @@ resource "discord_application_command" "test" {
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
 		"discord_application_command.test":     {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},
+	}
+	if env.mediaChannels() {
+		cfg += `
+resource "discord_media_channel" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+}
+`
+		identities["discord_media_channel.test"] = map[string]string{"channel_id": "id"}
 	}
 	if env.userID != "" {
 		cfg += `
@@ -323,6 +327,7 @@ func TestAccResourceIdentityFromImportID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	env.cleanup(func(ctx context.Context, c *discord.Client) error { return c.DeleteRole(ctx, env.serverID, role.ID) })
 	env.run(resource.TestCase{
 		TerraformVersionChecks: requiresIdentity,
 		Steps: []resource.TestStep{{

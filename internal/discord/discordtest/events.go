@@ -69,6 +69,9 @@ func decodeRecurrenceRule(raw json.RawMessage) (*discord.RecurrenceRule, error) 
 	return &rule, nil
 }
 
+// errScheduleTooFar is Discord's GUILD_SCHEDULED_EVENT_SCHEDULE_FUTURE error.
+var errScheduleTooFar = errors.New("scheduled start and end times must be within five years")
+
 // applyScheduledEvent sets the fields of a create or modify request on e and
 // checks the result against the documented requirements for its entity type.
 func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]json.RawMessage, creating bool) error {
@@ -108,8 +111,7 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		var image *string
 		set(body, "image", &image)
 		if image != nil {
-			h := "cover" + s.newID()
-			image = &h
+			image = imageHash(*image)
 		}
 		e.Image = image
 	}
@@ -147,7 +149,13 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		if !endTime.After(startTime) {
 			return errors.New("scheduled_end_time must be after scheduled_start_time")
 		}
+		if endTime.After(time.Now().AddDate(5, 0, 0)) {
+			return errScheduleTooFar
+		}
 		e.ScheduledEndTime = &end
+	}
+	if startTime.After(time.Now().AddDate(5, 0, 0)) {
+		return errScheduleTooFar
 	}
 
 	switch e.EntityType {
@@ -161,7 +169,7 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		}
 		ch, ok := s.channels[*e.ChannelID]
 		if !ok || ch.GuildID != e.GuildID || ch.Type != want {
-			return errors.New("channel_id must be a channel of the event's entity type")
+			return errors.New("GUILD_SCHEDULED_EVENT_INVALID_CHANNEL_TYPE: invalid channel type for event")
 		}
 	case discord.ScheduledEventEntityExternal:
 		if e.ChannelID != nil {
@@ -241,6 +249,12 @@ func (s *Server) modifyScheduledEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return
 	}
+	// Discord answers 500 Internal Server Error when an external event
+	// becomes a stage event.
+	if e.EntityType == discord.ScheduledEventEntityExternal && updated.EntityType == discord.ScheduledEventEntityStageInstance {
+		writeError(w, http.StatusInternalServerError, 0, "500: Internal Server Error")
+		return
+	}
 	*e = updated
 	writeJSON(w, http.StatusOK, e)
 }
@@ -313,6 +327,10 @@ func (s *Server) createStageInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	si.GuildID = ch.GuildID
 	s.stages[ch.ID] = si
+	// Opening the stage starts its scheduled event.
+	if id := si.GuildScheduledEventID; id != nil {
+		s.events[*id].Status = discord.ScheduledEventStatusActive
+	}
 	writeJSON(w, http.StatusOK, si)
 }
 
@@ -344,6 +362,12 @@ func (s *Server) deleteStageInstance(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	if si, ok := s.stageInstance(w, r); ok {
 		delete(s.stages, si.ChannelID)
+		// Closing the stage completes its scheduled event.
+		if id := si.GuildScheduledEventID; id != nil {
+			if e, ok := s.events[*id]; ok {
+				e.Status = discord.ScheduledEventStatusCompleted
+			}
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

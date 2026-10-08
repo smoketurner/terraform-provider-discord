@@ -68,7 +68,7 @@ resource "discord_onboarding" "main" {
 ### Optional
 
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
-- `default_channel_ids` (Set of String) Channels every new member is added to (at most 500).
+- `default_channel_ids` (Set of String) Channels every new member is added to (1 to 500). Omit to leave the default channels as they are: Discord fills them in itself and does not clear them when an empty list is sent.
 - `mode` (String) Which channels count towards the requirements for enabling onboarding: `default` counts default channels only, `advanced` also counts channels added by prompt options. Defaults to `default`.
 - `prompts` (Attributes List) Questions shown during onboarding and in Channels & Roles, in order (at most 15). Prompts are matched by title, and options by title within their prompt, so reordering keeps their IDs; renaming one replaces it. (see [below for nested schema](#nestedatt--prompts))
 
@@ -104,12 +104,12 @@ Required:
 
 Optional:
 
-- `channel_ids` (Set of String) Channels members who choose the option are added to (at most 50).
+- `channel_ids` (Set of String) Channels members who choose the option are added to (at most 50). An option needs at least one role or channel.
 - `description` (String) Option description (up to 100 characters).
 - `emoji_animated` (Boolean) Whether the custom emoji in `emoji_id` is animated.
 - `emoji_id` (String) ID of a custom emoji shown with the option.
 - `emoji_name` (String) Unicode emoji shown with the option, or the name of the custom emoji in `emoji_id`.
-- `role_ids` (Set of String) Roles given to members who choose the option (at most 50).
+- `role_ids` (Set of String) Roles given to members who choose the option (at most 50). An option needs at least one role or channel.
 
 Read-Only:
 

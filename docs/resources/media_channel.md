@@ -3,12 +3,12 @@
 page_title: "discord_media_channel Resource - discord"
 subcategory: ""
 description: |-
-  Manages a media channel, a forum-like channel for image and video posts. Discord documents media channels as still in active development, so their behavior may change. Permission overwrites are managed with discord_channel_permission; initial_permission_overwrites only sets them when the channel is created.
+  Manages a media channel, a forum-like channel for image and video posts. Media channels are a Discord beta available only to Community servers with Server Subscriptions enabled (the ROLE_SUBSCRIPTIONS_ENABLED server feature), and not yet to all of those; elsewhere Discord rejects the channel type with error 50024. Discord documents media channels as still in active development, so their behavior may change. Permission overwrites are managed with discord_channel_permission; initial_permission_overwrites only sets them when the channel is created.
 ---
 
 # discord_media_channel (Resource)
 
-Manages a media channel, a forum-like channel for image and video posts. Discord documents media channels as still in active development, so their behavior may change. Permission overwrites are managed with `discord_channel_permission`; `initial_permission_overwrites` only sets them when the channel is created.
+Manages a media channel, a forum-like channel for image and video posts. Media channels are a Discord beta available only to Community servers with Server Subscriptions enabled (the `ROLE_SUBSCRIPTIONS_ENABLED` server feature), and not yet to all of those; elsewhere Discord rejects the channel type with error 50024. Discord documents media channels as still in active development, so their behavior may change. Permission overwrites are managed with `discord_channel_permission`; `initial_permission_overwrites` only sets them when the channel is created.
 
 ## Example Usage
 

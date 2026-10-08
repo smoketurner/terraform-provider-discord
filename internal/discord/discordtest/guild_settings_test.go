@@ -51,7 +51,7 @@ func TestModifyOnboardingPromptIDs(t *testing.T) {
 	defer s.Close()
 	c := discord.NewClient(s.URL, Token, "test")
 	ctx := t.Context()
-	option := discord.Payload{"title": "Option"}
+	option := discord.Payload{"title": "Option", "role_ids": []string{"1"}}
 
 	for _, id := range []string{"", "0", "abc"} {
 		_, err := c.ModifyOnboarding(ctx, GuildID, discord.Payload{"prompts": []discord.Payload{onboardingPrompt(id, option)}})
@@ -72,7 +72,7 @@ func TestModifyOnboardingPromptIDs(t *testing.T) {
 	if prompt.ID == "123" || prompt.Options[0].ID == "" {
 		t.Fatalf("new prompt kept its placeholder ID or has no option ID: %+v", prompt)
 	}
-	kept := onboardingPrompt(prompt.ID, discord.Payload{"id": prompt.Options[0].ID, "title": "Renamed"})
+	kept := onboardingPrompt(prompt.ID, discord.Payload{"id": prompt.Options[0].ID, "title": "Renamed", "channel_ids": []string{"2"}})
 	o, err = c.ModifyOnboarding(ctx, GuildID, discord.Payload{"prompts": []discord.Payload{kept}})
 	if err != nil {
 		t.Fatal(err)

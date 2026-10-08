@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -392,12 +393,14 @@ func TestAccScheduledEventsDataSource(t *testing.T) {
 						"privacy_level":        discord.PrivacyLevelGuildOnly,
 						"entity_type":          discord.ScheduledEventEntityExternal,
 						"entity_metadata":      discord.Payload{"location": "Online"},
-						"scheduled_start_time": "2099-01-01T00:00:00Z",
-						"scheduled_end_time":   "2099-01-01T01:00:00Z",
+						"scheduled_start_time": eventTime(24 * time.Hour),
+						"scheduled_end_time":   eventTime(25 * time.Hour),
 					})
 					if err == nil {
 						eventID = e.ID
-						t.Cleanup(func() { _ = c.DeleteScheduledEvent(context.Background(), env.serverID, eventID) })
+						env.cleanup(func(ctx context.Context, c *discord.Client) error {
+							return c.DeleteScheduledEvent(ctx, env.serverID, eventID)
+						})
 					}
 					return err
 				}),

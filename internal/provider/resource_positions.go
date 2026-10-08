@@ -26,11 +26,17 @@ type positionsKind struct {
 	// descending is true when the list is ordered from highest position to
 	// lowest, as roles are displayed in the Discord client.
 	descending bool
-	list       func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error)
+	// order is how Discord orders items that share a position.
+	order discord.Ordering
+	list  func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error)
 	// fetch, when set, looks up a configured ID that list omitted. Discord
 	// leaves channels the bot cannot view out of the channel list.
 	fetch func(ctx context.Context, c *discord.Client, serverID, id string) (discord.Positioned, error)
 	apply func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error
+	// forbidden, when set, returns a check of each update that reports why
+	// the bot cannot make it, or "" when it can. Discord rejects the whole
+	// reorder with Missing Permissions when it includes such an update.
+	forbidden func(ctx context.Context, c *discord.Client, serverID string) (func(discord.PositionUpdate) string, error)
 
 	// audited is true when Discord records an audit log reason for the
 	// reorder; it does not for channel positions.
@@ -60,12 +66,16 @@ func newRolePositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_role_positions",
 		description: "Orders a set of server roles atomically with a single API request. Roles that are not listed keep " +
-			"their place: the listed roles are rearranged among the positions they already occupy. When listed roles share " +
-			"a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only " +
-			"move roles below its own highest role.",
+			"their place: the listed roles are rearranged among the positions they already occupy. Discord sorts roles that share a " +
+			"position by age, the oldest highest, and new roles share position 1. When that age order differs from the configured " +
+			"order, the roles are raised as little as needed to separate them, and the roles above them only as far as needed to " +
+			"keep their place. The bot can only " +
+			"move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move " +
+			"one of those fails without changing any position.",
 		idsAttr:    "role_ids",
 		idsDesc:    "Role IDs ordered from highest to lowest, as shown in the Discord client.",
 		descending: true,
+		order:      discord.RoleOrder,
 		audited:    true,
 		list: func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error) {
 			roles, err := c.ListRoles(ctx, serverID)
@@ -78,20 +88,66 @@ func newRolePositionsResource() resource.Resource {
 		apply: func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error {
 			return c.ModifyRolePositions(ctx, serverID, updates)
 		},
+		forbidden: forbiddenRoleMoves,
 	}}
+}
+
+// forbiddenRoleMoves checks role moves against the role hierarchy: the bot
+// cannot move @everyone or roles managed by an integration, such as its own
+// role, nor move a role from or to a place that is not below its highest
+// role.
+func forbiddenRoleMoves(ctx context.Context, c *discord.Client, serverID string) (func(discord.PositionUpdate) string, error) {
+	roles, err := c.ListRoles(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	me, err := c.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	member, err := c.GetMember(ctx, serverID, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]discord.Role{}
+	var top *discord.Positioned
+	for _, r := range roles {
+		byID[r.ID] = r
+		p := discord.Positioned{ID: r.ID, Position: r.Position}
+		if slices.Contains(member.Roles, r.ID) && (top == nil || discord.RoleOrder.Below(*top, p)) {
+			top = &p
+		}
+	}
+	belowTop := func(p discord.Positioned) bool { return top == nil || discord.RoleOrder.Below(p, *top) }
+	return func(u discord.PositionUpdate) string {
+		r := byID[u.ID]
+		switch {
+		case u.ID == serverID:
+			return "it is the @everyone role"
+		case r.Managed:
+			return "it is managed by an integration"
+		case !belowTop(discord.Positioned{ID: r.ID, Position: r.Position}):
+			return "it is not below the bot's highest role"
+		case !belowTop(discord.Positioned(u)):
+			return "the new position is not below the bot's highest role"
+		}
+		return ""
+	}, nil
 }
 
 func newChannelPositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_channel_positions",
 		description: "Orders a set of channels atomically with a single API request. Channels that are not listed keep " +
-			"their place: the listed channels are rearranged among the positions they already occupy. When listed channels " +
-			"share a position, the channels below them may be renumbered to separate them, without changing their order. List channels " +
+			"their place: the listed channels are rearranged among the positions they already occupy. Discord sorts channels that share " +
+			"a position by age, the oldest first. When that order differs from the configured order, the channels are moved down " +
+			"as little as needed to separate them, and the channels below them only as far as needed to keep their place. List channels " +
 			"that share a parent category (or categories themselves) to control how they are displayed. Discord omits " +
 			"channels the bot cannot view from the server's channel list, so the provider fetches listed channels it " +
 			"does not see there individually; this fails unless the bot has the View Channel permission on them.",
 		idsAttr: "channel_ids",
 		idsDesc: "Channel IDs ordered from top to bottom, as shown in the Discord client.",
+		order:   discord.ChannelOrder,
 		list: func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error) {
 			channels, err := c.ListChannels(ctx, serverID)
 			out := make([]discord.Positioned, 0, len(channels))
@@ -253,13 +309,42 @@ func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.D
 	if diags.HasError() {
 		return diags
 	}
-	if updates := discord.Reorder(current, r.ascending(ids)); len(updates) > 0 {
+	if updates := r.kind.order.Reorder(current, r.ascending(ids)); len(updates) > 0 {
+		diags.Append(r.checkForbidden(ctx, serverID, updates)...)
+		if diags.HasError() {
+			return diags
+		}
 		if err := r.kind.apply(ctx, r.client, serverID, updates); err != nil {
 			apiError(&diags, "update positions", err)
 			return diags
 		}
 	}
 	m.ID = m.ServerID
+	return diags
+}
+
+// checkForbidden reports the updates the bot cannot make, so the
+// configuration error is explained instead of Discord's Missing Permissions.
+// Moves of unlisted items come from separating listed items that share a
+// position.
+func (r *positionsResource) checkForbidden(ctx context.Context, serverID string, updates []discord.PositionUpdate) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if r.kind.forbidden == nil {
+		return diags
+	}
+	forbidden, err := r.kind.forbidden(ctx, r.client, serverID)
+	if err != nil {
+		apiError(&diags, "check which positions the bot can change", err)
+		return diags
+	}
+	for _, u := range updates {
+		if reason := forbidden(u); reason != "" {
+			diags.AddAttributeError(path.Root(r.kind.idsAttr), "Cannot reorder",
+				fmt.Sprintf("Applying the configured order moves %s to position %d, but the bot cannot move it: %s. "+
+					"List only items below the bot's highest role, or move the bot's role higher in the Discord client.",
+					u.ID, u.Position, reason))
+		}
+	}
 	return diags
 }
 
@@ -306,7 +391,7 @@ func (r *positionsResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	order := discord.OrderOf(current, ids)
+	order := r.kind.order.OrderOf(current, ids)
 	if r.kind.descending {
 		slices.Reverse(order)
 	}

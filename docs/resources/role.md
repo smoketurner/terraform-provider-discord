@@ -3,12 +3,12 @@
 page_title: "discord_role Resource - discord"
 subcategory: ""
 description: |-
-  Manages a server role. Role ordering is managed separately with discord_role_positions so that several roles can be reordered atomically.
+  Manages a server role. Role ordering is managed separately with discord_role_positions so that several roles can be reordered atomically. Discord creates a role at position 1, the bottom of the list above @everyone, sharing that position with older roles there, which stay above it.
 ---
 
 # discord_role (Resource)
 
-Manages a server role. Role ordering is managed separately with `discord_role_positions` so that several roles can be reordered atomically.
+Manages a server role. Role ordering is managed separately with `discord_role_positions` so that several roles can be reordered atomically. Discord creates a role at position 1, the bottom of the list above `@everyone`, sharing that position with older roles there, which stay above it.
 
 ## Example Usage
 

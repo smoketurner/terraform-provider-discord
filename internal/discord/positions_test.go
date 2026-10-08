@@ -19,9 +19,9 @@ func apply(current []Positioned, updates []PositionUpdate) []Positioned {
 	return out
 }
 
-func displayOrder(items []Positioned) []string {
+func displayOrder(o Ordering, items []Positioned) []string {
 	sorted := slices.Clone(items)
-	SortByPosition(sorted)
+	o.Sort(sorted)
 	ids := make([]string, len(sorted))
 	for i, p := range sorted {
 		ids[i] = p.ID
@@ -31,8 +31,8 @@ func displayOrder(items []Positioned) []string {
 
 // wantOrder is the display order after reordering: the current order with the
 // slots of the listed items filled in the desired order.
-func wantOrder(current []Positioned, desired []string) []string {
-	ids := displayOrder(current)
+func wantOrder(o Ordering, current []Positioned, desired []string) []string {
+	ids := displayOrder(o, current)
 	listed := map[string]bool{}
 	var order []string
 	for _, id := range desired {
@@ -50,12 +50,12 @@ func wantOrder(current []Positioned, desired []string) []string {
 }
 
 // checkReorder verifies the invariants Reorder promises for any input.
-func checkReorder(t *testing.T, current []Positioned, desired []string) []PositionUpdate {
+func checkReorder(t *testing.T, o Ordering, current []Positioned, desired []string) []PositionUpdate {
 	t.Helper()
-	updates := Reorder(current, desired)
+	updates := o.Reorder(current, desired)
 	after := apply(current, updates)
-	want := wantOrder(current, desired)
-	if got := displayOrder(after); !slices.Equal(got, want) {
+	want := wantOrder(o, current, desired)
+	if got := displayOrder(o, after); !slices.Equal(got, want) {
 		t.Errorf("display order after %v = %v, want %v", updates, got, want)
 	}
 
@@ -77,27 +77,32 @@ func checkReorder(t *testing.T, current []Positioned, desired []string) []Positi
 			t.Errorf("update %v does not change the position", u)
 		}
 	}
-	// A moved item sharing a position with any other item would leave the
-	// result up to how Discord resolves the collision.
-	for i, a := range after {
-		for _, b := range after[i+1:] {
-			if a.Position == b.Position && (moved[a.ID] || moved[b.ID]) {
-				t.Errorf("%s and %s share position %d after %v", a.ID, b.ID, a.Position, updates)
-			}
-		}
-	}
-	// Unlisted items move only when bumped by the item displayed below them.
+	// Unlisted items move only when the item displayed below them would
+	// otherwise be above them, and then only to the lowest position that
+	// keeps them above it.
 	listed := map[string]bool{}
 	for _, id := range desired {
 		listed[id] = true
 	}
 	for i, id := range want {
-		if moved[id] && !listed[id] && (i == 0 || final[id] != final[want[i-1]]+1 || was[id] > final[want[i-1]]) {
-			t.Errorf("unlisted %s moved from %d to %d without a collision", id, was[id], final[id])
+		if !moved[id] || listed[id] {
+			continue
+		}
+		if i == 0 {
+			t.Errorf("unlisted %s moved from %d to %d without an item below it", id, was[id], final[id])
+			continue
+		}
+		below := want[i-1]
+		lowest := final[below] + 1
+		if o.compareTied(below, id) < 0 {
+			lowest = final[below]
+		}
+		if was[id] >= lowest || final[id] != lowest {
+			t.Errorf("unlisted %s moved from %d to %d; the item below it is at %d", id, was[id], final[id], final[below])
 		}
 	}
 
-	if again := Reorder(after, desired); len(again) != 0 {
+	if again := o.Reorder(after, desired); len(again) != 0 {
 		t.Errorf("reorder is not idempotent: %v", again)
 	}
 	return updates
@@ -122,10 +127,11 @@ func TestReorder(t *testing.T) {
 			wantUpdates: []PositionUpdate{{"3", 1}, {"1", 3}},
 		},
 		{
+			// "1" and "2" can share a position, as tied items sort by ID.
 			name:        "ties are broken",
 			current:     []Positioned{{"1", 0}, {"2", 0}, {"3", 0}},
 			desired:     []string{"3", "1", "2"},
-			wantUpdates: []PositionUpdate{{"1", 1}, {"2", 2}},
+			wantUpdates: []PositionUpdate{{"1", 1}, {"2", 1}},
 		},
 		{
 			name:        "subset keeps unlisted in place",
@@ -156,7 +162,7 @@ func TestReorder(t *testing.T) {
 			name:        "collision cascades through listed and unlisted",
 			current:     []Positioned{{"10", 1}, {"11", 1}, {"5", 2}, {"12", 3}, {"6", 4}, {"7", 9}},
 			desired:     []string{"11", "10", "12"},
-			wantUpdates: []PositionUpdate{{"10", 2}, {"5", 3}, {"12", 4}, {"6", 5}},
+			wantUpdates: []PositionUpdate{{"10", 2}, {"5", 3}},
 		},
 		{
 			name:        "interleaved ties",
@@ -165,12 +171,12 @@ func TestReorder(t *testing.T) {
 			wantUpdates: []PositionUpdate{{"3", 2}, {"2", 3}},
 		},
 		{
-			// "2" lands on the position "10" already holds, and sorts
-			// before it, but must not share it.
-			name:        "moved item collides with unlisted tie",
+			// "2" lands on the position "10" already holds and sorts
+			// before it by ID, so they share it.
+			name:        "moved item ties with unlisted",
 			current:     []Positioned{{"9", 1}, {"10", 1}, {"2", 5}},
 			desired:     []string{"2", "9"},
-			wantUpdates: []PositionUpdate{{"2", 1}, {"10", 2}, {"9", 5}},
+			wantUpdates: []PositionUpdate{{"2", 1}, {"9", 5}},
 		},
 		{
 			name:        "unmoved ties are kept",
@@ -181,7 +187,7 @@ func TestReorder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			updates := checkReorder(t, tt.current, tt.desired)
+			updates := checkReorder(t, ChannelOrder, tt.current, tt.desired)
 			if !slices.Equal(updates, tt.wantUpdates) {
 				t.Errorf("updates = %v, want %v", updates, tt.wantUpdates)
 			}
@@ -207,14 +213,45 @@ func TestReorderRandom(t *testing.T) {
 			desired = append(desired, "999")
 		}
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			checkReorder(t, current, desired)
+			checkReorder(t, ChannelOrder, current, desired)
+			checkReorder(t, RoleOrder, current, desired)
 		})
 	}
 }
 
-func TestSortByPositionTiesBySnowflake(t *testing.T) {
+func TestSortTies(t *testing.T) {
 	items := []Positioned{{"300", 1}, {"1000", 1}, {"20", 1}, {"5", 0}}
-	if got, want := displayOrder(items), []string{"5", "20", "300", "1000"}; !slices.Equal(got, want) {
-		t.Errorf("order = %v, want %v", got, want)
+	if got, want := displayOrder(ChannelOrder, items), []string{"5", "20", "300", "1000"}; !slices.Equal(got, want) {
+		t.Errorf("channel order = %v, want %v", got, want)
+	}
+	if got, want := displayOrder(RoleOrder, items), []string{"5", "1000", "300", "20"}; !slices.Equal(got, want) {
+		t.Errorf("role order = %v, want %v", got, want)
+	}
+	if !RoleOrder.Below(Positioned{"1000", 1}, Positioned{"20", 1}) || RoleOrder.Below(Positioned{"20", 1}, Positioned{"1000", 1}) {
+		t.Error("a newer role tied with an older one is not below it")
+	}
+}
+
+// The live server: new roles 10, 11 and 12 share position 1 with the older
+// unlisted role 4, below roles 3 and 2 and the bot's role 1 at position 4.
+// Separating the new roles moves only roles below the bot's.
+func TestReorderRolesBelowBot(t *testing.T) {
+	current := []Positioned{{"0", 0}, {"4", 1}, {"10", 1}, {"11", 1}, {"12", 1}, {"3", 2}, {"2", 3}, {"1", 4}}
+	// From the top: 12, 10, 11 (ascending: 11, 10, 12).
+	updates := checkReorder(t, RoleOrder, current, []string{"11", "10", "12"})
+	if want := []PositionUpdate{{"12", 2}, {"4", 2}}; !slices.Equal(updates, want) {
+		t.Errorf("updates = %v, want %v", updates, want)
+	}
+}
+
+// Roles created at the bottom share position 1; the older role is higher.
+func TestReorderRoleTies(t *testing.T) {
+	current := []Positioned{{"1", 0}, {"10", 1}, {"11", 1}, {"12", 1}}
+	if updates := RoleOrder.Reorder(current, []string{"12", "11", "10"}); len(updates) != 0 {
+		t.Errorf("roles already in order moved: %v", updates)
+	}
+	updates := checkReorder(t, RoleOrder, current, []string{"10", "11", "12"})
+	if want := []PositionUpdate{{"11", 2}, {"12", 3}}; !slices.Equal(updates, want) {
+		t.Errorf("updates = %v, want %v", updates, want)
 	}
 }

@@ -283,6 +283,7 @@ resource "discord_server_settings" "test" {
 		}
 		return checks
 	}
+	restored := statecheck.CompareValue(compare.ValuesSame())
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
@@ -298,7 +299,7 @@ resource "discord_server_settings" "test" {
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(serverSettingsAddress, plancheck.ResourceActionUpdate)},
 				},
-				ConfigStateChecks: record(),
+				ConfigStateChecks: append(record(), restored.AddStateValue(serverSettingsAddress, tfjsonpath.New("banner_hash"))),
 			},
 			{
 				// The banner is changed in the Discord client: uploaded again.
@@ -310,8 +311,9 @@ resource "discord_server_settings" "test" {
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(serverSettingsAddress, plancheck.ResourceActionUpdate)},
 				},
+				// Uploading the configured banner again restores its hash.
 				ConfigStateChecks: []statecheck.StateCheck{
-					comparers["banner"](),
+					restored.AddStateValue(serverSettingsAddress, tfjsonpath.New("banner_hash")),
 				},
 			},
 			{
@@ -350,6 +352,7 @@ resource "discord_server_settings" "test" {
 		}
 		return checks
 	}
+	restored := statecheck.CompareValue(compare.ValuesSame())
 	env.run(resource.TestCase{
 		TerraformVersionChecks: writeOnlySupported,
 		Steps: []resource.TestStep{
@@ -379,7 +382,7 @@ resource "discord_server_settings" "test" {
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(serverSettingsAddress, plancheck.ResourceActionUpdate)},
 				},
-				ConfigStateChecks: record(),
+				ConfigStateChecks: append(record(), restored.AddStateValue(serverSettingsAddress, tfjsonpath.New("discovery_splash_hash"))),
 			},
 			{
 				// The discovery splash is changed in the Discord client: uploaded again.
@@ -393,7 +396,8 @@ resource "discord_server_settings" "test" {
 				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(serverSettingsAddress, tfjsonpath.New("discovery_splash_wo_version"), knownvalue.Int64Exact(2)),
-					comparers["discovery_splash"](),
+					// Uploading the configured splash again restores its hash.
+					restored.AddStateValue(serverSettingsAddress, tfjsonpath.New("discovery_splash_hash")),
 				},
 			},
 		},

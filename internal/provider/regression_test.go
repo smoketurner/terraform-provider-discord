@@ -231,6 +231,7 @@ resource "discord_forum_channel" "test" {
 // managed flag and channel flags set outside Terraform.
 func TestAccMediaChannelKeepsUnmanagedFlags(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	// Discord may refuse arbitrary flags on a live media channel.
 	env.requireFake()
 	const (
@@ -344,7 +345,7 @@ resource "discord_role_positions" "test" {
 					for _, r := range roles {
 						current = append(current, discord.Positioned{ID: r.ID, Position: r.Position})
 					}
-					got := discord.OrderOf(current, []string{a, b, unlisted})
+					got := discord.RoleOrder.OrderOf(current, []string{a, b, unlisted})
 					if want := []string{b, a, unlisted}; !slices.Equal(got, want) {
 						return fmt.Errorf("role order from the bottom = %v, want %v", got, want)
 					}

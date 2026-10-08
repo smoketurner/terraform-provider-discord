@@ -50,30 +50,33 @@ func (a attachmentRequest) id() string {
 
 // applyMessageParts mimics how Discord applies the flags, attachments,
 // components, stickers and poll of a Create Message or Edit Message request
-// to m, which content and embeds were already applied to.
-func (s *Server) applyMessageParts(m *discord.Message, body map[string]json.RawMessage, create bool) error {
+// to m, which content and embeds were already applied to. On edit,
+// m.Attachments includes the referenced attachments of the message. It
+// returns the attachments an embed or component references, which are moved
+// out of m.Attachments.
+func (s *Server) applyMessageParts(m *discord.Message, body map[string]json.RawMessage, create bool) ([]discord.Attachment, error) {
 	if m.Poll != nil && !create {
 		for _, key := range []string{"content", "embeds", "components", "attachments", "flags"} {
 			if _, ok := body[key]; ok {
-				return &errBadMessage{code: 50160, msg: "Cannot edit a message with a poll"}
+				return nil, &errBadMessage{code: 50160, msg: "Cannot edit a message with a poll"}
 			}
 		}
 	}
 	if err := applyMessageFlags(m, body, create); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.applyAttachments(m, body, create); err != nil {
-		return err
+		return nil, err
 	}
 	if err := applyComponents(m, body); err != nil {
-		return err
+		return nil, err
 	}
 	if create {
 		if err := s.applyStickers(m, body); err != nil {
-			return err
+			return nil, err
 		}
-		if err := applyPoll(m, body); err != nil {
-			return err
+		if err := s.applyPoll(m, body); err != nil {
+			return nil, err
 		}
 	}
 	for i := range m.Embeds {
@@ -84,13 +87,65 @@ func (s *Server) applyMessageParts(m *discord.Message, body map[string]json.RawM
 	}
 	if m.Flags&discord.MessageFlagIsComponentsV2 != 0 &&
 		(m.Content != "" || len(m.Embeds) > 0 || len(m.StickerItems) > 0 || m.Poll != nil) {
-		return badMessage("a Components V2 message can contain only components")
+		return nil, badMessage("a Components V2 message can contain only components")
 	}
 	if m.Content == "" && len(m.Embeds) == 0 && len(m.Attachments) == 0 && len(m.Components) == 0 &&
 		len(m.StickerItems) == 0 && m.Poll == nil {
-		return &errBadMessage{code: 50006, msg: "Cannot send an empty message"}
+		return nil, &errBadMessage{code: 50006, msg: "Cannot send an empty message"}
 	}
-	return nil
+	return splitReferenced(m), nil
+}
+
+// splitReferenced moves the attachments an embed or component of m
+// references out of m.Attachments and returns them. Discord lists only the
+// other attachments; a live message whose embed showed one of two uploaded
+// files returned only the other.
+func splitReferenced(m *discord.Message) []discord.Attachment {
+	urls := map[string]bool{}
+	for _, e := range m.Embeds {
+		for _, u := range []*discord.EmbedMedia{e.Image, e.Thumbnail} {
+			if u != nil {
+				urls[u.URL] = true
+			}
+		}
+		if e.Footer != nil {
+			urls[e.Footer.IconURL] = true
+		}
+		if e.Author != nil {
+			urls[e.Author.IconURL] = true
+		}
+	}
+	for _, c := range m.Components {
+		var v any
+		if json.Unmarshal(c, &v) == nil {
+			collectURLs(v, urls)
+		}
+	}
+	var referenced []discord.Attachment
+	m.Attachments = slices.DeleteFunc(m.Attachments, func(a discord.Attachment) bool {
+		if urls[a.URL] {
+			referenced = append(referenced, a)
+			return true
+		}
+		return false
+	})
+	return referenced
+}
+
+func collectURLs(v any, urls map[string]bool) {
+	switch c := v.(type) {
+	case []any:
+		for _, e := range c {
+			collectURLs(e, urls)
+		}
+	case map[string]any:
+		for k, e := range c {
+			if s, ok := e.(string); ok && k == "url" {
+				urls[s] = true
+			}
+			collectURLs(e, urls)
+		}
+	}
 }
 
 func applyMessageFlags(m *discord.Message, body map[string]json.RawMessage, create bool) error {
@@ -214,6 +269,15 @@ func applyComponents(m *discord.Message, body map[string]json.RawMessage) error 
 	if err := resolveMedia(comps, m.Attachments); err != nil {
 		return err
 	}
+	// File components report the name and size of their file.
+	walkComponents(comps, func(c map[string]any) {
+		file, _ := c["file"].(map[string]any)
+		if id, ok := file["attachment_id"].(string); ok && c["type"] == float64(13) {
+			if i := slices.IndexFunc(m.Attachments, func(a discord.Attachment) bool { return a.ID == id }); i >= 0 {
+				c["name"], c["size"] = m.Attachments[i].Filename, m.Attachments[i].Size
+			}
+		}
+	})
 	m.Components = nil
 	for _, c := range comps {
 		raw, _ := json.Marshal(c)
@@ -261,6 +325,8 @@ func resolveMedia(v any, atts []discord.Attachment) error {
 					return badMessage("%s does not name an attachment of the message", s)
 				}
 				c[k] = a.URL
+				c["attachment_id"] = a.ID
+				c["content_type"] = a.ContentType
 				continue
 			}
 			if err := resolveMedia(e, atts); err != nil {
@@ -319,10 +385,13 @@ func (s *Server) applyStickers(m *discord.Message, body map[string]json.RawMessa
 		}
 		m.StickerItems = append(m.StickerItems, discord.StickerItem{ID: found.ID, Name: found.Name, FormatType: int64(found.FormatType)})
 	}
+	// Discord does not keep the order of the request: two stickers sent in
+	// ascending ID order come back in descending order.
+	slices.SortFunc(m.StickerItems, func(a, b discord.StickerItem) int { return compareIDs(b.ID, a.ID) })
 	return nil
 }
 
-func applyPoll(m *discord.Message, body map[string]json.RawMessage) error {
+func (s *Server) applyPoll(m *discord.Message, body map[string]json.RawMessage) error {
 	var req *struct {
 		Question         discord.PollMedia    `json:"question"`
 		Answers          []discord.PollAnswer `json:"answers"`
@@ -355,15 +424,28 @@ func applyPoll(m *discord.Message, body map[string]json.RawMessage) error {
 		if len(a.PollMedia.Text) < 1 || len(a.PollMedia.Text) > 55 {
 			return badMessage("poll answers must be 1-55 characters")
 		}
-		// Discord returns the name of a custom emoji with its ID.
-		if e := a.PollMedia.Emoji; e != nil && e.ID != nil && e.Name == nil {
-			name := "emoji_" + *e.ID
-			e.Name = &name
+		// A custom emoji must exist; Discord returns its name with its ID.
+		if e := a.PollMedia.Emoji; e != nil && e.ID != nil {
+			custom, ok := s.findEmoji(*e.ID)
+			if !ok {
+				return badMessage("poll answer %d: Unknown emoji", i)
+			}
+			e.Name = &custom.Name
 		}
 		poll.Answers = append(poll.Answers, discord.PollAnswer{AnswerID: int64(i + 1), PollMedia: a.PollMedia})
 	}
 	m.Poll = poll
 	return nil
+}
+
+// findEmoji returns the custom emoji with the given ID in any guild.
+func (s *Server) findEmoji(id string) (*discord.Emoji, bool) {
+	for _, emojis := range s.emojis {
+		if e, ok := emojis[id]; ok {
+			return e, true
+		}
+	}
+	return nil, false
 }
 
 func writeMessageError(w http.ResponseWriter, err error) {

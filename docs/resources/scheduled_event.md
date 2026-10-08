@@ -53,9 +53,9 @@ resource "discord_scheduled_event" "meetup" {
 
 ### Required
 
-- `entity_type` (String) Where the event takes place: `stage_instance`, `voice`, `external`. `stage_instance` and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`.
+- `entity_type` (String) Where the event takes place: `stage_instance`, `voice`, `external`. `stage_instance` and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`. Discord fails to turn an `external` event into a `stage_instance` event, so that change creates a new event.
 - `name` (String) Event name (1-100 characters).
-- `scheduled_start_time` (String) When the event starts, as an RFC 3339 timestamp such as `2030-01-01T18:00:00Z`. Discord requires it to be in the future when the event is created. Write it in UTC (`Z`) so that an imported event plans no change.
+- `scheduled_start_time` (String) When the event starts, as an RFC 3339 timestamp such as `2030-01-01T18:00:00Z`. Discord requires it to be in the future when the event is created, and within five years from now. Write it in UTC (`Z`) so that an imported event plans no change.
 - `server_id` (String) ID of the server (guild).
 
 ### Optional
@@ -70,7 +70,7 @@ resource "discord_scheduled_event" "meetup" {
 - `image_wo_version` (Number) Version of `image_wo`. Setting or changing it uploads `image_wo`; removing it removes the cover image unless `image` is set.
 - `location` (String) Location of an `external` event (1-100 characters), such as a URL or an address.
 - `recurrence_rule` (Attributes) Makes the event repeat, starting at `scheduled_start_time`. Discord supports a subset of iCalendar rules: `by_weekday` only with `daily` or `weekly`, `by_n_weekday` only with `monthly`, and `by_month` with `by_month_day` only with `yearly`. Recurrences cannot end on a date or after a count. (see [below for nested schema](#nestedatt--recurrence_rule))
-- `scheduled_end_time` (String) When the event ends, as an RFC 3339 timestamp after `scheduled_start_time`. Required for `external` events.
+- `scheduled_end_time` (String) When the event ends, as an RFC 3339 timestamp after `scheduled_start_time` and within five years from now. Required for `external` events.
 
 ### Read-Only
 

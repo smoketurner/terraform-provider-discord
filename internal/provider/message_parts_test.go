@@ -90,3 +90,38 @@ func TestPollDuration(t *testing.T) {
 		})
 	}
 }
+
+func TestReferencedAttachments(t *testing.T) {
+	const cdn = "https://cdn.discordapp.com/attachments/"
+	msg := &discord.Message{
+		ChannelID: "10",
+		Embeds: []discord.Embed{
+			{Image: &discord.EmbedMedia{URL: cdn + "10/21/banner.png?ex=1"}},
+			{Thumbnail: &discord.EmbedMedia{URL: cdn + "10/21/banner.png"}},
+			{Footer: &discord.EmbedFooter{Text: "x", IconURL: cdn + "99/22/other-channel.png"}},
+			{Author: &discord.EmbedAuthor{Name: "x", IconURL: "https://example.com/attachments/10/23/a.png/extra"}},
+			{Image: &discord.EmbedMedia{URL: "%zz"}},
+		},
+		Components: []json.RawMessage{
+			json.RawMessage(`{"type":17,"components":[{"type":13,"name":"guide.pdf","size":42,"file":{"url":"` + cdn +
+				`10/24/guide.pdf","attachment_id":"24","content_type":"application/pdf"}}]}`),
+			json.RawMessage(`{"type":12,"items":[{"media":{"url":"` + cdn + `10/25/shot.png","attachment_id":"25"}},` +
+				`{"media":{"url":"https://example.com/linked.png"}}]}`),
+			json.RawMessage(`not json`),
+		},
+	}
+	want := []discord.Attachment{
+		{ID: "21", Filename: "banner.png"},
+		{ID: "24", Filename: "guide.pdf", Size: 42, ContentType: "application/pdf"},
+		{ID: "25", Filename: "shot.png"},
+	}
+	got := referencedAttachments(msg)
+	if len(got) != len(want) {
+		t.Fatalf("referencedAttachments = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("attachment %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

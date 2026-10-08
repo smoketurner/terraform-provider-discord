@@ -81,7 +81,7 @@ const (
       title         = "Pronouns"
       type          = "dropdown"
       in_onboarding = false
-      options       = [{ title = "Ask me" }]
+      options       = [{ title = "Ask me", role_ids = [discord_role.test.id] }]
     }`
 )
 
@@ -187,20 +187,21 @@ func TestAccOnboarding(t *testing.T) {
 				),
 			},
 			{
-				// Removing prompts and default channels removes them all.
+				// Removing the prompts removes them all. Omitted default
+				// channels are left as they are: Discord keeps them.
 				Config: env.onboardingConfig(`
   enabled = false`),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "enabled", "false"),
 					resource.TestCheckNoResourceAttr(name, "prompts"),
-					resource.TestCheckNoResourceAttr(name, "default_channel_ids"),
+					resource.TestCheckResourceAttr(name, "default_channel_ids.#", "7"),
 					func(*terraform.State) error {
 						o, err := env.client.GetOnboarding(context.Background(), env.serverID)
 						if err != nil {
 							return err
 						}
-						if len(o.Prompts) != 0 || len(o.DefaultChannelIDs) != 0 {
-							return fmt.Errorf("onboarding kept %d prompts and %d default channels", len(o.Prompts), len(o.DefaultChannelIDs))
+						if len(o.Prompts) != 0 || len(o.DefaultChannelIDs) != 7 {
+							return fmt.Errorf("onboarding has %d prompts and %d default channels, want 0 and 7", len(o.Prompts), len(o.DefaultChannelIDs))
 						}
 						return nil
 					},
@@ -305,7 +306,7 @@ resource "discord_onboarding" "test" {
   prompts   = ` + prompts + `
 }`)
 	}
-	option := `{ title = "Option" }`
+	option := `{ title = "Option", role_ids = ["100000000000000011"] }`
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
@@ -327,6 +328,22 @@ resource "discord_onboarding" "test" {
 			{
 				Config:      config(`[{ title = "P", options = [{ title = "` + strings.Repeat("x", 51) + `" }] }]`),
 				ExpectError: regexp.MustCompile(`string length must be between 1 and\s+50`),
+			},
+			{
+				// Discord keeps the default channels when an empty list is
+				// sent.
+				Config: env.config(`
+resource "discord_onboarding" "test" {
+  server_id           = local.server_id
+  enabled             = false
+  default_channel_ids = []
+}`),
+				ExpectError: regexp.MustCompile(`set must contain at least 1 elements`),
+			},
+			{
+				// Discord rejects an option with neither roles nor channels.
+				Config:      config(`[{ title = "P", options = [` + option + `, { title = "Nothing", role_ids = [] }] }]`),
+				ExpectError: regexp.MustCompile(`Option "Nothing" of prompt "P" needs at least one of role_ids or\s+channel_ids`),
 			},
 			{
 				Config:      config(`[{ title = "P", options = [{ title = "O", role_ids = ["admins"] }] }]`),

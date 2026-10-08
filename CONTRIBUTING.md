@@ -64,9 +64,25 @@ export DISCORD_TEST_USER_ID=...   # optional: a member for discord_member_role t
 make testacc
 ```
 
-The bot needs the Administrator permission on the test server. The **Live acceptance tests** workflow runs these
-tests weekly once the `dev` environment is configured with the `DISCORD_TOKEN` secret and the `DISCORD_SERVER_ID`
-variable.
+The bot needs the Administrator permission on the test server. Tests that create media channels skip servers
+without Server Subscriptions (the `ROLE_SUBSCRIPTIONS_ENABLED` feature), which Discord requires for them. The
+**Live acceptance tests** workflow runs these tests weekly once the `dev` environment is configured with the
+`DISCORD_TOKEN` secret and the `DISCORD_SERVER_ID` variable. `TestAccRolePositions` also needs the bot's highest role
+at position 4 or higher, with three roles below it, and skips otherwise.
+
+Tests name everything they create with the `tf-acc-` prefix (`tf_acc_` for emojis, whose names allow only letters,
+digits and underscores), and delete objects they create outside Terraform when they end. A failed or interrupted run
+can still leave objects behind. To delete them, run the sweepers with the same `DISCORD_TOKEN` and `DISCORD_SERVER_ID`:
+
+```shell
+make sweep
+```
+
+The sweepers delete the channels, threads, roles, emojis, stickers, soundboard sounds, webhooks, scheduled events,
+AutoMod rules and server template whose names start with the prefix, the invites to such channels, and the bot
+application's server and global commands and application emojis with the prefix. They never touch other objects. To
+sweep one kind, pass `-sweep-run`, e.g. `go test ./internal/provider/ -v -sweep=all -sweep-run=discord_role`. The
+workflow sweeps before and after the tests.
 
 ## Debugging
 

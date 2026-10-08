@@ -9,8 +9,10 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -87,7 +89,10 @@ func attachmentsAttribute() schema.ListNestedAttribute {
 		MarkdownDescription: "Files attached to the message (at most 10, 25 MiB per request in total). Changing a file's " +
 			"`filename`, `source`, `content_base64` or `source_hash` uploads it again and removes the old copy; " +
 			"`description` and `spoiler` are edited in place. Reference an attachment from an embed or a component " +
-			"as `attachment://<filename>`. Download URLs are signed and expire, so they are not stored.",
+			"as `attachment://<filename>`. Discord leaves a file an embed or component shows out of the message's " +
+			"attachments, so it is read from that embed or component, which report neither its `description` nor " +
+			"`spoiler` (embeds report no `size` or `content_type` either). Download URLs are signed and expire, so they " +
+			"are not stored.",
 		Optional:   true,
 		Validators: []validator.List{listvalidator.SizeBetween(1, maxAttachments)},
 		NestedObject: schema.NestedAttributeObject{
@@ -403,23 +408,129 @@ func (m *messageModel) applyParts(ctx context.Context, msg *discord.Message) dia
 	m.ComponentsV2 = types.BoolValue(msg.Flags&discord.MessageFlagIsComponentsV2 != 0)
 	m.Components = componentsValue(m.Components, msg.Components)
 
-	m.StickerIDs = types.ListNull(types.StringType)
-	if len(msg.StickerItems) > 0 {
-		ids := make([]string, 0, len(msg.StickerItems))
-		for _, s := range msg.StickerItems {
-			ids = append(ids, s.ID)
-		}
-		m.StickerIDs = stringListValue(ctx, ids, &diags)
-	}
+	m.StickerIDs = stickerIDsValue(ctx, m.StickerIDs, msg.StickerItems, &diags)
 
 	poll, d := m.pollValue(ctx, msg)
 	diags.Append(d...)
 	m.Poll = poll
 
-	atts, d := m.attachmentsValue(ctx, msg.Attachments)
+	atts, d := m.attachmentsValue(ctx, msg.Attachments, referencedAttachments(msg))
 	diags.Append(d...)
 	m.Attachments = atts
 	return diags
+}
+
+// referencedAttachments returns the attachments the embeds and components of
+// msg show. Discord leaves them out of the message's attachments, so they are
+// recovered from the attachment URLs, of the form
+// https://cdn.discordapp.com/attachments/<channel>/<attachment>/<filename>,
+// and the attachment_id of component media.
+func referencedAttachments(msg *discord.Message) []discord.Attachment {
+	var out []discord.Attachment
+	seen := map[string]bool{}
+	add := func(a discord.Attachment) {
+		if a.ID != "" && !seen[a.ID] {
+			seen[a.ID] = true
+			out = append(out, a)
+		}
+	}
+	for _, e := range msg.Embeds {
+		urls := []string{}
+		if e.Image != nil {
+			urls = append(urls, e.Image.URL)
+		}
+		if e.Thumbnail != nil {
+			urls = append(urls, e.Thumbnail.URL)
+		}
+		if e.Footer != nil {
+			urls = append(urls, e.Footer.IconURL)
+		}
+		if e.Author != nil {
+			urls = append(urls, e.Author.IconURL)
+		}
+		for _, u := range urls {
+			if id, name, ok := attachmentURL(u, msg.ChannelID); ok {
+				add(discord.Attachment{ID: id, Filename: name})
+			}
+		}
+	}
+	for _, c := range msg.Components {
+		var v any
+		if json.Unmarshal(c, &v) == nil {
+			componentMedia(v, add)
+		}
+	}
+	return out
+}
+
+// attachmentURL parses the ID and file name of an attachment of channelID
+// from its URL.
+func attachmentURL(raw, channelID string) (string, string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", "", false
+	}
+	parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
+	if len(parts) != 4 || parts[0] != "attachments" || parts[1] != channelID || parts[2] == "" || parts[3] == "" {
+		return "", "", false
+	}
+	return parts[2], parts[3], true
+}
+
+// componentMedia calls add with each attachment that component media in v
+// shows. A file component also reports the file's name and size.
+func componentMedia(v any, add func(discord.Attachment)) {
+	switch c := v.(type) {
+	case []any:
+		for _, e := range c {
+			componentMedia(e, add)
+		}
+	case map[string]any:
+		for _, e := range c {
+			media, ok := e.(map[string]any)
+			if !ok {
+				componentMedia(e, add)
+				continue
+			}
+			if id, ok := media["attachment_id"].(string); ok {
+				a := discord.Attachment{ID: id}
+				a.ContentType, _ = media["content_type"].(string)
+				if raw, ok := media["url"].(string); ok {
+					if u, err := url.Parse(raw); err == nil {
+						a.Filename = u.Path[strings.LastIndex(u.Path, "/")+1:]
+					}
+				}
+				if name, ok := c["name"].(string); ok {
+					a.Filename = name
+				}
+				if size, ok := c["size"].(float64); ok {
+					a.Size = int64(size)
+				}
+				add(a)
+			}
+			componentMedia(media, add)
+		}
+	}
+}
+
+// stickerIDsValue keeps the prior order of the sticker IDs when Discord
+// returns the same stickers, which it does in an order of its own.
+func stickerIDsValue(ctx context.Context, prior types.List, items []discord.StickerItem, diags *diag.Diagnostics) types.List {
+	if len(items) == 0 {
+		return types.ListNull(types.StringType)
+	}
+	ids := make([]string, 0, len(items))
+	for _, s := range items {
+		ids = append(ids, s.ID)
+	}
+	if !prior.IsNull() && !prior.IsUnknown() {
+		var want []string
+		diags.Append(prior.ElementsAs(ctx, &want, false)...)
+		if slices.Equal(slices.Sorted(slices.Values(want)), slices.Sorted(slices.Values(ids))) {
+			return prior
+		}
+	}
+	return stringListValue(ctx, ids, diags)
 }
 
 func (m *messageModel) pollValue(ctx context.Context, msg *discord.Message) (types.Object, diag.Diagnostics) {
@@ -484,13 +595,22 @@ func pollDuration(msg *discord.Message) types.Int64 {
 	return types.Int64Value(int64(math.Round(expiry.Sub(posted).Hours())))
 }
 
-// attachmentsValue records the returned attachments. Attachments in the
-// prior value keep their position and their source arguments, matched by ID
-// or, for files just uploaded, in upload order. Attachments added outside
+// attachmentsValue records the returned attachments and the referenced ones
+// Discord left out of them. Attachments in the prior value keep their
+// position and their source arguments, matched by ID or, for files just
+// uploaded, by file name and then in upload order. Attachments added outside
 // Terraform are appended.
-func (m *messageModel) attachmentsValue(ctx context.Context, returned []discord.Attachment) (types.List, diag.Diagnostics) {
+func (m *messageModel) attachmentsValue(ctx context.Context, returned, referenced []discord.Attachment) (types.List, diag.Diagnostics) {
 	elemType := types.ObjectType{AttrTypes: attachmentAttrTypes}
 	prior, diags := m.attachmentList(ctx)
+	hidden := map[string]bool{}
+	returned = slices.Clone(returned)
+	for _, r := range referenced {
+		if !slices.ContainsFunc(returned, func(a discord.Attachment) bool { return a.ID == r.ID }) {
+			hidden[r.ID] = true
+			returned = append(returned, r)
+		}
+	}
 	claimed := make([]bool, len(returned))
 	match := make([]int, len(prior))
 	for i, p := range prior {
@@ -502,28 +622,42 @@ func (m *messageModel) attachmentsValue(ctx context.Context, returned []discord.
 			}
 		}
 	}
-	for i, p := range prior {
-		if !p.ID.IsUnknown() {
-			continue
-		}
-		for j := range returned {
-			if !claimed[j] {
+	claim := func(i int, same func(attachmentModel, discord.Attachment) bool) {
+		for j, a := range returned {
+			if !claimed[j] && same(prior[i], a) {
 				match[i], claimed[j] = j, true
-				break
+				return
 			}
 		}
+	}
+	for i, p := range prior {
+		if p.ID.IsUnknown() {
+			claim(i, func(p attachmentModel, a discord.Attachment) bool { return p.Filename.ValueString() == a.Filename })
+		}
+	}
+	for i, p := range prior {
+		if p.ID.IsUnknown() && match[i] < 0 {
+			claim(i, func(attachmentModel, discord.Attachment) bool { return true })
+		}
+	}
+	value := func(p attachmentModel, a discord.Attachment) attachmentModel {
+		if hidden[a.ID] {
+			return referencedAttachmentValue(p, a)
+		}
+		return attachmentValue(p, a)
 	}
 	out := make([]attachmentModel, 0, len(returned))
 	for i, p := range prior {
 		if match[i] >= 0 {
-			out = append(out, attachmentValue(p, returned[match[i]]))
+			out = append(out, value(p, returned[match[i]]))
 		}
 	}
 	for j, a := range returned {
 		if !claimed[j] {
-			out = append(out, attachmentValue(attachmentModel{
+			out = append(out, value(attachmentModel{
 				Filename: types.StringValue(a.Filename), Source: types.StringNull(),
 				ContentBase64: types.StringNull(), SourceHash: types.StringNull(),
+				Description: types.StringNull(), Spoiler: types.BoolValue(false),
 			}, a))
 		}
 	}
@@ -533,6 +667,26 @@ func (m *messageModel) attachmentsValue(ctx context.Context, returned []discord.
 	list, d := types.ListValueFrom(ctx, elemType, out)
 	diags.Append(d...)
 	return list, diags
+}
+
+// referencedAttachmentValue records an attachment Discord only reports
+// through an embed or component, which carry neither its description nor its
+// spoiler flag, so those keep their prior values. Its size and media type
+// are null unless a component reports them.
+func referencedAttachmentValue(prior attachmentModel, a discord.Attachment) attachmentModel {
+	if prior.Description.IsUnknown() {
+		prior.Description = types.StringNull()
+	}
+	if prior.Spoiler.IsUnknown() || prior.Spoiler.IsNull() {
+		prior.Spoiler = types.BoolValue(false)
+	}
+	prior.ID = types.StringValue(a.ID)
+	prior.Size = types.Int64Null()
+	if a.Size > 0 {
+		prior.Size = types.Int64Value(a.Size)
+	}
+	prior.ContentType = textValue(a.ContentType)
+	return prior
 }
 
 func attachmentValue(prior attachmentModel, a discord.Attachment) attachmentModel {

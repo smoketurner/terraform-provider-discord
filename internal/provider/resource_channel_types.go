@@ -100,6 +100,19 @@ func userLimitAttribute(maxUsers int64) schema.Int64Attribute {
 	}
 }
 
+// stageUserLimitAttribute differs from userLimitAttribute because Discord
+// gives stage channels a limit of 10000 and stores 10000 when 0 is sent, so
+// stage channels have no unlimited setting.
+func stageUserLimitAttribute() schema.Int64Attribute {
+	return schema.Int64Attribute{
+		MarkdownDescription: "Maximum number of audience members, between `1` and `10000`. Defaults to Discord's default (10000).",
+		Optional:            true,
+		Computed:            true,
+		Validators:          []validator.Int64{int64validator.Between(1, 10000)},
+		PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
+	}
+}
+
 func rtcRegionAttribute() schema.StringAttribute {
 	return schema.StringAttribute{
 		MarkdownDescription: "Voice region ID. Omit for automatic selection.",
@@ -361,9 +374,12 @@ type stageChannelModel struct {
 
 func (m *stageChannelModel) base() *channelBase { return &m.channelBase }
 
-func (m *stageChannelModel) payload(context.Context) (discord.Payload, diag.Diagnostics) {
+func (m *stageChannelModel) payload(ctx context.Context) (discord.Payload, diag.Diagnostics) {
 	v := voiceChannelModel(*m)
-	return v.payload(context.Background())
+	p, diags := v.payload(ctx)
+	delete(p, "user_limit")
+	putKnownInt(p, "user_limit", m.UserLimit)
+	return p, diags
 }
 
 func (m *stageChannelModel) apply(ctx context.Context, ch *discord.Channel) diag.Diagnostics {
@@ -381,7 +397,7 @@ func newStageChannelResource() resource.Resource {
 		attributes: map[string]schema.Attribute{
 			"category_id":         categoryIDAttribute(),
 			"bitrate":             bitrateAttribute(64000, "At most `64000` for stage channels."),
-			"user_limit":          userLimitAttribute(10000),
+			"user_limit":          stageUserLimitAttribute(),
 			"rtc_region":          rtcRegionAttribute(),
 			"video_quality_mode":  videoQualityAttribute(),
 			"nsfw":                nsfwAttribute(),
@@ -740,7 +756,10 @@ func newMediaChannelResource() resource.Resource {
 		typeName:    "media_channel",
 		channelType: discord.ChannelTypeMedia,
 		description: "Manages a media channel, a forum-like channel for image and video posts. " +
-			"Discord documents media channels as still in active development, so their behavior may change.",
+			"Media channels are a Discord beta available only to Community servers with Server Subscriptions " +
+			"enabled (the `ROLE_SUBSCRIPTIONS_ENABLED` server feature), and not yet to all of those; elsewhere Discord " +
+			"rejects the channel type with error 50024. Discord documents media channels as still in active " +
+			"development, so their behavior may change.",
 		attributes: attrs,
 	})
 }

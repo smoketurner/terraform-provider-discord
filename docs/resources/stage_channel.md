@@ -38,7 +38,7 @@ resource "discord_stage_channel" "town_hall" {
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.
 - `rate_limit_per_user` (Number) Slowmode for the stage channel's text chat. Between `0` and `21600` seconds. Defaults to `0`.
 - `rtc_region` (String) Voice region ID. Omit for automatic selection.
-- `user_limit` (Number) Maximum number of connected users; `0` means unlimited. Defaults to `0`.
+- `user_limit` (Number) Maximum number of audience members, between `1` and `10000`. Defaults to Discord's default (10000).
 - `video_quality_mode` (String) Camera video quality: `auto`, `full`. Defaults to `auto`.
 
 ### Read-Only
