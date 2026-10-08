@@ -33,13 +33,17 @@ resource "discord_server_settings" "main" {
 
 ### Optional
 
+> **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
+
 - `afk_channel_id` (String) Voice channel inactive members are moved to. Omit to leave unmanaged.
 - `afk_timeout` (Number) Seconds of inactivity before a member is moved to the AFK channel: `60`, `300`, `900`, `1800` or `3600`.
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `default_message_notifications` (String) Default notification setting: `all_messages`, `only_mentions`.
 - `description` (String) Server description. Requires Community.
 - `explicit_content_filter` (String) Explicit media content filter: `disabled`, `members_without_roles`, `all_members`.
-- `icon` (String) Server icon as a data URI, e.g. `"data:image/png;base64,${filebase64("icon.png")}"`. Discord only returns a hash of the icon, so changes made outside Terraform are detected through `icon_hash` only. Removing the attribute leaves the current icon in place.
+- `icon` (String) Server icon as a data URI, e.g. `"data:image/png;base64,${filebase64("icon.png")}"`. Stored in state; prefer `icon_wo` on Terraform 1.11 or later. Removing the attribute leaves the current icon in place.
+- `icon_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Server icon as a data URI. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `icon_wo_version`. Conflicts with `icon`.
+- `icon_wo_version` (Number) Version of `icon_wo`. Setting or changing it uploads `icon_wo`; removing it leaves the current icon in place.
 - `name` (String) Server name (2-100 characters).
 - `preferred_locale` (String) Preferred locale, e.g. `en-US`. Requires Community.
 - `premium_progress_bar_enabled` (Boolean) Whether the boost progress bar is shown.
@@ -53,7 +57,7 @@ resource "discord_server_settings" "main" {
 ### Read-Only
 
 - `features` (Set of String) Enabled server features, e.g. `COMMUNITY`.
-- `icon_hash` (String) Hash of the current icon.
+- `icon_hash` (String) Hash of the current icon. Discord only returns this hash, so a change made outside Terraform makes the next plan upload the configured icon again.
 - `id` (String) Server ID.
 - `owner_id` (String) ID of the server owner.
 

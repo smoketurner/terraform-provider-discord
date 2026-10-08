@@ -82,6 +82,13 @@ resource "discord_text_channel" "b" {
   name      = "tf-acc-hook-b"
 }
 `
+	withAvatar := env.config(channels + `
+resource "discord_webhook" "test" {
+  channel_id = discord_text_channel.a.id
+  name       = "tf-acc-hook"
+  avatar     = "` + onePixelPNG + `"
+}`)
+	var id string
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
@@ -102,13 +109,9 @@ resource "discord_webhook" "test" {
 				ExpectError: regexp.MustCompile(`base64 image data URI`),
 			},
 			{
-				Config: env.config(channels + `
-resource "discord_webhook" "test" {
-  channel_id = discord_text_channel.a.id
-  name       = "tf-acc-hook"
-  avatar     = "` + onePixelPNG + `"
-}`),
+				Config: withAvatar,
 				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_webhook.test", "id", &id),
 					resource.TestCheckResourceAttr("discord_webhook.test", "name", "tf-acc-hook"),
 					resource.TestCheckResourceAttrSet("discord_webhook.test", "token"),
 					resource.TestCheckResourceAttrSet("discord_webhook.test", "avatar_hash"),
@@ -117,6 +120,18 @@ resource "discord_webhook" "test" {
 				),
 			},
 			importStep("discord_webhook.test", "avatar"),
+			{
+				// The avatar is removed in the Discord client: uploaded again.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyWebhook(ctx, id, discord.Payload{"avatar": nil})
+					return err
+				}),
+				Config: withAvatar,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction("discord_webhook.test", plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.TestCheckResourceAttrSet("discord_webhook.test", "avatar_hash"),
+			},
 			{
 				// Moving channels and removing the avatar are in-place updates
 				// that keep the token.

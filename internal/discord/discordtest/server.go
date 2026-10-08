@@ -314,7 +314,7 @@ func (s *Server) modifyGuild(w http.ResponseWriter, r *http.Request) {
 		var icon *string
 		set(body, "icon", &icon)
 		if icon != nil {
-			h := fmt.Sprintf("icon%d", len(*icon))
+			h := "icon" + s.newID()
 			icon = &h
 		}
 		g.Icon = icon

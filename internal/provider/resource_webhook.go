@@ -35,15 +35,17 @@ type webhookResource struct {
 }
 
 type webhookModel struct {
-	ID             types.String `tfsdk:"id"`
-	ChannelID      types.String `tfsdk:"channel_id"`
-	Name           types.String `tfsdk:"name"`
-	Avatar         types.String `tfsdk:"avatar"`
-	AvatarHash     types.String `tfsdk:"avatar_hash"`
-	ServerID       types.String `tfsdk:"server_id"`
-	Token          types.String `tfsdk:"token"`
-	URL            types.String `tfsdk:"url"`
-	AuditLogReason types.String `tfsdk:"audit_log_reason"`
+	ID              types.String `tfsdk:"id"`
+	ChannelID       types.String `tfsdk:"channel_id"`
+	Name            types.String `tfsdk:"name"`
+	Avatar          types.String `tfsdk:"avatar"`
+	AvatarWO        types.String `tfsdk:"avatar_wo"`
+	AvatarWOVersion types.Int64  `tfsdk:"avatar_wo_version"`
+	AvatarHash      types.String `tfsdk:"avatar_hash"`
+	ServerID        types.String `tfsdk:"server_id"`
+	Token           types.String `tfsdk:"token"`
+	URL             types.String `tfsdk:"url"`
+	AuditLogReason  types.String `tfsdk:"audit_log_reason"`
 }
 
 func newWebhookResource() resource.Resource { return &webhookResource{} }
@@ -73,13 +75,18 @@ func (r *webhookResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				},
 			},
 			"avatar": schema.StringAttribute{
-				MarkdownDescription: "Default avatar as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"avatar.png\")}\"`.",
-				Optional:            true,
-				Validators:          []validator.String{dataURIValidator()},
+				MarkdownDescription: "Default avatar as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"avatar.png\")}\"`. " +
+					"Stored in state; prefer `avatar_wo` on Terraform 1.11 or later.",
+				Optional:   true,
+				Validators: []validator.String{dataURIValidator(), stringvalidator.ConflictsWith(path.MatchRoot("avatar_wo"))},
 			},
+			"avatar_wo": writeOnlyImage("Default avatar as a data URI.", "avatar"),
+			"avatar_wo_version": writeOnlyVersion("avatar",
+				"Setting or changing it uploads `avatar_wo`; removing it removes the avatar unless `avatar` is set."),
 			"avatar_hash": schema.StringAttribute{
-				MarkdownDescription: "Hash of the current avatar.",
-				Computed:            true,
+				MarkdownDescription: "Hash of the current avatar. A change made outside Terraform makes the next plan upload " +
+					"the configured avatar again.",
+				Computed: true,
 			},
 			"server_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the server the webhook belongs to.",
@@ -127,6 +134,12 @@ func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest
 	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	p := discord.Payload{"name": plan.Name.ValueString()}
 	putKnownString(p, "avatar", plan.Avatar)
+	if !plan.AvatarWOVersion.IsNull() {
+		putKnownString(p, "avatar", writeOnlyString(ctx, req.Config, "avatar_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	w, err := r.client.CreateWebhook(ctx, plan.ChannelID.ValueString(), p)
 	if err != nil {
 		apiError(&resp.Diagnostics, "create webhook", err)
@@ -151,6 +164,7 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 		apiError(&resp.Diagnostics, "read webhook", err)
 		return
 	}
+	clearImageOnDrift(state.AvatarHash, w.Avatar, &state.Avatar, &state.AvatarWOVersion)
 	state.apply(w)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -170,9 +184,19 @@ func (r *webhookResource) Update(ctx context.Context, req resource.UpdateRequest
 	for p, m := range map[*discord.Payload]*webhookModel{&desired: &plan, &current: &state} {
 		putString(*p, "name", m.Name)
 		putString(*p, "channel_id", m.ChannelID)
-		putString(*p, "avatar", m.Avatar)
+		// avatar_wo is compared through its version below.
+		if m.AvatarWOVersion.IsNull() {
+			putString(*p, "avatar", m.Avatar)
+		}
 	}
-	w, err := r.client.ModifyWebhook(ctx, state.ID.ValueString(), diffPayload(desired, current))
+	payload := diffPayload(desired, current)
+	if writeOnlyChanged(plan.AvatarWOVersion, state.AvatarWOVersion) {
+		putKnownString(payload, "avatar", writeOnlyString(ctx, req.Config, "avatar_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	w, err := r.client.ModifyWebhook(ctx, state.ID.ValueString(), payload)
 	if err != nil {
 		apiError(&resp.Diagnostics, "update webhook", err)
 		return
