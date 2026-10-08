@@ -391,6 +391,7 @@ func TestAuditLogReasonEndpoints(t *testing.T) {
 		{"PATCH /guilds/1/channels", false, func() error { return c.ModifyChannelPositions(ctx, "1", nil) }},
 		{"PUT /channels/3/permissions/4", true, func() error { return c.EditChannelPermission(ctx, "3", Overwrite{ID: "4"}) }},
 		{"DELETE /channels/3/permissions/4", true, func() error { return c.DeleteChannelPermission(ctx, "3", "4") }},
+		{"PATCH /guilds/1/members/5", true, func() error { _, err := c.ModifyMember(ctx, "1", "5", p); return err }},
 		{"PUT /guilds/1/members/5/roles/2", true, func() error { return c.AddMemberRole(ctx, "1", "5", "2") }},
 		{"DELETE /guilds/1/members/5/roles/2", true, func() error { return c.RemoveMemberRole(ctx, "1", "5", "2") }},
 		{"POST /channels/3/webhooks", true, func() error { _, err := c.CreateWebhook(ctx, "3", p); return err }},
