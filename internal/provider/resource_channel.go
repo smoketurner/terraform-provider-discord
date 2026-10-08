@@ -22,6 +22,8 @@ type channelBase struct {
 	ServerID types.String `tfsdk:"server_id"`
 	Name     types.String `tfsdk:"name"`
 	Position types.Int64  `tfsdk:"position"`
+
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func (b *channelBase) payload(p discord.Payload) {
@@ -87,6 +89,7 @@ func (r *channelResource[T, PT]) Schema(_ context.Context, _ resource.SchemaRequ
 			MarkdownDescription: "Current sort position. Read-only; use `discord_channel_positions` to reorder channels.",
 			Computed:            true,
 		},
+		"audit_log_reason": auditLogReasonAttribute(),
 	}
 	for k, v := range r.kind.attributes {
 		attrs[k] = v
@@ -133,6 +136,7 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, m.base().AuditLogReason)
 	p, diags := m.payload(ctx)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -182,6 +186,9 @@ func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan, state T
 	pm, sm := PT(&plan), PT(&state)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, pm)...)
@@ -189,6 +196,7 @@ func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, pm.base().AuditLogReason)
 	desired, diags := pm.payload(ctx)
 	resp.Diagnostics.Append(diags...)
 	current, diags := sm.payload(ctx)
@@ -212,6 +220,7 @@ func (r *channelResource[T, PT]) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, m.base().AuditLogReason)
 	if err := r.client.DeleteChannel(ctx, m.base().ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete "+r.kind.typeName, err)
 	}

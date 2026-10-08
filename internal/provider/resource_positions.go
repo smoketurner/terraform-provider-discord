@@ -27,6 +27,10 @@ type positionsKind struct {
 	descending bool
 	list       func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error)
 	apply      func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error
+
+	// audited is true when Discord records an audit log reason for the
+	// reorder; it does not for channel positions.
+	audited bool
 }
 
 var _ resource.ResourceWithConfigure = &positionsResource{}
@@ -40,6 +44,8 @@ type positionsModel struct {
 	ID       types.String `tfsdk:"id"`
 	ServerID types.String `tfsdk:"server_id"`
 	IDs      types.List   `tfsdk:"-"`
+
+	AuditLogReason types.String `tfsdk:"-"`
 }
 
 func newRolePositionsResource() resource.Resource {
@@ -51,6 +57,7 @@ func newRolePositionsResource() resource.Resource {
 		idsAttr:    "role_ids",
 		idsDesc:    "Role IDs ordered from highest to lowest, as shown in the Discord client.",
 		descending: true,
+		audited:    true,
 		list: func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error) {
 			roles, err := c.ListRoles(ctx, serverID)
 			out := make([]discord.Positioned, 0, len(roles))
@@ -109,6 +116,9 @@ func (r *positionsResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 		},
 	}
+	if r.kind.audited {
+		resp.Schema.Attributes[auditLogReasonAttr] = auditLogReasonAttribute()
+	}
 }
 
 func (r *positionsResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -125,6 +135,9 @@ func (r *positionsResource) get(ctx context.Context, src interface {
 	diags.Append(src.GetAttribute(ctx, path.Root("id"), &m.ID)...)
 	diags.Append(src.GetAttribute(ctx, path.Root("server_id"), &m.ServerID)...)
 	diags.Append(src.GetAttribute(ctx, path.Root(r.kind.idsAttr), &m.IDs)...)
+	if r.kind.audited {
+		diags.Append(src.GetAttribute(ctx, path.Root(auditLogReasonAttr), &m.AuditLogReason)...)
+	}
 	return diags
 }
 
@@ -135,6 +148,9 @@ func (r *positionsResource) set(ctx context.Context, dst interface {
 	diags.Append(dst.SetAttribute(ctx, path.Root("id"), m.ID)...)
 	diags.Append(dst.SetAttribute(ctx, path.Root("server_id"), m.ServerID)...)
 	diags.Append(dst.SetAttribute(ctx, path.Root(r.kind.idsAttr), m.IDs)...)
+	if r.kind.audited {
+		diags.Append(dst.SetAttribute(ctx, path.Root(auditLogReasonAttr), m.AuditLogReason)...)
+	}
 	return diags
 }
 
@@ -155,6 +171,7 @@ func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.D
 		return diags
 	}
 	serverID := m.ServerID.ValueString()
+	ctx = withAuditLogReason(ctx, m.AuditLogReason)
 	current, err := r.kind.list(ctx, r.client, serverID)
 	if err != nil {
 		apiError(&diags, "list current positions", err)
@@ -222,6 +239,9 @@ func (r *positionsResource) Read(ctx context.Context, req resource.ReadRequest, 
 }
 
 func (r *positionsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if r.kind.audited && updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan positionsModel
 	resp.Diagnostics.Append(r.get(ctx, req.Plan, &plan)...)
 	if resp.Diagnostics.HasError() {

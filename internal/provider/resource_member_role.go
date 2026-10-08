@@ -25,10 +25,11 @@ type memberRoleResource struct {
 }
 
 type memberRoleModel struct {
-	ID       types.String `tfsdk:"id"`
-	ServerID types.String `tfsdk:"server_id"`
-	UserID   types.String `tfsdk:"user_id"`
-	RoleID   types.String `tfsdk:"role_id"`
+	ID             types.String `tfsdk:"id"`
+	ServerID       types.String `tfsdk:"server_id"`
+	UserID         types.String `tfsdk:"user_id"`
+	RoleID         types.String `tfsdk:"role_id"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newMemberRoleResource() resource.Resource { return &memberRoleResource{} }
@@ -50,10 +51,11 @@ func (r *memberRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		MarkdownDescription: "Grants one role to a server member. Other roles the member has are left alone. If the role " +
 			"is removed outside Terraform it is granted again on the next apply.",
 		Attributes: map[string]schema.Attribute{
-			"id":        idAttribute("`server_id/user_id/role_id`."),
-			"server_id": serverIDAttribute(),
-			"user_id":   snowflake("ID of the member's user."),
-			"role_id":   snowflake("ID of the role to grant."),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("`server_id/user_id/role_id`."),
+			"server_id":        serverIDAttribute(),
+			"user_id":          snowflake("ID of the member's user."),
+			"role_id":          snowflake("ID of the role to grant."),
 		},
 	}
 }
@@ -72,6 +74,7 @@ func (r *memberRoleResource) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	if err := r.client.AddMemberRole(ctx, plan.ServerID.ValueString(), plan.UserID.ValueString(), plan.RoleID.ValueString()); err != nil {
 		apiError(&resp.Diagnostics, "grant role", err)
 		return
@@ -103,7 +106,10 @@ func (r *memberRoleResource) Read(ctx context.Context, req resource.ReadRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-func (r *memberRoleResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *memberRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	resp.Diagnostics.AddError("Unexpected update", "All discord_member_role attributes force replacement.")
 }
 
@@ -113,6 +119,7 @@ func (r *memberRoleResource) Delete(ctx context.Context, req resource.DeleteRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	err := r.client.RemoveMemberRole(ctx, state.ServerID.ValueString(), state.UserID.ValueString(), state.RoleID.ValueString())
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "revoke role", err)

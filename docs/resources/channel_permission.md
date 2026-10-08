@@ -42,6 +42,7 @@ resource "discord_channel_permission" "staff_moderators" {
 ### Optional
 
 - `allow` (String) Allowed permission bitfield as a decimal string. Defaults to `0`.
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `deny` (String) Denied permission bitfield as a decimal string. Defaults to `0`.
 
 ### Read-Only

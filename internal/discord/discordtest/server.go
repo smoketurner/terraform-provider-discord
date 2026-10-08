@@ -43,6 +43,7 @@ type Server struct {
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
 	requests  []string
+	headers   []http.Header
 	edits     []map[string]json.RawMessage
 	failNext  map[string]int
 	botUserID string
@@ -133,6 +134,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		key := r.Method + " " + r.URL.Path
 		s.mu.Lock()
 		s.requests = append(s.requests, key)
+		s.headers = append(s.headers, r.Header.Clone())
 		fail := s.failNext[key]
 		if fail > 0 {
 			s.failNext[key] = fail - 1
@@ -165,6 +167,20 @@ func (s *Server) Requests() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return slices.Clone(s.requests)
+}
+
+// RequestHeaders returns the headers of every request matching
+// "METHOD /path" received so far, in order.
+func (s *Server) RequestHeaders(methodPath string) []http.Header {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []http.Header
+	for i, key := range s.requests {
+		if key == methodPath {
+			out = append(out, s.headers[i].Clone())
+		}
+	}
+	return out
 }
 
 func (s *Server) newID() string {

@@ -32,6 +32,10 @@ resource "discord_role_positions" "main" {
 - `role_ids` (List of String) Role IDs ordered from highest to lowest, as shown in the Discord client.
 - `server_id` (String) ID of the server (guild).
 
+### Optional
+
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
+
 ### Read-Only
 
 - `id` (String) Server ID.
