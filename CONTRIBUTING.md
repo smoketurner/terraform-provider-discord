@@ -65,7 +65,8 @@ make testacc
 ```
 
 The bot needs the Administrator permission on the test server. The **Live acceptance tests** workflow runs these
-tests weekly once the `discord-live` environment is configured.
+tests weekly once the `dev` environment is configured with the `DISCORD_TOKEN` secret and the `DISCORD_SERVER_ID`
+variable.
 
 ## Debugging
 
