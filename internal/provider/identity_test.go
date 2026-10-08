@@ -147,6 +147,27 @@ resource "discord_member_role" "test" {
 `
 		identities["discord_member_role.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id", "role_id": "role_id"}
 	}
+	// These disable the server's onboarding, welcome screen and widget on
+	// destroy, so live runs leave them out.
+	if !env.live {
+		cfg += `
+resource "discord_onboarding" "test" {
+  server_id = local.server_id
+  enabled   = false
+}
+resource "discord_welcome_screen" "test" {
+  server_id = local.server_id
+  enabled   = false
+}
+resource "discord_server_widget" "test" {
+  server_id = local.server_id
+  enabled   = false
+}
+`
+		for _, name := range []string{"discord_onboarding.test", "discord_welcome_screen.test", "discord_server_widget.test"} {
+			identities[name] = map[string]string{"server_id": "server_id"}
+		}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep

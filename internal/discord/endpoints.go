@@ -246,3 +246,40 @@ func (c *Client) ModifyEmoji(ctx context.Context, guildID, emojiID string, p Pay
 func (c *Client) DeleteEmoji(ctx context.Context, guildID, emojiID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/emojis/"+emojiID, nil, nil)
 }
+
+// GetWidgetSettings fetches a guild's widget settings.
+func (c *Client) GetWidgetSettings(ctx context.Context, guildID string) (*WidgetSettings, error) {
+	var w WidgetSettings
+	return &w, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/widget", nil, &w)
+}
+
+// ModifyWidgetSettings updates a guild's widget settings.
+func (c *Client) ModifyWidgetSettings(ctx context.Context, guildID string, p Payload) (*WidgetSettings, error) {
+	var w WidgetSettings
+	return &w, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/widget", p, &w)
+}
+
+// GetWelcomeScreen fetches a guild's welcome screen.
+func (c *Client) GetWelcomeScreen(ctx context.Context, guildID string) (*WelcomeScreen, error) {
+	var ws WelcomeScreen
+	return &ws, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/welcome-screen", nil, &ws)
+}
+
+// ModifyWelcomeScreen updates a guild's welcome screen.
+func (c *Client) ModifyWelcomeScreen(ctx context.Context, guildID string, p Payload) (*WelcomeScreen, error) {
+	var ws WelcomeScreen
+	return &ws, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/welcome-screen", p, &ws)
+}
+
+// GetOnboarding fetches a guild's onboarding configuration.
+func (c *Client) GetOnboarding(ctx context.Context, guildID string) (*Onboarding, error) {
+	var o Onboarding
+	return &o, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/onboarding", nil, &o)
+}
+
+// ModifyOnboarding replaces the parts of a guild's onboarding configuration
+// that the payload contains.
+func (c *Client) ModifyOnboarding(ctx context.Context, guildID string, p Payload) (*Onboarding, error) {
+	var o Onboarding
+	return &o, c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/onboarding", p, &o)
+}
