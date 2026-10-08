@@ -118,7 +118,10 @@ func newChannelResource[T any, PT interface {
 	*T
 	channelModel
 }](kind channelKind) resource.Resource {
-	return &channelResource[T, PT]{kind: kind}
+	return &channelResource[T, PT]{
+		resourceIdentity: resourceIdentity{attrs: []identityAttribute{channelIdentity("id")}},
+		kind:             kind,
+	}
 }
 
 // Category.
