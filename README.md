@@ -42,7 +42,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 
 | Kind | Names |
 |------|-------|
-| Server | `discord_server_settings`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_integrations`, `data.discord_server_templates` |
+| Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_integrations`, `data.discord_server_templates` |
 | Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_roles` |
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel`, `data.discord_channels` |
 | Permissions | `discord_channel_permission` |
