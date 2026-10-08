@@ -3,12 +3,12 @@
 page_title: "discord_announcement_channel Resource - discord"
 subcategory: ""
 description: |-
-  Manages an announcement (news) channel whose messages other servers can follow. Requires the server to have Community enabled; otherwise Discord rejects the channel type. Permission overwrites are managed with discord_channel_permission.
+  Manages an announcement (news) channel whose messages other servers can follow. Requires the server to have Community enabled; otherwise Discord rejects the channel type. Permission overwrites are managed with discord_channel_permission; initial_permission_overwrites only sets them when the channel is created.
 ---
 
 # discord_announcement_channel (Resource)
 
-Manages an announcement (news) channel whose messages other servers can follow. Requires the server to have Community enabled; otherwise Discord rejects the channel type. Permission overwrites are managed with `discord_channel_permission`.
+Manages an announcement (news) channel whose messages other servers can follow. Requires the server to have Community enabled; otherwise Discord rejects the channel type. Permission overwrites are managed with `discord_channel_permission`; `initial_permission_overwrites` only sets them when the channel is created.
 
 ## Example Usage
 
@@ -19,6 +19,13 @@ resource "discord_announcement_channel" "news" {
   name        = "announcements"
   category_id = discord_category_channel.community.id
   topic       = "Release notes and news"
+}
+
+# Converts a channel previously managed as discord_text_channel.news in place,
+# keeping its messages, instead of recreating it (Terraform 1.8 or later).
+moved {
+  from = discord_text_channel.news
+  to   = discord_announcement_channel.news
 }
 ```
 
@@ -35,6 +42,7 @@ resource "discord_announcement_channel" "news" {
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `category_id` (String) ID of the parent category channel. Omit to place the channel outside any category.
 - `default_auto_archive_duration` (Number) Default minutes of inactivity after which new threads are archived: `60`, `1440`, `4320` or `10080`.
+- `initial_permission_overwrites` (Attributes Set) Permission overwrites sent in the request that creates the channel, so a private channel is never visible without them. They are used only when the channel is created or replaced: Terraform does not read them back, and changing this argument later only updates state, without calling Discord. Manage overwrites after creation with `discord_channel_permission`; one with the same `overwrite_id` takes over the initial overwrite and writes its own `allow` and `deny`. The bot can only allow or deny permissions it has in the server, and only an Administrator can set `MANAGE_ROLES` in an overwrite. (see [below for nested schema](#nestedatt--initial_permission_overwrites))
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.
 - `topic` (String) Channel topic (up to 1024 characters).
 
@@ -42,6 +50,20 @@ resource "discord_announcement_channel" "news" {
 
 - `id` (String) Channel ID.
 - `position` (Number) Current sort position. Read-only; use `discord_channel_positions` to reorder channels.
+- `type` (String) Current channel type: `text` or `announcement`. Read-only. To convert between a text and an announcement channel without recreating it, change the resource type and add a `moved` block (Terraform 1.8 or later); the next apply sets the type to `announcement`. Converting requires the server to have the `NEWS` feature (Community enabled).
+
+<a id="nestedatt--initial_permission_overwrites"></a>
+### Nested Schema for `initial_permission_overwrites`
+
+Required:
+
+- `id` (String) ID of the role or member the overwrite applies to. Use the server ID for `@everyone`.
+- `type` (String) Overwrite target type: `role`, `member`.
+
+Optional:
+
+- `allow` (String) Allowed permission bitfield as a decimal string. Omit for `0`.
+- `deny` (String) Denied permission bitfield as a decimal string. Omit for `0`.
 
 ## Import
 

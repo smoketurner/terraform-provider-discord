@@ -3,12 +3,12 @@
 page_title: "discord_voice_channel Resource - discord"
 subcategory: ""
 description: |-
-  Manages a voice channel. Permission overwrites are managed with discord_channel_permission.
+  Manages a voice channel. Permission overwrites are managed with discord_channel_permission; initial_permission_overwrites only sets them when the channel is created.
 ---
 
 # discord_voice_channel (Resource)
 
-Manages a voice channel. Permission overwrites are managed with `discord_channel_permission`.
+Manages a voice channel. Permission overwrites are managed with `discord_channel_permission`; `initial_permission_overwrites` only sets them when the channel is created.
 
 ## Example Usage
 
@@ -35,6 +35,7 @@ resource "discord_voice_channel" "lounge" {
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `bitrate` (Number) Bitrate in bits per second, at least `8000`. The maximum depends on the server's boost level (96000 to 384000). Defaults to Discord's default (64000).
 - `category_id` (String) ID of the parent category channel. Omit to place the channel outside any category.
+- `initial_permission_overwrites` (Attributes Set) Permission overwrites sent in the request that creates the channel, so a private channel is never visible without them. They are used only when the channel is created or replaced: Terraform does not read them back, and changing this argument later only updates state, without calling Discord. Manage overwrites after creation with `discord_channel_permission`; one with the same `overwrite_id` takes over the initial overwrite and writes its own `allow` and `deny`. The bot can only allow or deny permissions it has in the server, and only an Administrator can set `MANAGE_ROLES` in an overwrite. (see [below for nested schema](#nestedatt--initial_permission_overwrites))
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.
 - `rate_limit_per_user` (Number) Slowmode for the voice channel's text chat. Between `0` and `21600` seconds. Defaults to `0`.
 - `rtc_region` (String) Voice region ID. Omit for automatic selection.
@@ -45,6 +46,19 @@ resource "discord_voice_channel" "lounge" {
 
 - `id` (String) Channel ID.
 - `position` (Number) Current sort position. Read-only; use `discord_channel_positions` to reorder channels.
+
+<a id="nestedatt--initial_permission_overwrites"></a>
+### Nested Schema for `initial_permission_overwrites`
+
+Required:
+
+- `id` (String) ID of the role or member the overwrite applies to. Use the server ID for `@everyone`.
+- `type` (String) Overwrite target type: `role`, `member`.
+
+Optional:
+
+- `allow` (String) Allowed permission bitfield as a decimal string. Omit for `0`.
+- `deny` (String) Denied permission bitfield as a decimal string. Omit for `0`.
 
 ## Import
 
