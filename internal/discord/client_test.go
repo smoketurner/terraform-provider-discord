@@ -410,7 +410,7 @@ func TestAuditLogReasonEndpoints(t *testing.T) {
 		{"POST /guilds/1/stickers", true, func() error { _, err := c.CreateSticker(ctx, "1", &Multipart{Payload: p}); return err }},
 		{"PATCH /guilds/1/stickers/9", true, func() error { _, err := c.ModifySticker(ctx, "1", "9", p); return err }},
 		{"DELETE /guilds/1/stickers/9", true, func() error { return c.DeleteSticker(ctx, "1", "9") }},
-		{"GET /guilds/1/stickers/9", false, func() error { _, err := c.GetSticker(ctx, "1", "9"); return err }},
+		{"GET /guilds/1/stickers/9", false, func() error { _, err := c.GetGuildSticker(ctx, "1", "9"); return err }},
 		{"POST /guilds/1/soundboard-sounds", true, func() error { _, err := c.CreateSoundboardSound(ctx, "1", p); return err }},
 		{"PATCH /guilds/1/soundboard-sounds/10", true, func() error { _, err := c.ModifySoundboardSound(ctx, "1", "10", p); return err }},
 		{"DELETE /guilds/1/soundboard-sounds/10", true, func() error { return c.DeleteSoundboardSound(ctx, "1", "10") }},

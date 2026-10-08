@@ -26,14 +26,12 @@ var (
 // maxStickerFileSize is Discord's documented limit for sticker files.
 const maxStickerFileSize = 512 << 10
 
-var stickerFormatTypes = enumMapping{1: "png", 2: "apng", 3: "lottie", 4: "gif"}
-
 type stickerResource struct {
 	resourceIdentity
 	client *discord.Client
 }
 
-type stickerModel struct {
+type stickerResourceModel struct {
 	ID             types.String `tfsdk:"id"`
 	ServerID       types.String `tfsdk:"server_id"`
 	Name           types.String `tfsdk:"name"`
@@ -115,7 +113,7 @@ func (r *stickerResource) Configure(_ context.Context, req resource.ConfigureReq
 	r.client = clientFromResource(req, resp)
 }
 
-func (m *stickerModel) apply(s *discord.Sticker) {
+func (m *stickerResourceModel) apply(s *discord.Sticker) {
 	m.ID = types.StringValue(s.ID)
 	m.Name = types.StringValue(s.Name)
 	m.Description = stringPtrValue(s.Description)
@@ -126,7 +124,7 @@ func (m *stickerModel) apply(s *discord.Sticker) {
 
 func (r *stickerResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
-	var plan stickerModel
+	var plan stickerResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -161,12 +159,12 @@ func (r *stickerResource) Create(ctx context.Context, req resource.CreateRequest
 
 func (r *stickerResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
-	var state stickerModel
+	var state stickerResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	s, err := r.client.GetSticker(ctx, state.ServerID.ValueString(), state.ID.ValueString())
+	s, err := r.client.GetGuildSticker(ctx, state.ServerID.ValueString(), state.ID.ValueString())
 	if discord.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -184,7 +182,7 @@ func (r *stickerResource) Update(ctx context.Context, req resource.UpdateRequest
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
-	var plan stickerModel
+	var plan stickerResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -202,7 +200,7 @@ func (r *stickerResource) Update(ctx context.Context, req resource.UpdateRequest
 }
 
 func (r *stickerResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state stickerModel
+	var state stickerResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return

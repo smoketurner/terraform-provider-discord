@@ -151,6 +151,13 @@ func TestStickerUploads(t *testing.T) {
 	if st, err := upload("application/json", []byte("{}")); err != nil || st.FormatType != 3 {
 		t.Errorf("lottie: %+v, %v", st, err)
 	}
+	st, err := upload("image/gif", []byte("GIF89a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := c.GetSticker(t.Context(), st.ID); err != nil || got.ID != st.ID || got.GuildID == nil {
+		t.Errorf("GET /stickers/%s = %+v, %v", st.ID, got, err)
+	}
 }
 
 func TestListSoundboardSounds(t *testing.T) {

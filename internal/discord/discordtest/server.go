@@ -52,6 +52,9 @@ type Server struct {
 	events   map[string]*discord.ScheduledEvent
 	stages   map[string]*discord.StageInstance
 	settings map[string]*guildSettings
+	ro       *readOnlyState
+	money    *monetization
+	app      *discord.Application
 	// stickerFiles and soundData hold the uploaded files, which Discord
 	// never returns.
 	stickerFiles map[string]Upload
@@ -179,6 +182,9 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
+	s.handleReadOnly(mux)
+	s.handleMonetization(mux)
+	s.handleUsers(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
@@ -1404,7 +1410,10 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	m := &discord.Message{ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{}}
+	m := &discord.Message{
+		ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	}
 	applyMessage(m, body)
 	if m.Content == "" && len(m.Embeds) == 0 {
 		writeError(w, http.StatusBadRequest, 50006, "Cannot send an empty message")
@@ -1440,6 +1449,8 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.edits = append(s.edits, body)
 	applyMessage(m, body)
+	edited := time.Now().UTC().Format(time.RFC3339Nano)
+	m.EditedTimestamp = &edited
 	writeJSON(w, http.StatusOK, m)
 }
 
@@ -1471,6 +1482,7 @@ func (s *Server) pinMessage(pinned bool) http.HandlerFunc {
 			return
 		}
 		m.Pinned = pinned
+		s.recordPin(m, pinned)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
