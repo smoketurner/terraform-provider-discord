@@ -43,6 +43,21 @@ var modelSchemas = map[string]struct {
 	"Embed":           {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
 	"Message":         {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
 	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
+	"EntityMetadata":  {reflect.TypeFor[discord.EntityMetadata](), []string{"EntityMetadataExternalResponse", "EntityMetadataExternal"}},
+	"NWeekday":        {reflect.TypeFor[discord.NWeekday](), []string{"ByNWeekdayResponse", "ByNWeekday"}},
+	"RecurrenceRule":  {reflect.TypeFor[discord.RecurrenceRule](), []string{"RecurrenceRuleResponse", "RecurrenceRule"}},
+	"ScheduledEvent": {reflect.TypeFor[discord.ScheduledEvent](), []string{
+		"ExternalScheduledEventResponse", "StageScheduledEventResponse", "VoiceScheduledEventResponse",
+	}},
+	"StageInstance":  {reflect.TypeFor[discord.StageInstance](), []string{"StageInstanceResponse"}},
+	"WidgetSettings": {reflect.TypeFor[discord.WidgetSettings](), []string{"WidgetSettingsResponse"}},
+	"WelcomeScreen":  {reflect.TypeFor[discord.WelcomeScreen](), []string{"GuildWelcomeScreenResponse"}},
+	"WelcomeScreenChannel": {reflect.TypeFor[discord.WelcomeScreenChannel](), []string{
+		"GuildWelcomeScreenChannelResponse", "GuildWelcomeChannel"}},
+	"Onboarding":             {reflect.TypeFor[discord.Onboarding](), []string{"GuildOnboardingResponse", "UserGuildOnboardingResponse"}},
+	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
+	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
+	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go

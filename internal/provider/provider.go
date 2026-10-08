@@ -118,6 +118,9 @@ func (p *discordProvider) Configure(ctx context.Context, req provider.ConfigureR
 func (p *discordProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		newServerSettingsResource,
+		newServerWidgetResource,
+		newWelcomeScreenResource,
+		newOnboardingResource,
 		newRoleResource,
 		newRoleEveryoneResource,
 		newRolePositionsResource,
@@ -139,6 +142,8 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newMessageResource,
 		newThreadResource,
 		newEmojiResource,
+		newScheduledEventResource,
+		newStageInstanceResource,
 	}
 }
 

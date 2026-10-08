@@ -231,6 +231,116 @@ resource "discord_server_settings" "test" {
 	})
 }
 
+func TestAccRoleWriteOnlyIcon(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	env.fake.SetGuildFeatures("COMMUNITY", "ROLE_ICONS")
+	const address = "discord_role.test"
+	role := func(attrs string) string {
+		return env.config(`
+resource "discord_role" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-role-wo"
+` + attrs + `
+}`)
+	}
+	withIcon := func(image, version string) string {
+		return role(`  icon_wo         = "` + image + `"
+  icon_wo_version = ` + version)
+	}
+	hashes := statecheck.CompareValue(compare.ValuesDiffer())
+	var id, drifted string
+	env.run(resource.TestCase{
+		TerraformVersionChecks: writeOnlySupported,
+		Steps: []resource.TestStep{
+			{
+				Config: role(`  icon            = "` + onePixelPNG + `"
+  icon_wo         = "` + onePixelPNG + `"
+  icon_wo_version = 1`),
+				ExpectError: regexp.MustCompile(`(?s)Attribute "icon(_wo)?" cannot be specified when "icon(_wo)?" is\s+specified`),
+			},
+			{
+				Config:      role(`  icon_wo = "` + onePixelPNG + `"`),
+				ExpectError: regexp.MustCompile(`(?s)Attribute "icon_wo_version" must be specified when "icon_wo" is\s+specified`),
+			},
+			{
+				Config:      withIcon("https://example.com/a.png", "1"),
+				ExpectError: regexp.MustCompile(`base64 image data URI`),
+			},
+			{
+				Config: withIcon(onePixelPNG, "1"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(address, "icon_wo_version", "1"),
+					captureAttr(address, "id", &id),
+				),
+				ConfigStateChecks: append(expectNull(address, "icon_wo", "icon"),
+					hashes.AddStateValue(address, tfjsonpath.New("icon_hash")),
+					statecheck.ExpectKnownValue(address, tfjsonpath.New("icon_hash"), knownvalue.NotNull()),
+				),
+			},
+			{
+				// A new value under the same version is not sent.
+				Config: withIcon(otherPNG, "1"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{
+				Config: withIcon(otherPNG, "2"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				ConfigStateChecks: append(expectNull(address, "icon_wo"),
+					hashes.AddStateValue(address, tfjsonpath.New("icon_hash"))),
+			},
+			{
+				// The icon is changed in the Discord client: uploaded again.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					r, err := c.ModifyRole(ctx, env.serverID, id, discord.Payload{"icon": onePixelPNG})
+					if err == nil {
+						drifted = *r.Icon
+					}
+					return err
+				}),
+				Config: withIcon(otherPNG, "2"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(address, "icon_wo_version", "2"),
+					attrDiffers(address, "icon_hash", &drifted),
+				),
+				ConfigStateChecks: expectNull(address, "icon_wo"),
+			},
+			{
+				ResourceName:            address,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"icon_wo_version"},
+				ImportStateIdFunc:       func(*terraform.State) (string, error) { return env.serverID + "/" + id, nil },
+			},
+			{
+				// Switching to the stored argument uploads it.
+				Config: role(`  icon = "` + onePixelPNG + `"`),
+				ConfigStateChecks: []statecheck.StateCheck{
+					hashes.AddStateValue(address, tfjsonpath.New("icon_hash")),
+					statecheck.ExpectKnownValue(address, tfjsonpath.New("icon"), knownvalue.StringExact(onePixelPNG)),
+				},
+			},
+			{
+				Config: withIcon(otherPNG, "1"),
+				ConfigStateChecks: append(expectNull(address, "icon_wo", "icon"),
+					hashes.AddStateValue(address, tfjsonpath.New("icon_hash"))),
+			},
+			{
+				// Removing the version removes the icon.
+				Config:            role(""),
+				ConfigStateChecks: expectNull(address, "icon_hash", "icon_wo_version"),
+			},
+		},
+	})
+}
+
 func TestAccEmojiWriteOnlyImage(t *testing.T) {
 	env := newTestEnv(t)
 	const address = "discord_emoji.test"
