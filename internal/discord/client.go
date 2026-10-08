@@ -143,14 +143,21 @@ func (c *Client) waitGlobal(ctx context.Context) error {
 }
 
 // do performs a request, honoring Discord rate limits and retrying on 429 and
-// transient gateway errors. A nil body sends no payload; out may be nil.
+// transient gateway errors. A nil body sends no payload, a *Multipart is sent
+// as multipart/form-data and anything else as JSON; out may be nil.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
-	var payload []byte
-	if body != nil {
-		var err error
-		if payload, err = json.Marshal(body); err != nil {
-			return fmt.Errorf("encoding request body: %w", err)
-		}
+	payload, contentType, err := encodeBody(body)
+	if err != nil {
+		return err
+	}
+	if len(payload) > MaxRequestSize {
+		return fmt.Errorf("%s %s: request body is %d bytes, %w", method, path, len(payload), ErrRequestTooLarge)
+	}
+	header := http.Header{}
+	header.Set("Authorization", "Bot "+c.token)
+	header.Set("User-Agent", c.userAgent)
+	if contentType != "" {
+		header.Set("Content-Type", contentType)
 	}
 
 	b := c.bucketFor(routeKey(method, path))
@@ -167,7 +174,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 			return err
 		}
 
-		resp, err := c.send(ctx, method, path, payload)
+		resp, err := c.send(ctx, method, path, header, payload)
 		if err != nil {
 			return err
 		}
@@ -207,7 +214,24 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 }
 
-func (c *Client) send(ctx context.Context, method, path string, payload []byte) (*http.Response, error) {
+// encodeBody serializes a request body once so that retries resend the same
+// bytes, including the same multipart boundary.
+func encodeBody(body any) ([]byte, string, error) {
+	switch b := body.(type) {
+	case nil:
+		return nil, "", nil
+	case *Multipart:
+		return b.encode()
+	default:
+		payload, err := json.Marshal(b)
+		if err != nil {
+			return nil, "", fmt.Errorf("encoding request body: %w", err)
+		}
+		return payload, "application/json", nil
+	}
+}
+
+func (c *Client) send(ctx context.Context, method, path string, header http.Header, payload []byte) (*http.Response, error) {
 	var reader io.Reader
 	if payload != nil {
 		reader = bytes.NewReader(payload)
@@ -216,11 +240,7 @@ func (c *Client) send(ctx context.Context, method, path string, payload []byte) 
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bot "+c.token)
-	req.Header.Set("User-Agent", c.userAgent)
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	req.Header = header.Clone()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, path, err)

@@ -4,8 +4,11 @@ package discordtest
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"maps"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -185,13 +188,65 @@ func notFound(w http.ResponseWriter, what string, code int) {
 	writeError(w, http.StatusNotFound, code, "Unknown "+what)
 }
 
+// decode reads a JSON or multipart/form-data request body into a map of
+// top-level fields.
 func decode(r *http.Request) (map[string]json.RawMessage, error) {
 	body := map[string]json.RawMessage{}
 	if r.ContentLength == 0 {
 		return body, nil
 	}
+	if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mediaType == "multipart/form-data" {
+		return decodeMultipart(r)
+	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	return body, err
+}
+
+// Upload is a file part of a multipart request. decode stores it under its
+// form field name ("files[0]", "file") as JSON.
+type Upload struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	Data        []byte `json:"data"`
+}
+
+// decodeMultipart accepts parameters both in payload_json and as plain form
+// fields, as Discord does.
+func decodeMultipart(r *http.Request) (map[string]json.RawMessage, error) {
+	r.Body = http.MaxBytesReader(nil, r.Body, discord.MaxRequestSize)
+	mr, err := r.MultipartReader()
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]json.RawMessage{}
+	var payloadJSON []byte
+	for {
+		part, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		data, err := io.ReadAll(part)
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case part.FileName() != "":
+			body[part.FormName()], _ = json.Marshal(Upload{Filename: part.FileName(), ContentType: part.Header.Get("Content-Type"), Data: data})
+		case part.FormName() == "payload_json":
+			payloadJSON = data
+		default:
+			body[part.FormName()], _ = json.Marshal(string(data))
+		}
+	}
+	if payloadJSON != nil {
+		if err := json.Unmarshal(payloadJSON, &body); err != nil {
+			return nil, fmt.Errorf("payload_json: %w", err)
+		}
+	}
+	return body, nil
 }
 
 // set decodes body[key] into dst when the key is present. A JSON null leaves
