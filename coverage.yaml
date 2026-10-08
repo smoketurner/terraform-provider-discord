@@ -116,7 +116,7 @@ operations:
   get_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_auto_moderation_rule: {status: planned, issue: 6}
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
-  get_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_forum_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
+  get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_entitlement: {status: planned, issue: 47}
   get_entitlements: {status: planned, issue: 47}
