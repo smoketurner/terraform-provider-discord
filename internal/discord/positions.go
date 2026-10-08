@@ -64,10 +64,12 @@ func compareSnowflakes(a, b string) int {
 // already occupy, so items not listed keep their place relative to every
 // other item. IDs missing from current are ignored.
 //
-// Tied slots are bumped to make the listed order strict. A bumped item must
-// not share a position with an item that is not moved, because Discord then
-// shifts the unmoved item, so the following items are bumped along with it,
-// listed or not, until the positions no longer collide.
+// Items may share a position when Discord sorts them in the desired order,
+// as it sorts items with the same position by ID. Otherwise an item placed
+// at or below the previous item's position is raised just enough to follow
+// it, and the items after it are raised along with it, listed or not, only
+// as far as needed to keep their place. Raising items as little as possible
+// keeps the changes below a bot's highest role where possible.
 func (o Ordering) Reorder(current []Positioned, desired []string) []PositionUpdate {
 	was := make(map[string]int64, len(current))
 	for _, p := range current {
@@ -86,24 +88,22 @@ func (o Ordering) Reorder(current []Positioned, desired []string) []PositionUpda
 
 	var updates []PositionUpdate
 	var prev Positioned
-	var prevMoved bool
 	for i, slot := range slots {
 		item := slot
 		if listed[slot.ID] {
 			item.ID, order = order[0], order[1:]
 		}
-		// Equal positions are only kept between unmoved items already
-		// displayed in this order.
-		tieKept := item.Position == prev.Position && !prevMoved &&
-			was[item.ID] == item.Position && o.compareTied(prev.ID, item.ID) < 0
-		if i > 0 && item.Position <= prev.Position && !tieKept {
-			item.Position = prev.Position + 1
+		if i > 0 {
+			lowest := prev.Position + 1
+			if o.compareTied(prev.ID, item.ID) < 0 {
+				lowest = prev.Position
+			}
+			item.Position = max(item.Position, lowest)
 		}
-		moved := was[item.ID] != item.Position
-		if moved {
+		if was[item.ID] != item.Position {
 			updates = append(updates, PositionUpdate(item))
 		}
-		prev, prevMoved = item, moved
+		prev = item
 	}
 	return updates
 }

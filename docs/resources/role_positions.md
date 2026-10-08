@@ -3,12 +3,12 @@
 page_title: "discord_role_positions Resource - discord"
 subcategory: ""
 description: |-
-  Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. When listed roles share a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move one of those fails without changing any position. Destroying this resource leaves the current order unchanged.
+  Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. Discord sorts roles that share a position by age, the oldest highest, and new roles share position 1. When that age order differs from the configured order, the roles are raised as little as needed to separate them, and the roles above them only as far as needed to keep their place. The bot can only move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move one of those fails without changing any position. Destroying this resource leaves the current order unchanged.
 ---
 
 # discord_role_positions (Resource)
 
-Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. When listed roles share a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move one of those fails without changing any position. Destroying this resource leaves the current order unchanged.
+Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. Discord sorts roles that share a position by age, the oldest highest, and new roles share position 1. When that age order differs from the configured order, the roles are raised as little as needed to separate them, and the roles above them only as far as needed to keep their place. The bot can only move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move one of those fails without changing any position. Destroying this resource leaves the current order unchanged.
 
 ## Example Usage
 

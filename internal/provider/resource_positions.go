@@ -66,8 +66,10 @@ func newRolePositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_role_positions",
 		description: "Orders a set of server roles atomically with a single API request. Roles that are not listed keep " +
-			"their place: the listed roles are rearranged among the positions they already occupy. When listed roles share " +
-			"a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only " +
+			"their place: the listed roles are rearranged among the positions they already occupy. Discord sorts roles that share a " +
+			"position by age, the oldest highest, and new roles share position 1. When that age order differs from the configured " +
+			"order, the roles are raised as little as needed to separate them, and the roles above them only as far as needed to " +
+			"keep their place. The bot can only " +
 			"move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move " +
 			"one of those fails without changing any position.",
 		idsAttr:    "role_ids",
@@ -137,8 +139,9 @@ func newChannelPositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_channel_positions",
 		description: "Orders a set of channels atomically with a single API request. Channels that are not listed keep " +
-			"their place: the listed channels are rearranged among the positions they already occupy. When listed channels " +
-			"share a position, the channels below them may be renumbered to separate them, without changing their order. List channels " +
+			"their place: the listed channels are rearranged among the positions they already occupy. Discord sorts channels that share " +
+			"a position by age, the oldest first. When that order differs from the configured order, the channels are moved down " +
+			"as little as needed to separate them, and the channels below them only as far as needed to keep their place. List channels " +
 			"that share a parent category (or categories themselves) to control how they are displayed. Discord omits " +
 			"channels the bot cannot view from the server's channel list, so the provider fetches listed channels it " +
 			"does not see there individually; this fails unless the bot has the View Channel permission on them.",
@@ -322,7 +325,7 @@ func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.D
 
 // checkForbidden reports the updates the bot cannot make, so the
 // configuration error is explained instead of Discord's Missing Permissions.
-// Moves of unlisted items come from renumbering listed items that share a
+// Moves of unlisted items come from separating listed items that share a
 // position.
 func (r *positionsResource) checkForbidden(ctx context.Context, serverID string, updates []discord.PositionUpdate) diag.Diagnostics {
 	var diags diag.Diagnostics

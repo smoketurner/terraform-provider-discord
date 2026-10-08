@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"slices"
 	"testing"
@@ -340,6 +341,75 @@ resource "discord_role_positions" "test" {
   role_ids  = [discord_role.c.id, "123456789012345678"]
 }`),
 				ExpectError: regexp.MustCompile(`does not exist in server`),
+			},
+		},
+	})
+}
+
+// The live server: three older roles below the bot's role, the lowest at
+// position 1, which the new roles share. Separating the new roles must not
+// raise the roles above them past the bot's role.
+func TestAccRolePositionsSharedBottom(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	// Created a, b, c, then dragged into order from the top: a at 3, b at 2,
+	// c at 1. From the bottom: c, b, a.
+	older := make([]string, 3)
+	for i, name := range []string{"tf-acc-a-user", "tf-acc-b-user", "tf-acc-c-user"} {
+		role, err := env.client.CreateRole(context.Background(), env.serverID, discord.Payload{"name": name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.fake.SetRolePosition(env.serverID, role.ID, int64(3-i))
+		older[2-i] = role.ID
+	}
+	botRole := env.fake.AddBotRole(env.serverID)
+	positions := func(ids string) string {
+		return env.config(rolesInOrder + `
+resource "discord_role_positions" "test" {
+  server_id = local.server_id
+  role_ids  = ` + ids + `
+}`)
+	}
+	unchanged := func(*terraform.State) error {
+		roles, err := env.client.ListRoles(context.Background(), env.serverID)
+		if err != nil {
+			return err
+		}
+		for _, r := range roles {
+			if r.ID == botRole && r.Position != 4 {
+				return fmt.Errorf("bot role moved to %d", r.Position)
+			}
+		}
+		return nil
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: positions(`[discord_role.a.id, discord_role.b.id, discord_role.c.id]`),
+				Check:  unchanged,
+			},
+			{
+				Config: positions(`[discord_role.c.id, discord_role.a.id, discord_role.b.id]`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					unchanged,
+					resource.TestCheckResourceAttrPair("discord_role_positions.test", "role_ids.0", "discord_role.c", "id"),
+					resource.TestCheckResourceAttrPair("discord_role_positions.test", "role_ids.2", "discord_role.b", "id"),
+					func(*terraform.State) error {
+						roles, err := env.client.ListRoles(context.Background(), env.serverID)
+						if err != nil {
+							return err
+						}
+						var current []discord.Positioned
+						for _, r := range roles {
+							current = append(current, discord.Positioned{ID: r.ID, Position: r.Position})
+						}
+						if got := discord.RoleOrder.OrderOf(current, older); !slices.Equal(got, older) {
+							return fmt.Errorf("older roles from the bottom = %v, want %v", got, older)
+						}
+						return nil
+					},
+				),
 			},
 		},
 	})
