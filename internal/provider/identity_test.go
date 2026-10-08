@@ -57,6 +57,9 @@ resource "discord_server_settings" "test" {
   server_id = local.server_id
   name      = "` + guild.Name + `"
 }
+resource "discord_server_incident_actions" "test" {
+  server_id = local.server_id
+}
 resource "discord_role_everyone" "test" {
   server_id   = local.server_id
   permissions = "` + everyone.Permissions + `"
@@ -138,25 +141,26 @@ resource "discord_application_command" "test" {
 }
 `
 	identities := map[string]map[string]string{
-		"discord_server_settings.test":      {"server_id": "server_id"},
-		"discord_role_everyone.test":        {"server_id": "server_id"},
-		"discord_role.test":                 {"server_id": "server_id", "role_id": "id"},
-		"discord_category_channel.test":     {"channel_id": "id"},
-		"discord_text_channel.test":         {"channel_id": "id"},
-		"discord_voice_channel.test":        {"channel_id": "id"},
-		"discord_announcement_channel.test": {"channel_id": "id"},
-		"discord_stage_channel.test":        {"channel_id": "id"},
-		"discord_forum_channel.test":        {"channel_id": "id"},
-		"discord_media_channel.test":        {"channel_id": "id"},
-		"discord_channel_permission.test":   {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
-		"discord_message.test":              {"channel_id": "channel_id", "message_id": "id"},
-		"discord_invite.test":               {"channel_id": "channel_id", "code": "id"},
-		"discord_webhook.test":              {"webhook_id": "id"},
-		"discord_thread.test":               {"thread_id": "id"},
-		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
-		"discord_scheduled_event.test":      {"server_id": "server_id", "event_id": "id"},
-		"discord_stage_instance.test":       {"channel_id": "channel_id"},
-		"discord_application_command.test":  {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},
+		"discord_server_settings.test":         {"server_id": "server_id"},
+		"discord_server_incident_actions.test": {"server_id": "server_id"},
+		"discord_role_everyone.test":           {"server_id": "server_id"},
+		"discord_role.test":                    {"server_id": "server_id", "role_id": "id"},
+		"discord_category_channel.test":        {"channel_id": "id"},
+		"discord_text_channel.test":            {"channel_id": "id"},
+		"discord_voice_channel.test":           {"channel_id": "id"},
+		"discord_announcement_channel.test":    {"channel_id": "id"},
+		"discord_stage_channel.test":           {"channel_id": "id"},
+		"discord_forum_channel.test":           {"channel_id": "id"},
+		"discord_media_channel.test":           {"channel_id": "id"},
+		"discord_channel_permission.test":      {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
+		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
+		"discord_invite.test":                  {"channel_id": "channel_id", "code": "id"},
+		"discord_webhook.test":                 {"webhook_id": "id"},
+		"discord_thread.test":                  {"thread_id": "id"},
+		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
+		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
+		"discord_stage_instance.test":          {"channel_id": "channel_id"},
+		"discord_application_command.test":     {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},
 	}
 	if env.userID != "" {
 		cfg += `
@@ -179,6 +183,16 @@ resource "discord_member" "test" {
 		identities["discord_member_role.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id", "role_id": "role_id"}
 		identities["discord_member_roles.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 		identities["discord_member.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
+	}
+	// Banning removes the member, so only the fake has a user to spare.
+	if !env.live {
+		cfg += `
+resource "discord_ban" "test" {
+  server_id = local.server_id
+  user_id   = "` + env.fake.AddMember(env.serverID, "banned") + `"
+}
+`
+		identities["discord_ban.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 	}
 	// These disable the server's onboarding, welcome screen and widget on
 	// destroy, so live runs leave them out.

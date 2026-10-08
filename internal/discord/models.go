@@ -40,26 +40,37 @@ const (
 
 // Guild is a Discord server.
 type Guild struct {
-	ID                          string   `json:"id"`
-	Name                        string   `json:"name"`
-	Icon                        *string  `json:"icon"`
-	Description                 *string  `json:"description"`
-	OwnerID                     string   `json:"owner_id"`
-	AFKChannelID                *string  `json:"afk_channel_id"`
-	AFKTimeout                  int64    `json:"afk_timeout"`
-	VerificationLevel           int64    `json:"verification_level"`
-	DefaultMessageNotifications int64    `json:"default_message_notifications"`
-	ExplicitContentFilter       int64    `json:"explicit_content_filter"`
-	Features                    []string `json:"features"`
-	SystemChannelID             *string  `json:"system_channel_id"`
-	SystemChannelFlags          int64    `json:"system_channel_flags"`
-	RulesChannelID              *string  `json:"rules_channel_id"`
-	PublicUpdatesChannelID      *string  `json:"public_updates_channel_id"`
-	SafetyAlertsChannelID       *string  `json:"safety_alerts_channel_id"`
-	PreferredLocale             string   `json:"preferred_locale"`
-	PremiumTier                 int64    `json:"premium_tier"`
-	PremiumProgressBarEnabled   bool     `json:"premium_progress_bar_enabled"`
-	Roles                       []Role   `json:"roles,omitempty"`
+	ID                          string         `json:"id"`
+	Name                        string         `json:"name"`
+	Icon                        *string        `json:"icon"`
+	Banner                      *string        `json:"banner"`
+	Splash                      *string        `json:"splash"`
+	DiscoverySplash             *string        `json:"discovery_splash"`
+	Description                 *string        `json:"description"`
+	OwnerID                     string         `json:"owner_id"`
+	AFKChannelID                *string        `json:"afk_channel_id"`
+	AFKTimeout                  int64          `json:"afk_timeout"`
+	VerificationLevel           int64          `json:"verification_level"`
+	DefaultMessageNotifications int64          `json:"default_message_notifications"`
+	ExplicitContentFilter       int64          `json:"explicit_content_filter"`
+	Features                    []string       `json:"features"`
+	SystemChannelID             *string        `json:"system_channel_id"`
+	SystemChannelFlags          int64          `json:"system_channel_flags"`
+	RulesChannelID              *string        `json:"rules_channel_id"`
+	PublicUpdatesChannelID      *string        `json:"public_updates_channel_id"`
+	SafetyAlertsChannelID       *string        `json:"safety_alerts_channel_id"`
+	PreferredLocale             string         `json:"preferred_locale"`
+	PremiumTier                 int64          `json:"premium_tier"`
+	PremiumProgressBarEnabled   bool           `json:"premium_progress_bar_enabled"`
+	Roles                       []Role         `json:"roles,omitempty"`
+	IncidentsData               *IncidentsData `json:"incidents_data"`
+}
+
+// IncidentsData holds a guild's incident actions as ISO8601 timestamps. A
+// null timestamp means the action is not active.
+type IncidentsData struct {
+	InvitesDisabledUntil *string `json:"invites_disabled_until"`
+	DMsDisabledUntil     *string `json:"dms_disabled_until"`
 }
 
 // RoleColors are a role's colors. Secondary and tertiary colors require the
@@ -182,6 +193,13 @@ type Member struct {
 	Roles                      []string `json:"roles"`
 	JoinedAt                   string   `json:"joined_at"`
 	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`
+}
+
+// Ban is a user's ban from a guild. Reason is the audit log reason sent with
+// the request that created the ban.
+type Ban struct {
+	Reason *string `json:"reason"`
+	User   *User   `json:"user"`
 }
 
 // Webhook is a channel webhook.

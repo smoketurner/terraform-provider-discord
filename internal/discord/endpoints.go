@@ -22,6 +22,13 @@ func (c *Client) ModifyGuild(ctx context.Context, guildID string, p Payload) (*G
 	return &g, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID, p, &g)
 }
 
+// ModifyGuildIncidentActions sets or lifts a guild's incident actions. A nil
+// timestamp lifts the action.
+func (c *Client) ModifyGuildIncidentActions(ctx context.Context, guildID string, p Payload) (*IncidentsData, error) {
+	var d IncidentsData
+	return &d, c.do(ctx, http.MethodPut, "/guilds/"+guildID+"/incident-actions", p, &d)
+}
+
 // ListRoles lists the roles of a guild.
 func (c *Client) ListRoles(ctx context.Context, guildID string) ([]Role, error) {
 	var roles []Role
@@ -155,6 +162,23 @@ func (c *Client) AddMemberRole(ctx context.Context, guildID, userID, roleID stri
 // RemoveMemberRole revokes a role from a member.
 func (c *Client) RemoveMemberRole(ctx context.Context, guildID, userID, roleID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
+}
+
+// GetBan fetches a user's ban from a guild.
+func (c *Client) GetBan(ctx context.Context, guildID, userID string) (*Ban, error) {
+	var b Ban
+	return &b, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/bans/"+userID, nil, &b)
+}
+
+// CreateBan bans a user from a guild. Discord stores the audit log reason as
+// the ban's reason.
+func (c *Client) CreateBan(ctx context.Context, guildID, userID string, p Payload) error {
+	return c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/bans/"+userID, p, nil)
+}
+
+// RemoveBan unbans a user from a guild.
+func (c *Client) RemoveBan(ctx context.Context, guildID, userID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/bans/"+userID, nil, nil)
 }
 
 // CreateWebhook creates a channel webhook.

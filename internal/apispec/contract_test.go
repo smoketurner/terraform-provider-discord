@@ -22,6 +22,7 @@ var modelSchemas = map[string]struct {
 	schemas []string
 }{
 	"Guild":           {reflect.TypeFor[discord.Guild](), []string{"GuildWithCountsResponse", "GuildResponse"}},
+	"IncidentsData":   {reflect.TypeFor[discord.IncidentsData](), []string{"GuildIncidentsDataResponse", "GuildIncidentActionsRequest"}},
 	"RoleColors":      {reflect.TypeFor[discord.RoleColors](), []string{"GuildRoleColorsResponse", "RoleColors"}},
 	"Role":            {reflect.TypeFor[discord.Role](), []string{"GuildRoleResponse"}},
 	"Overwrite":       {reflect.TypeFor[discord.Overwrite](), []string{"ChannelPermissionOverwriteResponse"}},
@@ -33,6 +34,7 @@ var modelSchemas = map[string]struct {
 	"PositionUpdate":  {reflect.TypeFor[discord.PositionUpdate](), []string{"UpdateRolePositionsRequest"}},
 	"User":            {reflect.TypeFor[discord.User](), []string{"UserResponse"}},
 	"Member":          {reflect.TypeFor[discord.Member](), []string{"GuildMemberResponse"}},
+	"Ban":             {reflect.TypeFor[discord.Ban](), []string{"GuildBanResponse"}},
 	"Webhook":         {reflect.TypeFor[discord.Webhook](), []string{"GuildIncomingWebhookResponse"}},
 	"InviteChannel":   {reflect.TypeFor[discord.InviteChannel](), []string{"InviteChannelResponse"}},
 	"Invite":          {reflect.TypeFor[discord.Invite](), []string{"GuildInviteResponse"}},
