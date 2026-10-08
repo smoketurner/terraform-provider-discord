@@ -30,16 +30,24 @@ func TestNormalizeToken(t *testing.T) {
 	}
 }
 
-func TestRouteKey(t *testing.T) {
-	tests := []struct{ method, path, want string }{
-		{"GET", "/channels/123456789012345678/messages/223456789012345678", "GET /channels/123456789012345678/messages/:id"},
-		{"GET", "/channels/123456789012345678/messages/323456789012345678", "GET /channels/123456789012345678/messages/:id"},
-		{"PATCH", "/guilds/123456789012345678/roles", "PATCH /guilds/123456789012345678/roles"},
-		{"GET", "/guilds/1234567/members/search?limit=1000&query=a", "GET /guilds/1234567/members/search"},
+func TestParseRoute(t *testing.T) {
+	tests := []struct{ method, path, route, major string }{
+		{"GET", "/channels/123456789012345678/messages/223456789012345678", "GET /channels/:major/messages/:id", "/channels/123456789012345678"},
+		{"GET", "/channels/923456789012345678/messages/323456789012345678", "GET /channels/:major/messages/:id", "/channels/923456789012345678"},
+		{"PATCH", "/guilds/1/roles", "PATCH /guilds/:major/roles", "/guilds/1"},
+		{"GET", "/guilds/1234567/members/search?limit=1000&query=a", "GET /guilds/:major/members/search", "/guilds/1234567"},
+		{"GET", "/guilds/1234567", "GET /guilds/:major", "/guilds/1234567"},
+		{"GET", "/webhooks/1234567", "GET /webhooks/:major", "/webhooks/1234567"},
+		{"POST", "/webhooks/1234567/tok-en_A?wait=true", "POST /webhooks/:major", "/webhooks/1234567/tok-en_A"},
+		{"PATCH", "/webhooks/1234567/tokenB/messages/7654321", "PATCH /webhooks/:major/messages/:id", "/webhooks/1234567/tokenB"},
+		{"DELETE", "/invites/abc", "DELETE /invites/abc", ""},
+		{"GET", "/users/@me/guilds", "GET /users/@me/guilds", ""},
+		{"GET", "/applications/1234567/commands", "GET /applications/:id/commands", ""},
+		{"GET", "/guilds/templates/abc", "GET /guilds/templates/abc", ""},
 	}
 	for _, tt := range tests {
-		if got := routeKey(tt.method, tt.path); got != tt.want {
-			t.Errorf("routeKey(%q, %q) = %q, want %q", tt.method, tt.path, got, tt.want)
+		if route, major := parseRoute(tt.method, tt.path); route != tt.route || major != tt.major {
+			t.Errorf("parseRoute(%q, %q) = %q, %q; want %q, %q", tt.method, tt.path, route, major, tt.route, tt.major)
 		}
 	}
 }
