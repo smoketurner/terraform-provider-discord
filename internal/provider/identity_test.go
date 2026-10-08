@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"regexp"
+	"slices"
 	"testing"
 	"time"
 
@@ -127,6 +128,17 @@ resource "discord_emoji" "test" {
   name      = "tf_acc_identity"
   image     = "` + onePixelPNG + `"
 }
+resource "discord_sticker" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+  tags      = "wave"
+  file      = "` + stickerPNG + `"
+}
+resource "discord_soundboard_sound" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+  sound     = "` + soundMP3 + `"
+}
 resource "discord_scheduled_event" "test" {
   server_id            = local.server_id
   name                 = "tf-acc-identity"
@@ -159,6 +171,8 @@ resource "discord_stage_instance" "test" {
 		"discord_webhook_message.test":         {"webhook_id": "webhook_id", "channel_id": "channel_id", "message_id": "id"},
 		"discord_thread.test":                  {"thread_id": "id"},
 		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
+		"discord_sticker.test":                 {"server_id": "server_id", "sticker_id": "id"},
+		"discord_soundboard_sound.test":        {"server_id": "server_id", "sound_id": "id"},
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
 	}
@@ -221,9 +235,11 @@ resource "discord_server_widget" "test" {
 	for name, attrs := range identities {
 		first.ConfigStateChecks = append(first.ConfigStateChecks, expectIdentity(name, attrs)...)
 		step := identityImportStep(name)
-		// The emoji image cannot be read back, so the imported emoji plans
-		// to set it.
-		step.ExpectNonEmptyPlan = name == "discord_emoji.test"
+		// Uploaded files cannot be read back, so the imported resources
+		// plan to set them.
+		step.ExpectNonEmptyPlan = slices.Contains([]string{
+			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test",
+		}, name)
 		steps = append(steps, step)
 	}
 	env.run(resource.TestCase{
