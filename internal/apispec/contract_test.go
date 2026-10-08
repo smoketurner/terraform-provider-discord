@@ -33,6 +33,7 @@ var modelSchemas = map[string]struct {
 	"PositionUpdate":  {reflect.TypeFor[discord.PositionUpdate](), []string{"UpdateRolePositionsRequest"}},
 	"User":            {reflect.TypeFor[discord.User](), []string{"UserResponse", "UserPIIResponse"}},
 	"Member":          {reflect.TypeFor[discord.Member](), []string{"GuildMemberResponse"}},
+	"Ban":             {reflect.TypeFor[discord.Ban](), []string{"GuildBanResponse"}},
 	"Webhook":         {reflect.TypeFor[discord.Webhook](), []string{"GuildIncomingWebhookResponse"}},
 	"InviteChannel":   {reflect.TypeFor[discord.InviteChannel](), []string{"InviteChannelResponse"}},
 	"Invite":          {reflect.TypeFor[discord.Invite](), []string{"GuildInviteResponse"}},

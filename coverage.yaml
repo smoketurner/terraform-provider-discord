@@ -23,7 +23,7 @@ operations:
   add_my_message_reaction: {status: covered, by: [discord_message_reaction]}
   add_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   applications_get_activity_instance: {status: out_of_scope, reason: "activity instances are runtime state of the game SDK"}
-  ban_user_from_guild: {status: planned, issue: 25}
+  ban_user_from_guild: {status: covered, by: [discord_ban]}
   bot_partner_sdk_token: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
   bot_partner_sdk_unmerge_provisional_account: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
   bulk_add_invite_target_users: {status: planned, issue: 38}
@@ -124,7 +124,7 @@ operations:
   get_guild: {status: covered, by: [data.discord_server, discord_server_settings]}
   get_guild_application_command: {status: planned, issue: 7}
   get_guild_application_command_permissions: {status: planned, issue: 7}
-  get_guild_ban: {status: planned, issue: 25}
+  get_guild_ban: {status: covered, by: [discord_ban]}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
   get_guild_member: {status: covered, by: [data.discord_member, discord_member, discord_member_role, discord_member_roles]}
@@ -223,7 +223,7 @@ operations:
   sync_guild_template: {status: planned, issue: 29}
   thread_search: {status: pending_docs}
   trigger_typing_indicator: {status: out_of_scope, reason: "typing indicators are transient"}
-  unban_user_from_guild: {status: planned, issue: 25}
+  unban_user_from_guild: {status: covered, by: [discord_ban]}
   update_application: {status: pending_docs}
   update_application_command: {status: planned, issue: 7}
   update_application_emoji: {status: planned, issue: 30}
