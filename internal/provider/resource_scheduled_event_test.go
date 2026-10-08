@@ -89,7 +89,7 @@ resource "discord_scheduled_event" "test" {
 			{
 				// Renamed in the Discord client: renamed back.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
-					_, err := c.ModifyScheduledEvent(ctx, env.serverID, id, discord.Payload{"name": "renamed elsewhere"})
+					_, err := c.ModifyScheduledEvent(ctx, env.serverID, id, discord.Payload{"name": "tf-acc-renamed-elsewhere"})
 					return err
 				}),
 				Config: updated,
@@ -259,16 +259,19 @@ resource "discord_scheduled_event" "test" {
 				ConfigStateChecks: sameID(),
 			},
 			{
+				// Discord fails to turn an external event into a stage
+				// event, so the event is replaced.
 				Config: event(`
   entity_type = "stage_instance"
   channel_id  = discord_stage_channel.test.id`),
-				ConfigPlanChecks: inPlace,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(eventAddress, plancheck.ResourceActionDestroyBeforeCreate)},
+				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(eventAddress, "entity_type", "stage_instance"),
 					resource.TestCheckNoResourceAttr(eventAddress, "location"),
 					resource.TestCheckNoResourceAttr(eventAddress, "scheduled_end_time"),
 				),
-				ConfigStateChecks: sameID(),
 			},
 		},
 	})

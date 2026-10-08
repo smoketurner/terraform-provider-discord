@@ -53,7 +53,7 @@ resource "discord_scheduled_event" "meetup" {
 
 ### Required
 
-- `entity_type` (String) Where the event takes place: `stage_instance`, `voice`, `external`. `stage_instance` and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`.
+- `entity_type` (String) Where the event takes place: `stage_instance`, `voice`, `external`. `stage_instance` and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`. Discord fails to turn an `external` event into a `stage_instance` event, so that change creates a new event.
 - `name` (String) Event name (1-100 characters).
 - `scheduled_start_time` (String) When the event starts, as an RFC 3339 timestamp such as `2030-01-01T18:00:00Z`. Discord requires it to be in the future when the event is created, and within five years from now. Write it in UTC (`Z`) so that an imported event plans no change.
 - `server_id` (String) ID of the server (guild).

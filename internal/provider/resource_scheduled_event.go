@@ -17,6 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -139,9 +141,17 @@ func (r *scheduledEventResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"entity_type": schema.StringAttribute{
 				MarkdownDescription: "Where the event takes place: " + scheduledEventEntityTypes.doc() + ". `stage_instance` " +
-					"and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`.",
+					"and `voice` events need `channel_id`; `external` events need `location` and `scheduled_end_time`. " +
+					"Discord fails to turn an `external` event into a `stage_instance` event, so that change creates a new event.",
 				Required:   true,
 				Validators: []validator.String{scheduledEventEntityTypes.validator()},
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIf(
+					func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
+						resp.RequiresReplace = req.StateValue.ValueString() == "external" && req.PlanValue.ValueString() == "stage_instance"
+					},
+					"Changing an external event to a stage event creates a new event.",
+					"Changing an external event to a stage event creates a new event.",
+				)},
 			},
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the stage channel (`stage_instance`) or voice channel (`voice`) the event is " +

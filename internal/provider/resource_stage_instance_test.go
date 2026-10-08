@@ -168,18 +168,24 @@ resource "discord_stage_instance" "test" {
 				Check:  resource.TestCheckResourceAttrPair(stageAddress, "scheduled_event_id", "discord_scheduled_event.a", "id"),
 			},
 			{
-				// Discord only takes the event when the stage opens.
+				// Discord only takes the event when the stage opens. Closing
+				// the stage completes event a, which then drops out of state
+				// and is planned for creation again.
 				Config: cfg("discord_scheduled_event.b.id"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(stageAddress, plancheck.ResourceActionDestroyBeforeCreate)},
 				},
-				Check: resource.TestCheckResourceAttrPair(stageAddress, "scheduled_event_id", "discord_scheduled_event.b", "id"),
+				Check:              resource.TestCheckResourceAttrPair(stageAddress, "scheduled_event_id", "discord_scheduled_event.b", "id"),
+				ExpectNonEmptyPlan: true,
 			},
 			{
 				// Removing it from the configuration keeps the stage open.
 				Config: cfg("null"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(stageAddress, plancheck.ResourceActionNoop),
+						plancheck.ExpectResourceAction("discord_scheduled_event.a", plancheck.ResourceActionCreate),
+					},
 				},
 			},
 		},

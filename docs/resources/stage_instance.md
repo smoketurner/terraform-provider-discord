@@ -39,7 +39,7 @@ resource "discord_stage_instance" "community_call" {
 ### Optional
 
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
-- `scheduled_event_id` (String) ID of the scheduled event the stage is for. Discord only accepts it when the stage is opened, so changing it closes the stage and opens it again.
+- `scheduled_event_id` (String) ID of the scheduled event the stage is for. Discord only accepts it when the stage is opened, so changing it closes the stage and opens it again. Opening the stage starts the event, and closing it completes the event, which a `discord_scheduled_event` then removes from state.
 - `send_start_notification` (Boolean) Whether to notify @everyone that the stage has started. Only used when the stage is opened, and only sent if the bot also has the Mention @everyone permission. Changing it later updates state without calling Discord.
 
 ### Read-Only

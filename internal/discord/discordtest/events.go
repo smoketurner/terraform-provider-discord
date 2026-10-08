@@ -249,6 +249,12 @@ func (s *Server) modifyScheduledEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return
 	}
+	// Discord answers 500 Internal Server Error when an external event
+	// becomes a stage event.
+	if e.EntityType == discord.ScheduledEventEntityExternal && updated.EntityType == discord.ScheduledEventEntityStageInstance {
+		writeError(w, http.StatusInternalServerError, 0, "500: Internal Server Error")
+		return
+	}
 	*e = updated
 	writeJSON(w, http.StatusOK, e)
 }
@@ -321,6 +327,10 @@ func (s *Server) createStageInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	si.GuildID = ch.GuildID
 	s.stages[ch.ID] = si
+	// Opening the stage starts its scheduled event.
+	if id := si.GuildScheduledEventID; id != nil {
+		s.events[*id].Status = discord.ScheduledEventStatusActive
+	}
 	writeJSON(w, http.StatusOK, si)
 }
 
@@ -352,6 +362,12 @@ func (s *Server) deleteStageInstance(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	if si, ok := s.stageInstance(w, r); ok {
 		delete(s.stages, si.ChannelID)
+		// Closing the stage completes its scheduled event.
+		if id := si.GuildScheduledEventID; id != nil {
+			if e, ok := s.events[*id]; ok {
+				e.Status = discord.ScheduledEventStatusCompleted
+			}
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
