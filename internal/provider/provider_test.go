@@ -136,6 +136,16 @@ func (e *testEnv) outsideTerraform(f func(ctx context.Context, c *discord.Client
 	}
 }
 
+// cleanup deletes an object a test created outside Terraform when the test
+// ends, whether it passed or not. Objects already gone are ignored.
+func (e *testEnv) cleanup(del func(ctx context.Context, c *discord.Client) error) {
+	e.t.Cleanup(func() {
+		if err := del(context.Background(), e.client); err != nil && !discord.IsNotFound(err) {
+			e.t.Errorf("cleaning up: %v", err)
+		}
+	})
+}
+
 func TestProviderMissingToken(t *testing.T) {
 	t.Setenv("DISCORD_TOKEN", "")
 	resource.UnitTest(t, resource.TestCase{

@@ -67,12 +67,12 @@ resource "discord_webhook_message" "test" {
 			{
 				Config: message(`  content     = "x"
   thread_id   = "123456789012345678"
-  thread_name = "post"`),
+  thread_name = "tf-acc-post"`),
 				ExpectError: regexp.MustCompile(`cannot be specified when`),
 			},
 			{
 				Config: message(`  content     = "x"
-  thread_name = "post"`),
+  thread_name = "tf-acc-post"`),
 				ExpectError: regexp.MustCompile(`create threads in forum channels`),
 			},
 			{
@@ -266,7 +266,7 @@ func TestAccWebhookMessageForum(t *testing.T) {
 	post := forum + `
 resource "discord_webhook_message" "post" {
   webhook_id  = discord_webhook.test.id
-  thread_name = "Release notes"
+  thread_name = "tf-acc-release-notes"
   content     = "Version 1.0"
 }`
 	reply := func(content string) string {
@@ -316,7 +316,7 @@ resource "discord_webhook_message" "post" {
 				Config: forum + `
 resource "discord_webhook_message" "post" {
   webhook_id  = discord_webhook.test.id
-  thread_name = "Release notes"
+  thread_name = "tf-acc-release-notes"
   content     = "Version 1.0.1"
 }`,
 				ConfigPlanChecks: resource.ConfigPlanChecks{

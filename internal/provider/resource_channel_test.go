@@ -541,6 +541,7 @@ func (e *testEnv) seedChannel(name string, typ int, position int64, parentID str
 	if err != nil {
 		e.t.Fatalf("creating channel %s: %v", name, err)
 	}
+	e.cleanup(func(ctx context.Context, c *discord.Client) error { return c.DeleteChannel(ctx, ch.ID) })
 	return ch.ID
 }
 

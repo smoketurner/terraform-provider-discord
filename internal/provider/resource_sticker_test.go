@@ -138,7 +138,7 @@ resource "discord_sticker" "test" {
 			{
 				// The sticker is renamed in the Discord client: renamed back.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
-					_, err := c.ModifySticker(ctx, env.serverID, id, discord.Payload{"name": "renamed-outside", "description": "Outside"})
+					_, err := c.ModifySticker(ctx, env.serverID, id, discord.Payload{"name": "tf-acc-renamed-outside", "description": "Outside"})
 					return err
 				}),
 				Config: renamed,

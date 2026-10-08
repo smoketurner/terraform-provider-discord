@@ -230,7 +230,7 @@ resource "discord_application_command" "test" {
     },
   ]`)
 	user := cfg(`  type = "user"
-  name = "TF Acc High Five"`)
+  name = "tf-acc-high-five"`)
 	var appID, serverID, id string
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
@@ -280,7 +280,7 @@ resource "discord_application_command" "test" {
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(commandAddress, "type", "user"),
-					resource.TestCheckResourceAttr(commandAddress, "name", "TF Acc High Five"),
+					resource.TestCheckResourceAttr(commandAddress, "name", "tf-acc-high-five"),
 					resource.TestCheckNoResourceAttr(commandAddress, "description"),
 					attrDiffers(commandAddress, "id", &id),
 					captureAttr(commandAddress, "id", &id),
@@ -300,7 +300,7 @@ func TestAccApplicationCommandIdentity(t *testing.T) {
 				Config: `
 resource "discord_application_command" "test" {
   type = "message"
-  name = "TF Acc Bookmark"
+  name = "tf-acc-bookmark"
 }`,
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectIdentity(commandAddress, map[string]knownvalue.Check{
@@ -321,7 +321,7 @@ func TestAccApplicationCommandImportErrors(t *testing.T) {
 	cfg := `
 resource "discord_application_command" "test" {
   type = "message"
-  name = "TF Acc Bookmark"
+  name = "tf-acc-bookmark"
 }`
 	importStep := func(id string) resource.TestStep {
 		return resource.TestStep{
@@ -353,7 +353,7 @@ import {
 }
 resource "discord_application_command" "test" {
   type = "message"
-  name = "TF Acc Bookmark"
+  name = "tf-acc-bookmark"
 }`,
 			ExpectError: regexp.MustCompile(`Identity attribute "command_id" must not be empty`),
 		}},
@@ -369,7 +369,7 @@ func TestAccApplicationCommandWrongApplication(t *testing.T) {
 resource "discord_application_command" "test" {
   application_id = "123456789012345678"
   type           = "user"
-  name           = "TF Acc High Five"
+  name           = "tf-acc-high-five"
 }`,
 			ExpectError: regexp.MustCompile(`Unable to create application command`),
 		}},

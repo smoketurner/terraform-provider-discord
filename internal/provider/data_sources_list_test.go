@@ -398,7 +398,9 @@ func TestAccScheduledEventsDataSource(t *testing.T) {
 					})
 					if err == nil {
 						eventID = e.ID
-						t.Cleanup(func() { _ = c.DeleteScheduledEvent(context.Background(), env.serverID, eventID) })
+						env.cleanup(func(ctx context.Context, c *discord.Client) error {
+							return c.DeleteScheduledEvent(ctx, env.serverID, eventID)
+						})
 					}
 					return err
 				}),

@@ -54,6 +54,7 @@ func (e *testEnv) newChannel(name string, channelType int) string {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	e.cleanup(func(ctx context.Context, c *discord.Client) error { return c.DeleteChannel(ctx, ch.ID) })
 	return ch.ID
 }
 

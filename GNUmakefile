@@ -26,6 +26,12 @@ test:
 testacc:
 	TF_ACC=1 go test -v -cover -timeout 60m ./internal/provider/
 
+# Deletes every object named with the tf-acc- prefix (tf_acc_ for emojis) from
+# the server in DISCORD_SERVER_ID, left behind by failed or interrupted live
+# tests. Requires DISCORD_TOKEN and DISCORD_SERVER_ID.
+sweep:
+	go test ./internal/provider/ -v -sweep=all -sweep-allow-failures -timeout 10m
+
 # Checks coverage.yaml and the client models against the pinned Discord
 # OpenAPI spec, which it downloads first.
 API_SPEC ?= .openapi.json
@@ -33,4 +39,4 @@ api-coverage:
 	go run ./internal/apispec/cmd/apispec fetch -o $(API_SPEC)
 	DISCORD_API_SPEC=$(abspath $(API_SPEC)) go test ./internal/apispec/...
 
-.PHONY: default build install lint fmt generate test testacc api-coverage
+.PHONY: default build install lint fmt generate test testacc sweep api-coverage

@@ -327,6 +327,7 @@ func TestAccResourceIdentityFromImportID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	env.cleanup(func(ctx context.Context, c *discord.Client) error { return c.DeleteRole(ctx, env.serverID, role.ID) })
 	env.run(resource.TestCase{
 		TerraformVersionChecks: requiresIdentity,
 		Steps: []resource.TestStep{{

@@ -63,7 +63,7 @@ resource "discord_role" "test" {
 			{
 				// Drift: the role is edited in the Discord client.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
-					_, err := c.ModifyRole(ctx, env.serverID, roleID, discord.Payload{"name": "edited-by-hand"})
+					_, err := c.ModifyRole(ctx, env.serverID, roleID, discord.Payload{"name": "tf-acc-edited-by-hand"})
 					return err
 				}),
 				Config: env.config(`

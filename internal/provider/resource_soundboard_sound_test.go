@@ -135,7 +135,7 @@ resource "discord_soundboard_sound" "test" {
 				// The sound is changed in the Discord client: changed back.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
 					_, err := c.ModifySoundboardSound(ctx, env.serverID, id, discord.Payload{
-						"name": "renamed-outside", "volume": 0.25, "emoji_id": nil, "emoji_name": "🎉",
+						"name": "tf-acc-renamed-outside", "volume": 0.25, "emoji_id": nil, "emoji_name": "🎉",
 					})
 					return err
 				}),
