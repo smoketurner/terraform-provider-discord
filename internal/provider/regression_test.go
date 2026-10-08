@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/compare"
@@ -12,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
 // Discord normalizes text channel names; the configured spelling must not
@@ -165,5 +169,127 @@ resource "discord_stage_channel" "test" {
 }`),
 			ExpectError: regexp.MustCompile(`value must be between 8000 and 64000`),
 		}},
+	})
+}
+
+// Changing require_tag must keep channel flags set outside Terraform.
+func TestAccForumChannelKeepsUnmanagedFlags(t *testing.T) {
+	env := newTestEnv(t)
+	// Discord may refuse arbitrary flags on a live forum channel.
+	env.requireFake()
+	const spoiler = 1 << 21 // IS_SPOILER_CHANNEL
+	var id string
+	cfg := func(requireTag bool) string {
+		return env.config(fmt.Sprintf(`
+resource "discord_forum_channel" "test" {
+  server_id   = local.server_id
+  name        = "tf-acc-flags"
+  require_tag = %t
+}`, requireTag))
+	}
+	wantFlags := func(want int64) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			ch, err := env.client.GetChannel(context.Background(), id)
+			if err != nil {
+				return err
+			}
+			if ch.Flags != want {
+				return fmt.Errorf("flags = %d, want %d", ch.Flags, want)
+			}
+			return nil
+		}
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: cfg(true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_forum_channel.test", "id", &id),
+					wantFlags(discord.ChannelFlagRequireTag),
+				),
+			},
+			{
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyChannel(ctx, id, discord.Payload{"flags": discord.ChannelFlagRequireTag | spoiler})
+					return err
+				}),
+				Config: cfg(false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("discord_forum_channel.test", "require_tag", "false"),
+					wantFlags(spoiler),
+				),
+			},
+			{
+				Config: cfg(true),
+				Check:  wantFlags(discord.ChannelFlagRequireTag | spoiler),
+			},
+		},
+	})
+}
+
+// Reordering tied roles must not leave a listed role sharing a position with
+// an unlisted one, which would move the unlisted role in the display order.
+func TestAccRolePositionsKeepUnlistedOrder(t *testing.T) {
+	env := newTestEnv(t)
+	// Discord does not let a client create tied role positions.
+	env.requireFake()
+	// depends_on creates the roles in order so the unlisted role has the
+	// lowest snowflake and sorts first among tied roles.
+	roles := `
+resource "discord_role" "unlisted" {
+  server_id = local.server_id
+  name      = "tf-acc-unlisted"
+}
+resource "discord_role" "a" {
+  server_id  = local.server_id
+  name       = "tf-acc-a"
+  depends_on = [discord_role.unlisted]
+}
+resource "discord_role" "b" {
+  server_id  = local.server_id
+  name       = "tf-acc-b"
+  depends_on = [discord_role.a]
+}
+`
+	var unlisted, a, b string
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(roles),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_role.unlisted", "id", &unlisted),
+					captureAttr("discord_role.a", "id", &a),
+					captureAttr("discord_role.b", "id", &b),
+				),
+			},
+			{
+				// From the bottom: a and b tied, then the unlisted role.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					return c.ModifyRolePositions(ctx, env.serverID, []discord.PositionUpdate{
+						{ID: a, Position: 1}, {ID: b, Position: 1}, {ID: unlisted, Position: 2},
+					})
+				}),
+				Config: env.config(roles + `
+resource "discord_role_positions" "test" {
+  server_id = local.server_id
+  role_ids  = [discord_role.a.id, discord_role.b.id]
+}`),
+				Check: func(*terraform.State) error {
+					roles, err := env.client.ListRoles(context.Background(), env.serverID)
+					if err != nil {
+						return err
+					}
+					var current []discord.Positioned
+					for _, r := range roles {
+						current = append(current, discord.Positioned{ID: r.ID, Position: r.Position})
+					}
+					got := discord.OrderOf(current, []string{a, b, unlisted})
+					if want := []string{b, a, unlisted}; !slices.Equal(got, want) {
+						return fmt.Errorf("role order from the bottom = %v, want %v", got, want)
+					}
+					return nil
+				},
+			},
+		},
 	})
 }

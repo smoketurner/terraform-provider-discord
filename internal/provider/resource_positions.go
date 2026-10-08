@@ -56,7 +56,8 @@ func newRolePositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_role_positions",
 		description: "Orders a set of server roles atomically with a single API request. Roles that are not listed keep " +
-			"their place: the listed roles are rearranged among the positions they already occupy. The bot can only " +
+			"their place: the listed roles are rearranged among the positions they already occupy. When listed roles share " +
+			"a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only " +
 			"move roles below its own highest role.",
 		idsAttr:    "role_ids",
 		idsDesc:    "Role IDs ordered from highest to lowest, as shown in the Discord client.",
@@ -80,7 +81,8 @@ func newChannelPositionsResource() resource.Resource {
 	return &positionsResource{kind: positionsKind{
 		typeName: "_channel_positions",
 		description: "Orders a set of channels atomically with a single API request. Channels that are not listed keep " +
-			"their place: the listed channels are rearranged among the positions they already occupy. List channels " +
+			"their place: the listed channels are rearranged among the positions they already occupy. When listed channels " +
+			"share a position, the channels below them may be renumbered to separate them, without changing their order. List channels " +
 			"that share a parent category (or categories themselves) to control how they are displayed. Discord omits " +
 			"channels the bot cannot view from the server's channel list, so the provider fetches listed channels it " +
 			"does not see there individually; this fails unless the bot has the View Channel permission on them.",

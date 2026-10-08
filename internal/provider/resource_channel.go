@@ -45,6 +45,30 @@ func normalizeChannelName(name string) string {
 	return strings.ToLower(strings.Join(strings.Fields(name), "-"))
 }
 
+// channelFlags is the payload value for the channel flag bits a model
+// manages. Discord replaces the whole bitfield, so the managed bits are merged
+// into the channel's current flags before sending to keep flags set outside
+// Terraform.
+type channelFlags struct {
+	Mask int64
+	Set  int64
+}
+
+// with returns f also managing bit, which is set when on is true.
+func (f channelFlags) with(bit int64, on bool) channelFlags {
+	f.Mask |= bit
+	if on {
+		f.Set |= bit
+	} else {
+		f.Set &^= bit
+	}
+	return f
+}
+
+func (f channelFlags) merge(current int64) int64 {
+	return current&^f.Mask | f.Set
+}
+
 // channelModel is implemented by pointers to each channel type's model.
 type channelModel interface {
 	base() *channelBase
@@ -149,6 +173,9 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 			delete(p, k)
 		}
 	}
+	if f, ok := p["flags"].(channelFlags); ok {
+		p["flags"] = f.merge(0)
+	}
 	p["type"] = r.kind.channelType
 	ch, err := r.client.CreateChannel(ctx, m.base().ServerID.ValueString(), p)
 	if err != nil {
@@ -204,7 +231,19 @@ func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	ch, err := r.client.ModifyChannel(ctx, sm.base().ID.ValueString(), diffPayload(desired, current))
+	id := sm.base().ID.ValueString()
+	diff := diffPayload(desired, current)
+	// The model only holds the managed bits, so read the channel to learn the
+	// rest.
+	if f, ok := diff["flags"].(channelFlags); ok {
+		ch, err := r.client.GetChannel(ctx, id)
+		if err != nil {
+			apiError(&resp.Diagnostics, "read "+r.kind.typeName+" flags", err)
+			return
+		}
+		diff["flags"] = f.merge(ch.Flags)
+	}
+	ch, err := r.client.ModifyChannel(ctx, id, diff)
 	if err != nil {
 		apiError(&resp.Diagnostics, "update "+r.kind.typeName, err)
 		return
