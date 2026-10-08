@@ -1627,11 +1627,11 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	m := &discord.Message{
 		ID: s.newSnowflake(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
-		Timestamp: s.now().UTC().Format(time.RFC3339Nano),
+		Attachments: []discord.Attachment{}, Timestamp: s.now().UTC().Format(time.RFC3339Nano),
 	}
 	applyMessage(m, body)
-	if m.Content == "" && len(m.Embeds) == 0 {
-		writeError(w, http.StatusBadRequest, 50006, "Cannot send an empty message")
+	if err := s.applyMessageParts(m, body, true); err != nil {
+		writeMessageError(w, err)
 		return
 	}
 	s.messages[m.ID] = m
@@ -1663,9 +1663,17 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.edits = append(s.edits, body)
-	applyMessage(m, body)
+	// The edit applies to a copy, so a rejected edit changes nothing.
+	edit := *m
+	edit.Embeds = slices.Clone(m.Embeds)
+	applyMessage(&edit, body)
+	if err := s.applyMessageParts(&edit, body, false); err != nil {
+		writeMessageError(w, err)
+		return
+	}
 	edited := time.Now().UTC().Format(time.RFC3339Nano)
-	m.EditedTimestamp = &edited
+	edit.EditedTimestamp = &edited
+	*m = edit
 	writeJSON(w, http.StatusOK, m)
 }
 
