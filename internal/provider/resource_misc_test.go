@@ -119,7 +119,7 @@ resource "discord_webhook" "test" {
 					resource.TestCheckResourceAttr("discord_webhook.test", "server_id", env.serverID),
 				),
 			},
-			importStep("discord_webhook.test", "avatar"),
+			importStep("discord_webhook.test", "avatar", "store_secrets", "token", "url"),
 			{
 				// The avatar is removed in the Discord client: uploaded again.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
