@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
@@ -22,9 +21,11 @@ import (
 var (
 	_ resource.ResourceWithConfigure   = &inviteResource{}
 	_ resource.ResourceWithImportState = &inviteResource{}
+	_ resource.ResourceWithIdentity    = &inviteResource{}
 )
 
 type inviteResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -41,7 +42,12 @@ type inviteModel struct {
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
-func newInviteResource() resource.Resource { return &inviteResource{} }
+func newInviteResource() resource.Resource {
+	return &inviteResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		channelIdentity("channel_id"),
+		{name: "code", description: "Invite code.", state: []string{"id"}},
+	}}}
+}
 
 func (r *inviteResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_invite"
@@ -130,6 +136,7 @@ func (m *inviteModel) apply(inv *discord.Invite) {
 }
 
 func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan inviteModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -155,6 +162,7 @@ func (r *inviteResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *inviteResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state inviteModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -183,6 +191,7 @@ func (r *inviteResource) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 func (r *inviteResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -199,14 +208,4 @@ func (r *inviteResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if err := r.client.DeleteInvite(ctx, state.ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete invite", err)
 	}
-}
-
-func (r *inviteResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts, err := splitID(req.ID, 2, "channel_id/code")
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("channel_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

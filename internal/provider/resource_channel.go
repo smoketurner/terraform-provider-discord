@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
@@ -141,6 +140,7 @@ type channelResource[T any, PT interface {
 	*T
 	channelModel
 }] struct {
+	resourceIdentity
 	kind   channelKind
 	client *discord.Client
 }
@@ -243,6 +243,7 @@ func (r *channelResource[T, PT]) Configure(_ context.Context, req resource.Confi
 }
 
 func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan T
 	m := PT(&plan)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, m)...)
@@ -308,6 +309,7 @@ type createSplitter interface {
 }
 
 func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state T
 	m := PT(&state)
 	resp.Diagnostics.Append(req.State.Get(ctx, m)...)
@@ -337,6 +339,7 @@ func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -434,14 +437,13 @@ func (r *channelResource[T, PT]) MoveState(ctx context.Context) []resource.State
 					"The discord_"+c.typeName+" state does not match the provider's schema for it.")
 				return
 			}
-			var target resource.SchemaResponse
-			r.Schema(ctx, resource.SchemaRequest{}, &target)
-			raw, err := copySharedAttributes(req.SourceState.Raw, target.Schema.Type().TerraformType(ctx))
+			raw, err := copySharedAttributes(req.SourceState.Raw, resp.TargetState.Schema.Type().TerraformType(ctx))
 			if err != nil {
 				resp.Diagnostics.AddError("Unable to move channel state", err.Error())
 				return
 			}
-			resp.TargetState = tfsdk.State{Schema: target.Schema, Raw: raw}
+			resp.TargetState.Raw = raw
+			r.setIdentity(ctx, resp.TargetIdentity, &resp.Diagnostics, &resp.TargetState)
 		},
 	}}
 }
@@ -466,8 +468,4 @@ func copySharedAttributes(source tftypes.Value, target tftypes.Type) (tftypes.Va
 		}
 	}
 	return tftypes.NewValue(obj, vals), nil
-}
-
-func (r *channelResource[T, PT]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }

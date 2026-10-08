@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -18,9 +17,11 @@ import (
 var (
 	_ resource.ResourceWithConfigure   = &memberRoleResource{}
 	_ resource.ResourceWithImportState = &memberRoleResource{}
+	_ resource.ResourceWithIdentity    = &memberRoleResource{}
 )
 
 type memberRoleResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -32,7 +33,13 @@ type memberRoleModel struct {
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
-func newMemberRoleResource() resource.Resource { return &memberRoleResource{} }
+func newMemberRoleResource() resource.Resource {
+	return &memberRoleResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		serverIdentity("server_id"),
+		{name: "user_id", description: "ID of the member.", state: []string{"user_id"}},
+		{name: "role_id", description: "ID of the role.", state: []string{"role_id"}},
+	}}}
+}
 
 func (r *memberRoleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_member_role"
@@ -69,6 +76,7 @@ func (m *memberRoleModel) id() string {
 }
 
 func (r *memberRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan memberRoleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -84,6 +92,7 @@ func (r *memberRoleResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 func (r *memberRoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state memberRoleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -107,6 +116,7 @@ func (r *memberRoleResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 func (r *memberRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -124,16 +134,4 @@ func (r *memberRoleResource) Delete(ctx context.Context, req resource.DeleteRequ
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "revoke role", err)
 	}
-}
-
-func (r *memberRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts, err := splitID(req.ID, 3, "server_id/user_id/role_id")
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("server_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("user_id"), parts[1])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_id"), parts[2])...)
 }
