@@ -172,12 +172,14 @@ type User struct {
 	Bot           bool    `json:"bot"`
 }
 
-// Member is a user's membership in a guild.
+// Member is a user's membership in a guild. CommunicationDisabledUntil is
+// when the member's timeout ends; null or a time in the past means none.
 type Member struct {
-	User     *User    `json:"user"`
-	Nick     *string  `json:"nick"`
-	Roles    []string `json:"roles"`
-	JoinedAt string   `json:"joined_at"`
+	User                       *User    `json:"user"`
+	Nick                       *string  `json:"nick"`
+	Roles                      []string `json:"roles"`
+	JoinedAt                   string   `json:"joined_at"`
+	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`
 }
 
 // Webhook is a channel webhook.
@@ -289,4 +291,64 @@ type SoundboardSound struct {
 	EmojiName *string `json:"emoji_name"`
 	Available bool    `json:"available"`
 	GuildID   string  `json:"guild_id"`
+}
+
+// WidgetSettings are a guild's widget settings.
+type WidgetSettings struct {
+	Enabled   bool    `json:"enabled"`
+	ChannelID *string `json:"channel_id"`
+}
+
+// WelcomeScreen is the screen shown to new members of a Community guild.
+// Whether it is enabled is the guild's WELCOME_SCREEN_ENABLED feature.
+type WelcomeScreen struct {
+	Description     *string                `json:"description"`
+	WelcomeChannels []WelcomeScreenChannel `json:"welcome_channels"`
+}
+
+// WelcomeScreenChannel is a channel linked from the welcome screen.
+type WelcomeScreenChannel struct {
+	ChannelID   string  `json:"channel_id"`
+	Description string  `json:"description"`
+	EmojiID     *string `json:"emoji_id"`
+	EmojiName   *string `json:"emoji_name"`
+}
+
+// Onboarding is a guild's onboarding configuration.
+type Onboarding struct {
+	GuildID           string             `json:"guild_id"`
+	Prompts           []OnboardingPrompt `json:"prompts"`
+	DefaultChannelIDs []string           `json:"default_channel_ids"`
+	Enabled           bool               `json:"enabled"`
+	Mode              int64              `json:"mode"`
+}
+
+// OnboardingPrompt is a question shown during onboarding.
+type OnboardingPrompt struct {
+	ID           string                   `json:"id"`
+	Type         int64                    `json:"type"`
+	Options      []OnboardingPromptOption `json:"options"`
+	Title        string                   `json:"title"`
+	SingleSelect bool                     `json:"single_select"`
+	Required     bool                     `json:"required"`
+	InOnboarding bool                     `json:"in_onboarding"`
+}
+
+// OnboardingPromptOption is an answer to an onboarding prompt as Discord
+// returns it. Requests set the emoji with emoji_id, emoji_name and
+// emoji_animated instead of the emoji object.
+type OnboardingPromptOption struct {
+	ID          string       `json:"id"`
+	ChannelIDs  []string     `json:"channel_ids"`
+	RoleIDs     []string     `json:"role_ids"`
+	Emoji       *PromptEmoji `json:"emoji"`
+	Title       string       `json:"title"`
+	Description *string      `json:"description"`
+}
+
+// PromptEmoji is the emoji of an onboarding prompt option.
+type PromptEmoji struct {
+	ID       *string `json:"id"`
+	Name     *string `json:"name"`
+	Animated bool    `json:"animated"`
 }

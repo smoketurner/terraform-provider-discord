@@ -45,6 +45,14 @@ var modelSchemas = map[string]struct {
 	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
 	"Sticker":         {reflect.TypeFor[discord.Sticker](), []string{"GuildStickerResponse"}},
 	"SoundboardSound": {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
+	"WidgetSettings":  {reflect.TypeFor[discord.WidgetSettings](), []string{"WidgetSettingsResponse"}},
+	"WelcomeScreen":   {reflect.TypeFor[discord.WelcomeScreen](), []string{"GuildWelcomeScreenResponse"}},
+	"WelcomeScreenChannel": {reflect.TypeFor[discord.WelcomeScreenChannel](), []string{
+		"GuildWelcomeScreenChannelResponse", "GuildWelcomeChannel"}},
+	"Onboarding":             {reflect.TypeFor[discord.Onboarding](), []string{"GuildOnboardingResponse", "UserGuildOnboardingResponse"}},
+	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
+	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
+	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go

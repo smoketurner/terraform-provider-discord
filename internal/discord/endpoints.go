@@ -141,6 +141,12 @@ func (c *Client) SearchMembers(ctx context.Context, guildID, query string) ([]Me
 	return members, c.do(ctx, http.MethodGet, path, nil, &members)
 }
 
+// ModifyMember updates a guild member's nickname, roles or timeout.
+func (c *Client) ModifyMember(ctx context.Context, guildID, userID string, p Payload) (*Member, error) {
+	var m Member
+	return &m, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/members/"+userID, p, &m)
+}
+
 // AddMemberRole grants a role to a member.
 func (c *Client) AddMemberRole(ctx context.Context, guildID, userID, roleID string) error {
 	return c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
@@ -293,4 +299,41 @@ func (c *Client) ModifySoundboardSound(ctx context.Context, guildID, soundID str
 // DeleteSoundboardSound deletes a guild soundboard sound.
 func (c *Client) DeleteSoundboardSound(ctx context.Context, guildID, soundID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, nil, nil)
+}
+
+// GetWidgetSettings fetches a guild's widget settings.
+func (c *Client) GetWidgetSettings(ctx context.Context, guildID string) (*WidgetSettings, error) {
+	var w WidgetSettings
+	return &w, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/widget", nil, &w)
+}
+
+// ModifyWidgetSettings updates a guild's widget settings.
+func (c *Client) ModifyWidgetSettings(ctx context.Context, guildID string, p Payload) (*WidgetSettings, error) {
+	var w WidgetSettings
+	return &w, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/widget", p, &w)
+}
+
+// GetWelcomeScreen fetches a guild's welcome screen.
+func (c *Client) GetWelcomeScreen(ctx context.Context, guildID string) (*WelcomeScreen, error) {
+	var ws WelcomeScreen
+	return &ws, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/welcome-screen", nil, &ws)
+}
+
+// ModifyWelcomeScreen updates a guild's welcome screen.
+func (c *Client) ModifyWelcomeScreen(ctx context.Context, guildID string, p Payload) (*WelcomeScreen, error) {
+	var ws WelcomeScreen
+	return &ws, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/welcome-screen", p, &ws)
+}
+
+// GetOnboarding fetches a guild's onboarding configuration.
+func (c *Client) GetOnboarding(ctx context.Context, guildID string) (*Onboarding, error) {
+	var o Onboarding
+	return &o, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/onboarding", nil, &o)
+}
+
+// ModifyOnboarding replaces the parts of a guild's onboarding configuration
+// that the payload contains.
+func (c *Client) ModifyOnboarding(ctx context.Context, guildID string, p Payload) (*Onboarding, error) {
+	var o Onboarding
+	return &o, c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/onboarding", p, &o)
 }
