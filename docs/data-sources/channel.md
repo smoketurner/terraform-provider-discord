@@ -3,12 +3,12 @@
 page_title: "discord_channel Data Source - discord"
 subcategory: ""
 description: |-
-  Looks up a server channel by ID or name. The bot must be able to view the channel.
+  Looks up a server channel by ID or name. The bot needs the View Channel permission on the channel: Discord omits channels the bot cannot view from the server's channel list, so they cannot be found by name. Lookups by ID fall back to fetching the channel directly.
 ---
 
 # discord_channel (Data Source)
 
-Looks up a server channel by ID or name. The bot must be able to view the channel.
+Looks up a server channel by ID or name. The bot needs the View Channel permission on the channel: Discord omits channels the bot cannot view from the server's channel list, so they cannot be found by name. Lookups by ID fall back to fetching the channel directly.
 
 ## Example Usage
 

@@ -2,7 +2,10 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/compare"
@@ -326,6 +329,128 @@ resource "discord_channel_positions" "test" {
 					resource.TestCheckResourceAttrPair("discord_channel_positions.test", "channel_ids.0", "discord_text_channel.a", "id"),
 					resource.TestCheckResourceAttrPair("discord_channel_positions.test", "channel_ids.1", "discord_text_channel.b", "id"),
 				),
+			},
+		},
+	})
+}
+
+// seedChannel creates a channel directly through the API, so it is not managed
+// by Terraform and its refresh cannot fail once the fake denies access to it.
+func (e *testEnv) seedChannel(name string, typ int, position int64, parentID string) string {
+	e.t.Helper()
+	p := discord.Payload{"name": name, "type": typ, "position": position}
+	if parentID != "" {
+		p["parent_id"] = parentID
+	}
+	ch, err := e.client.CreateChannel(context.Background(), e.serverID, p)
+	if err != nil {
+		e.t.Fatalf("creating channel %s: %v", name, err)
+	}
+	return ch.ID
+}
+
+// checkChannelPositions verifies the channels have strictly ascending
+// positions in the given order, and that each channel in fixed is at the given
+// position.
+func (e *testEnv) checkChannelPositions(order []string, fixed map[string]int64) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		ctx := context.Background()
+		var prev int64 = -1
+		for _, id := range order {
+			ch, err := e.client.GetChannel(ctx, id)
+			if err != nil {
+				return err
+			}
+			if ch.Position <= prev {
+				return fmt.Errorf("channel %s at position %d, want above %d", id, ch.Position, prev)
+			}
+			prev = ch.Position
+		}
+		for id, want := range fixed {
+			ch, err := e.client.GetChannel(ctx, id)
+			if err != nil {
+				return err
+			}
+			if ch.Position != want {
+				return fmt.Errorf("unlisted channel %s moved to position %d, want %d", id, ch.Position, want)
+			}
+		}
+		return nil
+	}
+}
+
+func TestAccChannelPositionsHidden(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	category := env.seedChannel("tf-acc-hidden", discord.ChannelTypeCategory, 0, "")
+	a := env.seedChannel("tf-acc-a", discord.ChannelTypeText, 1, category)
+	b := env.seedChannel("tf-acc-b", discord.ChannelTypeText, 2, category)
+	unlisted := env.seedChannel("tf-acc-unlisted", discord.ChannelTypeText, 3, category)
+	c := env.seedChannel("tf-acc-c", discord.ChannelTypeText, 4, category)
+	denied := env.seedChannel("tf-acc-denied", discord.ChannelTypeText, 5, category)
+	gone := env.seedChannel("tf-acc-gone", discord.ChannelTypeText, 6, category)
+	env.fake.DenyChannel(denied)
+
+	positions := func(ids ...string) string {
+		list, _ := json.Marshal(ids)
+		return env.config(fmt.Sprintf(`
+resource "discord_channel_positions" "test" {
+  server_id   = local.server_id
+  channel_ids = %s
+}`, list))
+	}
+	stateOrder := func(ids ...string) resource.TestCheckFunc {
+		var checks []resource.TestCheckFunc
+		for i, id := range ids {
+			checks = append(checks, resource.TestCheckResourceAttr("discord_channel_positions.test", fmt.Sprintf("channel_ids.%d", i), id))
+		}
+		checks = append(checks, resource.TestCheckResourceAttr("discord_channel_positions.test", "channel_ids.#", strconv.Itoa(len(ids))))
+		return resource.ComposeAggregateTestCheckFunc(checks...)
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: positions(a, b, c, gone),
+				Check:  stateOrder(a, b, c, gone),
+			},
+			{
+				// b disappears from the channel list but can still be fetched:
+				// it keeps its slot in the ordering.
+				PreConfig: func() { env.fake.HideChannel(b) },
+				Config:    positions(c, b, a, gone),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					stateOrder(c, b, a, gone),
+					env.checkChannelPositions([]string{c, b, a, gone}, map[string]int64{unlisted: 3}),
+				),
+			},
+			{
+				Config: positions(c, b, a, gone),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{
+				Config:      positions(c, b, a, gone, denied),
+				ExpectError: regexp.MustCompile(`lacks\s+the\s+View\s+Channel\s+permission`),
+			},
+			{
+				// A deleted channel drops out of state; applying it again fails.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, cl *discord.Client) error {
+					return cl.DeleteChannel(ctx, gone)
+				}),
+				Config:      positions(c, b, a, gone),
+				ExpectError: regexp.MustCompile(`(?s)Unknown Channel.*was\s+deleted`),
+			},
+			{
+				Config: positions(c, b, a),
+				Check:  stateOrder(c, b, a),
+			},
+			{
+				// b exists but can no longer be read: refresh fails instead of
+				// dropping it from state.
+				PreConfig:   func() { env.fake.DenyChannel(b) },
+				Config:      positions(c, b, a),
+				ExpectError: regexp.MustCompile(`(?s)Unable to read channel.*View\s+Channel\s+permission`),
 			},
 		},
 	})

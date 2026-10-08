@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -26,7 +27,10 @@ type positionsKind struct {
 	// lowest, as roles are displayed in the Discord client.
 	descending bool
 	list       func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error)
-	apply      func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error
+	// fetch, when set, looks up a configured ID that list omitted. Discord
+	// leaves channels the bot cannot view out of the channel list.
+	fetch func(ctx context.Context, c *discord.Client, serverID, id string) (discord.Positioned, error)
+	apply func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error
 
 	// audited is true when Discord records an audit log reason for the
 	// reorder; it does not for channel positions.
@@ -77,7 +81,9 @@ func newChannelPositionsResource() resource.Resource {
 		typeName: "_channel_positions",
 		description: "Orders a set of channels atomically with a single API request. Channels that are not listed keep " +
 			"their place: the listed channels are rearranged among the positions they already occupy. List channels " +
-			"that share a parent category (or categories themselves) to control how they are displayed.",
+			"that share a parent category (or categories themselves) to control how they are displayed. Discord omits " +
+			"channels the bot cannot view from the server's channel list, so the provider fetches listed channels it " +
+			"does not see there individually; this fails unless the bot has the View Channel permission on them.",
 		idsAttr: "channel_ids",
 		idsDesc: "Channel IDs ordered from top to bottom, as shown in the Discord client.",
 		list: func(ctx context.Context, c *discord.Client, serverID string) ([]discord.Positioned, error) {
@@ -87,6 +93,16 @@ func newChannelPositionsResource() resource.Resource {
 				out = append(out, discord.Positioned{ID: ch.ID, Position: ch.Position})
 			}
 			return out, err
+		},
+		fetch: func(ctx context.Context, c *discord.Client, serverID, id string) (discord.Positioned, error) {
+			ch, err := c.GetChannel(ctx, id)
+			if err != nil {
+				return discord.Positioned{}, err
+			}
+			if ch.GuildID != serverID {
+				return discord.Positioned{}, errNotInServer
+			}
+			return discord.Positioned{ID: ch.ID, Position: ch.Position}, nil
 		},
 		apply: func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error {
 			return c.ModifyChannelPositions(ctx, serverID, updates)
@@ -163,6 +179,44 @@ func (r *positionsResource) ascending(ids []string) []string {
 	return out
 }
 
+var errNotInServer = errors.New("not in this server")
+
+// gone reports whether a fetch error means the ID does not exist in the server.
+func gone(err error) bool {
+	return discord.IsNotFound(err) || errors.Is(err, errNotInServer)
+}
+
+// current lists the server's positions, adding the configured IDs the list
+// omitted when the kind can fetch them. missing maps each configured ID that
+// could not be found to the reason (nil when the kind cannot fetch).
+func (r *positionsResource) current(ctx context.Context, serverID string, ids []string) ([]discord.Positioned, map[string]error, error) {
+	current, err := r.kind.list(ctx, r.client, serverID)
+	if err != nil {
+		return nil, nil, err
+	}
+	known := make(map[string]bool, len(current))
+	for _, p := range current {
+		known[p.ID] = true
+	}
+	missing := map[string]error{}
+	for _, id := range ids {
+		if known[id] {
+			continue
+		}
+		if r.kind.fetch == nil {
+			missing[id] = nil
+			continue
+		}
+		p, err := r.kind.fetch(ctx, r.client, serverID, id)
+		if err != nil {
+			missing[id] = err
+			continue
+		}
+		current = append(current, p)
+	}
+	return current, missing, nil
+}
+
 func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 	var ids []string
@@ -172,19 +226,22 @@ func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.D
 	}
 	serverID := m.ServerID.ValueString()
 	ctx = withAuditLogReason(ctx, m.AuditLogReason)
-	current, err := r.kind.list(ctx, r.client, serverID)
+	current, missing, err := r.current(ctx, serverID, ids)
 	if err != nil {
 		apiError(&diags, "list current positions", err)
 		return diags
 	}
-	known := make(map[string]bool, len(current))
-	for _, p := range current {
-		known[p.ID] = true
-	}
 	for _, id := range ids {
-		if !known[id] {
+		err, ok := missing[id]
+		switch {
+		case !ok:
+		case err == nil || errors.Is(err, errNotInServer):
 			diags.AddAttributeError(path.Root(r.kind.idsAttr), "Unknown ID",
 				fmt.Sprintf("%s does not exist in server %s.", id, serverID))
+		default:
+			diags.AddAttributeError(path.Root(r.kind.idsAttr), "Channel not visible",
+				fmt.Sprintf("Channel %s is not in the channel list of server %s and could not be fetched: %s. "+
+					"The channel was deleted, or the bot lacks the View Channel permission on it.", id, serverID, err))
 		}
 	}
 	if diags.HasError() {
@@ -219,7 +276,12 @@ func (r *positionsResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	current, err := r.kind.list(ctx, r.client, state.ServerID.ValueString())
+	var ids []string
+	resp.Diagnostics.Append(state.IDs.ElementsAs(ctx, &ids, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	current, missing, err := r.current(ctx, state.ServerID.ValueString(), ids)
 	if discord.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -228,8 +290,16 @@ func (r *positionsResource) Read(ctx context.Context, req resource.ReadRequest, 
 		apiError(&resp.Diagnostics, "list current positions", err)
 		return
 	}
-	var ids []string
-	resp.Diagnostics.Append(state.IDs.ElementsAs(ctx, &ids, false)...)
+	// Deleted IDs drop out of state so the next plan restores them; an ID
+	// that exists but cannot be read is an error rather than a false diff.
+	for _, id := range ids {
+		if err := missing[id]; err != nil && !gone(err) {
+			apiError(&resp.Diagnostics, "read channel "+id+" (the bot needs the View Channel permission on it)", err)
+		}
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	order := discord.OrderOf(current, ids)
 	if r.kind.descending {
 		slices.Reverse(order)
