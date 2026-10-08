@@ -24,6 +24,30 @@
   before 1.11 with `tfversion.SkipBelow`.
 - After changing a schema or an example, run `make generate` and commit the updated `docs/`.
 
+## API coverage
+
+`coverage.yaml` maps every operation in Discord's [OpenAPI spec](https://github.com/discord/discord-api-spec) to the
+resources and data sources that cover it, or marks it `planned` (with its roadmap issue), `out_of_scope` (with a
+reason) or `pending_docs` (in the spec but not yet documented). The spec is a public preview, so it is used to detect
+changes, not to generate code; the documentation still decides how a field behaves.
+
+`make api-coverage` downloads the spec at the commit pinned in `internal/apispec/pin.go` and checks that:
+
+- every spec operation is mapped once, and the manifest names no operation the spec lacks;
+- the operations the client in `internal/discord` calls are exactly the ones marked `covered`, and every name under
+  `by` is registered by the provider;
+- every struct in `internal/discord/models.go` matches the spec schemas listed for it in
+  `internal/apispec/contract_test.go`, so a renamed or retyped field fails.
+
+When you add or remove a client endpoint, update its entry in `coverage.yaml`. When you add a model struct, add it to
+the table in `contract_test.go`. The **API coverage** CI job runs the same check.
+
+The **API spec watch** workflow runs weekly. It compares the latest spec with the pinned spec and the manifest, and
+opens or updates an `api-spec` issue for each new operation and each new request field or query parameter on a covered
+operation. To move to a newer spec, run `go run ./internal/apispec/cmd/apispec fetch -latest -o .openapi.json`, copy
+the commit and checksum it prints into `internal/apispec/pin.go`, and update `coverage.yaml` until
+`make api-coverage` passes.
+
 ## Tests
 
 `make test` runs every test, including the Terraform acceptance tests, against an in-memory fake of the Discord API.

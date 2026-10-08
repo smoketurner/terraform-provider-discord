@@ -20,4 +20,5 @@ terraform.rc
 *.swp
 .DS_Store
 coverage.out
+.openapi.json
 .cache-key
