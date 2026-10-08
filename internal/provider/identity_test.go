@@ -107,6 +107,15 @@ resource "discord_message" "test" {
   channel_id = discord_text_channel.test.id
   content    = "Identity"
 }
+resource "discord_message_reaction" "test" {
+  channel_id = discord_text_channel.test.id
+  message_id = discord_message.test.id
+  emoji      = "👍"
+}
+resource "discord_channel_follower" "test" {
+  source_channel_id = discord_announcement_channel.test.id
+  channel_id        = discord_text_channel.test.id
+}
 resource "discord_invite" "test" {
   channel_id = discord_text_channel.test.id
 }
@@ -139,6 +148,14 @@ resource "discord_soundboard_sound" "test" {
   name      = "tf-acc-identity"
   sound     = "` + soundMP3 + `"
 }
+resource "discord_auto_moderation_rule" "test" {
+  server_id        = local.server_id
+  name             = "tf-acc-identity"
+  event_type       = "message_send"
+  trigger_type     = "keyword"
+  trigger_metadata = { keyword_filter = ["tf-acc-identity"] }
+  actions          = [{ type = "block_message" }]
+}
 resource "discord_scheduled_event" "test" {
   server_id            = local.server_id
   name                 = "tf-acc-identity"
@@ -150,6 +167,11 @@ resource "discord_scheduled_event" "test" {
 resource "discord_stage_instance" "test" {
   channel_id = discord_stage_channel.test.id
   topic      = "tf-acc-identity"
+}
+resource "discord_application_command" "test" {
+  server_id = local.server_id
+  type      = "user"
+  name      = "tf-acc-identity"
 }
 `
 	identities := map[string]map[string]string{
@@ -166,6 +188,8 @@ resource "discord_stage_instance" "test" {
 		"discord_media_channel.test":           {"channel_id": "id"},
 		"discord_channel_permission.test":      {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
 		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
+		"discord_message_reaction.test":        {"channel_id": "channel_id", "message_id": "message_id", "emoji": "emoji"},
+		"discord_channel_follower.test":        {"webhook_id": "id"},
 		"discord_invite.test":                  {"channel_id": "channel_id", "code": "id"},
 		"discord_webhook.test":                 {"webhook_id": "id"},
 		"discord_webhook_message.test":         {"webhook_id": "webhook_id", "channel_id": "channel_id", "message_id": "id"},
@@ -173,8 +197,10 @@ resource "discord_stage_instance" "test" {
 		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
 		"discord_sticker.test":                 {"server_id": "server_id", "sticker_id": "id"},
 		"discord_soundboard_sound.test":        {"server_id": "server_id", "sound_id": "id"},
+		"discord_auto_moderation_rule.test":    {"server_id": "server_id", "rule_id": "id"},
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
+		"discord_application_command.test":     {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},
 	}
 	if env.userID != "" {
 		cfg += `
@@ -229,6 +255,49 @@ resource "discord_server_widget" "test" {
 			identities[name] = map[string]string{"server_id": "server_id"}
 		}
 	}
+	// A server has one template, which the live server may already have.
+	if !env.live {
+		cfg += `
+resource "discord_server_template" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+}
+`
+		identities["discord_server_template.test"] = map[string]string{"server_id": "server_id", "code": "id"}
+	}
+	// These change the bot and its application, so live runs leave them
+	// out.
+	if !env.live {
+		cfg += `
+resource "discord_bot_user" "test" {
+  username = "tf-acc-identity"
+}
+resource "discord_bot_member" "test" {
+  server_id = local.server_id
+  nick      = "tf-acc-identity"
+}
+resource "discord_application_settings" "test" {
+  description = "tf-acc-identity"
+}
+resource "discord_application_role_connection_metadata" "test" {
+  records = [{
+    type        = "boolean_equal"
+    key         = "identity"
+    name        = "Identity"
+    description = "tf-acc-identity"
+  }]
+}
+resource "discord_application_emoji" "test" {
+  name  = "tf_acc_identity"
+  image = "` + onePixelPNG + `"
+}
+`
+		identities["discord_bot_user.test"] = map[string]string{"user_id": "id"}
+		identities["discord_bot_member.test"] = map[string]string{"server_id": "server_id"}
+		identities["discord_application_settings.test"] = map[string]string{"application_id": "id"}
+		identities["discord_application_role_connection_metadata.test"] = map[string]string{"application_id": "application_id"}
+		identities["discord_application_emoji.test"] = map[string]string{"application_id": "application_id", "emoji_id": "id"}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep
@@ -238,7 +307,7 @@ resource "discord_server_widget" "test" {
 		// Uploaded files cannot be read back, so the imported resources
 		// plan to set them.
 		step.ExpectNonEmptyPlan = slices.Contains([]string{
-			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test",
+			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test", "discord_application_emoji.test",
 		}, name)
 		steps = append(steps, step)
 	}

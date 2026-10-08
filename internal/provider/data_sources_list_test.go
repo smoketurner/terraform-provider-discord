@@ -407,6 +407,54 @@ data "discord_scheduled_events" "test" {
 	})
 }
 
+func TestAccAutoModerationRulesDataSource(t *testing.T) {
+	env := newTestEnv(t)
+	cfg := env.config(`
+resource "discord_role" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-automod-list"
+}
+resource "discord_auto_moderation_rule" "test" {
+  server_id    = local.server_id
+  name         = "tf-acc-automod-list"
+  event_type   = "message_send"
+  trigger_type = "keyword"
+  enabled      = true
+  exempt_role_ids = [discord_role.test.id]
+  trigger_metadata = {
+    keyword_filter = ["free nitro"]
+  }
+  actions = [
+    { type = "block_message" },
+    { type = "timeout", duration_seconds = 60 },
+  ]
+}
+data "discord_auto_moderation_rules" "test" {
+  server_id  = local.server_id
+  depends_on = [discord_auto_moderation_rule.test]
+}`)
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{{
+			Config: cfg,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckTypeSetElemNestedAttrs("data.discord_auto_moderation_rules.test", "rules.*", map[string]string{
+					"name":                 "tf-acc-automod-list",
+					"event_type":           "message_send",
+					"trigger_type":         "keyword",
+					"enabled":              "true",
+					"action_types.#":       "2",
+					"action_types.0":       "block_message",
+					"action_types.1":       "timeout",
+					"exempt_role_ids.#":    "1",
+					"exempt_channel_ids.#": "0",
+				}),
+				resource.TestCheckTypeSetElemAttrPair("data.discord_auto_moderation_rules.test", "rules.*.id", "discord_auto_moderation_rule.test", "id"),
+				resource.TestCheckTypeSetElemAttrPair("data.discord_auto_moderation_rules.test", "rules.*.exempt_role_ids.*", "discord_role.test", "id"),
+			),
+		}},
+	})
+}
+
 func TestAccThreadsDataSource(t *testing.T) {
 	env := newTestEnv(t)
 	env.requireFake()
@@ -488,24 +536,27 @@ data "discord_integrations" "test" {
 
 func TestAccServerTemplatesDataSource(t *testing.T) {
 	env := newTestEnv(t)
-	env.requireFake()
-	code := env.fake.AddTemplate(env.serverID, "tf-acc-template")
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{{
 			Config: env.config(`
-data "discord_server_templates" "test" {
+resource "discord_server_template" "test" {
   server_id = local.server_id
+  name      = "tf-acc-template"
+}
+data "discord_server_templates" "test" {
+  server_id  = local.server_id
+  depends_on = [discord_server_template.test]
 }`),
 			Check: resource.ComposeAggregateTestCheckFunc(
 				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.#", "1"),
-				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.0.code", code),
+				resource.TestCheckResourceAttrPair("data.discord_server_templates.test", "templates.0.code", "discord_server_template.test", "code"),
 				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.0.name", "tf-acc-template"),
 				resource.TestCheckNoResourceAttr("data.discord_server_templates.test", "templates.0.description"),
 				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.0.usage_count", "0"),
-				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.0.creator_id", env.userID),
+				resource.TestCheckResourceAttrPair("data.discord_server_templates.test", "templates.0.creator_id", "discord_server_template.test", "creator_id"),
 				resource.TestCheckResourceAttr("data.discord_server_templates.test", "templates.0.is_dirty", "false"),
-				resource.TestCheckResourceAttrSet("data.discord_server_templates.test", "templates.0.created_at"),
-				resource.TestCheckResourceAttrSet("data.discord_server_templates.test", "templates.0.updated_at"),
+				resource.TestCheckResourceAttrPair("data.discord_server_templates.test", "templates.0.created_at", "discord_server_template.test", "created_at"),
+				resource.TestCheckResourceAttrPair("data.discord_server_templates.test", "templates.0.updated_at", "discord_server_template.test", "updated_at"),
 			),
 		}},
 	})
@@ -518,7 +569,7 @@ func TestAccListDataSourcesUnknownServer(t *testing.T) {
 	env.requireFake()
 	names := []string{
 		"channels", "roles", "members", "emojis", "stickers", "soundboard_sounds", "webhooks", "invites", "bans",
-		"scheduled_events", "threads", "integrations", "server_templates",
+		"scheduled_events", "auto_moderation_rules", "threads", "integrations", "server_templates",
 	}
 	steps := make([]resource.TestStep, 0, len(names))
 	for _, name := range slices.Sorted(slices.Values(names)) {

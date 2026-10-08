@@ -95,6 +95,12 @@ func (c *Client) ListScheduledEvents(ctx context.Context, guildID string) ([]Sch
 	return events, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/scheduled-events", nil, &events)
 }
 
+// ListAutoModerationRules lists the AutoMod rules of a guild.
+func (c *Client) ListAutoModerationRules(ctx context.Context, guildID string) ([]AutoModerationRule, error) {
+	var rules []AutoModerationRule
+	return rules, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/auto-moderation/rules", nil, &rules)
+}
+
 // ListActiveThreads lists the active threads of a guild.
 func (c *Client) ListActiveThreads(ctx context.Context, guildID string) ([]Thread, error) {
 	var resp struct {
@@ -111,10 +117,4 @@ func (c *Client) ListActiveThreads(ctx context.Context, guildID string) ([]Threa
 func (c *Client) ListIntegrations(ctx context.Context, guildID string) ([]Integration, error) {
 	var integrations []Integration
 	return integrations, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/integrations", nil, &integrations)
-}
-
-// ListTemplates lists the templates of a guild.
-func (c *Client) ListTemplates(ctx context.Context, guildID string) ([]GuildTemplate, error) {
-	var templates []GuildTemplate
-	return templates, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/templates", nil, &templates)
 }

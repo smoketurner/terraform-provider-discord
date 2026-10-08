@@ -14,7 +14,6 @@ import (
 // with the Add* helpers.
 type listState struct {
 	integrations map[string][]discord.Integration
-	templates    map[string][]discord.GuildTemplate
 }
 
 func (s *Server) handleLists(mux *http.ServeMux) {
@@ -26,15 +25,8 @@ func (s *Server) handleLists(mux *http.ServeMux) {
 	mux.HandleFunc("GET /guilds/{guild}/invites", s.listGuildInvites)
 	mux.HandleFunc("GET /guilds/{guild}/scheduled-events", s.listScheduledEvents)
 	mux.HandleFunc("GET /guilds/{guild}/threads/active", s.listActiveThreads)
+	mux.HandleFunc("GET /guilds/{guild}/auto-moderation/rules", s.listAutomodRules)
 	mux.HandleFunc("GET /guilds/{guild}/integrations", s.listIntegrations)
-	mux.HandleFunc("GET /guilds/{guild}/templates", s.listTemplates)
-}
-
-// compareIDs orders snowflakes numerically.
-func compareIDs(a, b string) int {
-	x, _ := strconv.ParseUint(a, 10, 64)
-	y, _ := strconv.ParseUint(b, 10, 64)
-	return cmp.Compare(x, y)
 }
 
 // userPage returns the items after the "after" user ID, in ascending order of
@@ -186,6 +178,20 @@ func (s *Server) listActiveThreads(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"threads": threads, "members": []any{}})
 }
 
+func (s *Server) listAutomodRules(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	out := []map[string]any{}
+	for _, rule := range sortedByID(s.automod[g.ID], func(*discord.AutoModerationRule) bool { return true }) {
+		out = append(out, automodJSON(rule))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // AddIntegration adds an integration to a guild and returns its ID.
 func (s *Server) AddIntegration(guildID, name, typ string) string {
 	s.mu.Lock()
@@ -209,29 +215,4 @@ func (s *Server) listIntegrations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, append([]discord.Integration{}, s.lists.integrations[g.ID]...))
-}
-
-// AddTemplate adds a template of a guild and returns its code.
-func (s *Server) AddTemplate(guildID, name string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.lists.templates == nil {
-		s.lists.templates = map[string][]discord.GuildTemplate{}
-	}
-	code := "tpl" + s.newID()
-	s.lists.templates[guildID] = append(s.lists.templates[guildID], discord.GuildTemplate{
-		Code: code, Name: name, CreatorID: UserID, SourceGuildID: guildID,
-		CreatedAt: "2024-01-01T00:00:00+00:00", UpdatedAt: "2024-01-02T00:00:00+00:00",
-	})
-	return code
-}
-
-func (s *Server) listTemplates(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	g, ok := s.guild(w, r)
-	if !ok {
-		return
-	}
-	writeJSON(w, http.StatusOK, append([]discord.GuildTemplate{}, s.lists.templates[g.ID]...))
 }

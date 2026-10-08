@@ -3,6 +3,7 @@
 package discordtest
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,6 +49,7 @@ type Server struct {
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
 	emojis   map[string]map[string]*discord.Emoji
+	automod  map[string]map[string]*discord.AutoModerationRule
 	stickers map[string]map[string]*discord.Sticker
 	sounds   map[string]map[string]*discord.SoundboardSound
 	events   map[string]*discord.ScheduledEvent
@@ -57,6 +59,12 @@ type Server struct {
 	ro       *readOnlyState
 	money    *monetization
 	app      *discord.Application
+	commands map[string]*discord.ApplicationCommand
+	// appEmojis are the application's emojis, roleConnections its role
+	// connection metadata, and botBios the bot's server profile bios.
+	appEmojis       map[string]*discord.Emoji
+	roleConnections []discord.RoleConnectionMetadata
+	botBios         map[string]string
 	// stickerFiles and soundData hold the uploaded files, which Discord
 	// never returns.
 	stickerFiles map[string]Upload
@@ -71,37 +79,50 @@ type Server struct {
 	// also refused by GET /channels/{id}.
 	hidden map[string]bool
 	denied map[string]bool
+	// follows maps Channel Follower webhook IDs to the announcement channel
+	// each follows.
+	follows map[string]string
+	// reactions maps message IDs to emoji to the sorted IDs of the users who
+	// reacted.
+	reactions map[string]map[string][]string
 	// clockSkew is added to the wall clock, so tests can let incident
 	// actions expire without waiting.
 	clockSkew time.Duration
+	ops       operations
 }
 
 // NewServer starts a fake Discord API seeded with one guild containing an
 // @everyone role and one member. Call Close when done.
 func NewServer() *Server {
 	s := &Server{
-		nextID:       200000000000000000,
-		guilds:       map[string]*discord.Guild{},
-		roles:        map[string]map[string]*discord.Role{},
-		channels:     map[string]*discord.Channel{},
-		threads:      map[string]*discord.Thread{},
-		members:      map[string]map[string]*discord.Member{},
-		bans:         map[string]map[string]*discord.Ban{GuildID: {}},
-		webhooks:     map[string]*discord.Webhook{},
-		posters:      map[string]string{},
-		invites:      map[string]*discord.Invite{},
-		messages:     map[string]*discord.Message{},
-		emojis:       map[string]map[string]*discord.Emoji{},
-		stickers:     map[string]map[string]*discord.Sticker{},
-		sounds:       map[string]map[string]*discord.SoundboardSound{},
-		stickerFiles: map[string]Upload{},
-		soundData:    map[string]string{},
-		events:       map[string]*discord.ScheduledEvent{},
-		stages:       map[string]*discord.StageInstance{},
-		failNext:     map[string]int{},
-		botUserID:    "100000000000000003",
-		hidden:       map[string]bool{},
-		denied:       map[string]bool{},
+		nextID:          200000000000000000,
+		guilds:          map[string]*discord.Guild{},
+		roles:           map[string]map[string]*discord.Role{},
+		channels:        map[string]*discord.Channel{},
+		threads:         map[string]*discord.Thread{},
+		members:         map[string]map[string]*discord.Member{},
+		bans:            map[string]map[string]*discord.Ban{GuildID: {}},
+		webhooks:        map[string]*discord.Webhook{},
+		posters:         map[string]string{},
+		invites:         map[string]*discord.Invite{},
+		messages:        map[string]*discord.Message{},
+		emojis:          map[string]map[string]*discord.Emoji{},
+		automod:         map[string]map[string]*discord.AutoModerationRule{},
+		stickers:        map[string]map[string]*discord.Sticker{},
+		sounds:          map[string]map[string]*discord.SoundboardSound{},
+		stickerFiles:    map[string]Upload{},
+		soundData:       map[string]string{},
+		events:          map[string]*discord.ScheduledEvent{},
+		stages:          map[string]*discord.StageInstance{},
+		failNext:        map[string]int{},
+		botUserID:       "100000000000000003",
+		hidden:          map[string]bool{},
+		denied:          map[string]bool{},
+		follows:         map[string]string{},
+		reactions:       map[string]map[string][]string{},
+		appEmojis:       map[string]*discord.Emoji{},
+		botBios:         map[string]string{},
+		roleConnections: []discord.RoleConnectionMetadata{},
 	}
 	s.guilds[GuildID] = &discord.Guild{
 		ID:                GuildID,
@@ -180,6 +201,10 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/soundboard-sounds", s.createSoundboardSound)
 	mux.HandleFunc("PATCH /guilds/{guild}/soundboard-sounds/{sound}", s.modifySoundboardSound)
 	mux.HandleFunc("DELETE /guilds/{guild}/soundboard-sounds/{sound}", s.deleteSoundboardSound)
+	mux.HandleFunc("GET /guilds/{guild}/auto-moderation/rules/{rule}", s.getAutomodRule)
+	mux.HandleFunc("POST /guilds/{guild}/auto-moderation/rules", s.createAutomodRule)
+	mux.HandleFunc("PATCH /guilds/{guild}/auto-moderation/rules/{rule}", s.modifyAutomodRule)
+	mux.HandleFunc("DELETE /guilds/{guild}/auto-moderation/rules/{rule}", s.deleteAutomodRule)
 	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
 	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
 	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)
@@ -190,9 +215,14 @@ func NewServer() *Server {
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
 	s.handleLists(mux)
+	s.handleReactions(mux)
+	s.handleFollowers(mux)
 	s.handleReadOnly(mux)
 	s.handleMonetization(mux)
 	s.handleUsers(mux)
+	s.handleApplicationCommands(mux)
+	s.handleOperations(mux)
+	s.handleApplications(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
@@ -206,9 +236,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		key := r.Method + " " + r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		s.mu.Lock()
 		s.requests = append(s.requests, key)
 		s.headers = append(s.headers, r.Header.Clone())
+		s.ops.bodies = append(s.ops.bodies, body)
 		fail := s.failNext[key]
 		if fail > 0 {
 			s.failNext[key] = fail - 1
@@ -941,6 +974,9 @@ func (s *Server) deletePermission(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) member(w http.ResponseWriter, r *http.Request) (*discord.Member, bool) {
+	if r.PathValue("user") == s.botUserID {
+		return s.botMember(w, r)
+	}
 	m, ok := s.members[r.PathValue("guild")][r.PathValue("user")]
 	if !ok {
 		notFound(w, "Member", 10007)
@@ -1254,7 +1290,7 @@ func (s *Server) getWebhook(w http.ResponseWriter, r *http.Request) {
 		notFound(w, "Webhook", 10015)
 		return
 	}
-	writeJSON(w, http.StatusOK, wh)
+	writeJSON(w, http.StatusOK, s.webhookResponse(wh))
 }
 
 func (s *Server) modifyWebhook(w http.ResponseWriter, r *http.Request) {
@@ -1279,7 +1315,7 @@ func (s *Server) modifyWebhook(w http.ResponseWriter, r *http.Request) {
 	*wh = updated
 	set(body, "channel_id", &wh.ChannelID)
 	s.setAvatar(wh, body)
-	writeJSON(w, http.StatusOK, wh)
+	writeJSON(w, http.StatusOK, s.webhookResponse(wh))
 }
 
 func (s *Server) deleteWebhook(w http.ResponseWriter, r *http.Request) {
@@ -1290,6 +1326,7 @@ func (s *Server) deleteWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.webhooks, r.PathValue("webhook"))
+	delete(s.follows, r.PathValue("webhook"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1471,9 +1508,13 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 	set(body, "max_age", &inv.MaxAge)
 	set(body, "max_uses", &inv.MaxUses)
 	set(body, "temporary", &inv.Temporary)
+	if msg := s.applyInviteTargets(ch.GuildID, inv, body); msg != "" {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: "+msg)
+		return
+	}
 	var unique bool
 	set(body, "unique", &unique)
-	if !unique {
+	if !unique && inv.TargetType == 0 && len(inv.Roles) == 0 && body["target_user_ids"] == nil {
 		for _, existing := range s.invites {
 			if existing.Channel.ID == ch.ID && existing.MaxAge == inv.MaxAge && existing.MaxUses == inv.MaxUses && existing.Temporary == inv.Temporary {
 				writeJSON(w, http.StatusOK, existing)
@@ -1486,6 +1527,11 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 		inv.ExpiresAt = &expires
 	}
 	s.invites[inv.Code] = inv
+	if _, ok := body["target_user_ids"]; ok {
+		var ids []string
+		set(body, "target_user_ids", &ids)
+		s.ops.inviteTargets[inv.Code] = slices.Sorted(slices.Values(ids))
+	}
 	writeJSON(w, http.StatusOK, inv)
 }
 
@@ -1582,8 +1628,8 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := &discord.Message{
-		ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		ID: s.newSnowflake(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
+		Timestamp: s.now().UTC().Format(time.RFC3339Nano),
 	}
 	applyMessage(m, body)
 	if m.Content == "" && len(m.Embeds) == 0 {
@@ -1633,6 +1679,7 @@ func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.messages, m.ID)
+	delete(s.reactions, m.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1642,6 +1689,7 @@ func (s *Server) DeleteMessage(messageID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.messages, messageID)
+	delete(s.reactions, messageID)
 }
 
 func (s *Server) pinMessage(pinned bool) http.HandlerFunc {

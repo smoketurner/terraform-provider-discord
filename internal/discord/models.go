@@ -205,13 +205,77 @@ type Application struct {
 	Tags                    []string `json:"tags,omitempty"`
 	ApproximateGuildCount   int64    `json:"approximate_guild_count"`
 	InteractionsEndpointURL *string  `json:"interactions_endpoint_url"`
+	// The fields below are the settings Edit Current Application changes.
+	// Discord omits the optional ones that are not set.
+	CoverImage                     *string                          `json:"cover_image,omitempty"`
+	CustomInstallURL               *string                          `json:"custom_install_url,omitempty"`
+	InstallParams                  *InstallParams                   `json:"install_params,omitempty"`
+	IntegrationTypesConfig         map[string]IntegrationTypeConfig `json:"integration_types_config,omitempty"`
+	RoleConnectionsVerificationURL *string                          `json:"role_connections_verification_url"`
+	EventWebhooksURL               *string                          `json:"event_webhooks_url,omitempty"`
+	EventWebhooksStatus            int64                            `json:"event_webhooks_status,omitempty"`
+	EventWebhooksTypes             []string                         `json:"event_webhooks_types,omitempty"`
+}
+
+// Application flags that Edit Current Application can change: the intents
+// for bots in fewer than 100 servers.
+const (
+	ApplicationFlagGatewayPresenceLimited       = 1 << 13
+	ApplicationFlagGatewayGuildMembersLimited   = 1 << 15
+	ApplicationFlagGatewayMessageContentLimited = 1 << 19
+)
+
+// ApplicationLimitedIntentFlags are all the flags Edit Current Application
+// can change.
+const ApplicationLimitedIntentFlags = ApplicationFlagGatewayPresenceLimited |
+	ApplicationFlagGatewayGuildMembersLimited | ApplicationFlagGatewayMessageContentLimited
+
+// Application event webhook statuses.
+const (
+	EventWebhooksDisabled          = 1
+	EventWebhooksEnabled           = 2
+	EventWebhooksDisabledByDiscord = 3
+)
+
+// Application integration types, the keys of IntegrationTypesConfig.
+const (
+	IntegrationTypeGuildInstall = "0"
+	IntegrationTypeUserInstall  = "1"
+)
+
+// InstallParams are the OAuth2 scopes and bot permissions of an application's
+// default install link.
+type InstallParams struct {
+	Scopes      []string `json:"scopes"`
+	Permissions string   `json:"permissions"`
+}
+
+// IntegrationTypeConfig configures one installation context of an
+// application. Its presence in IntegrationTypesConfig makes the context
+// supported.
+type IntegrationTypeConfig struct {
+	OAuth2InstallParams *InstallParams `json:"oauth2_install_params,omitempty"`
+}
+
+// RoleConnectionMetadata is a requirement an application offers for linked
+// roles. Type is a comparison such as 7, boolean equal.
+type RoleConnectionMetadata struct {
+	Type                     int64             `json:"type"`
+	Key                      string            `json:"key"`
+	Name                     string            `json:"name"`
+	NameLocalizations        map[string]string `json:"name_localizations,omitempty"`
+	Description              string            `json:"description"`
+	DescriptionLocalizations map[string]string `json:"description_localizations,omitempty"`
 }
 
 // Member is a user's membership in a guild. CommunicationDisabledUntil is
 // when the member's timeout ends; null or a time in the past means none.
+// Avatar and Banner are hashes of the member's server profile images.
 type Member struct {
 	User                       *User    `json:"user"`
 	Nick                       *string  `json:"nick"`
+	Avatar                     *string  `json:"avatar"`
+	Banner                     *string  `json:"banner"`
 	Roles                      []string `json:"roles"`
 	JoinedAt                   string   `json:"joined_at"`
 	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`
@@ -235,6 +299,38 @@ type Webhook struct {
 	Token     string  `json:"token"`
 }
 
+// FollowedChannel is returned when following an announcement channel.
+// WebhookID is the Channel Follower webhook created in the target channel.
+type FollowedChannel struct {
+	ChannelID string `json:"channel_id"`
+	WebhookID string `json:"webhook_id"`
+}
+
+// FollowerWebhook is a Channel Follower webhook, which posts an announcement
+// channel's messages into the channel that follows it. SourceChannel is
+// absent when the bot has lost access to the source server.
+type FollowerWebhook struct {
+	ID            string                `json:"id"`
+	Type          int                   `json:"type"`
+	GuildID       string                `json:"guild_id"`
+	ChannelID     string                `json:"channel_id"`
+	SourceChannel *WebhookSourceChannel `json:"source_channel"`
+}
+
+// WebhookSourceChannel is the announcement channel a Channel Follower
+// webhook follows.
+type WebhookSourceChannel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// InviteRole is the partial role an invite grants to the users who accept
+// it.
+type InviteRole struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // InviteChannel is the partial channel included in an invite.
 type InviteChannel struct {
 	ID   string `json:"id"`
@@ -253,26 +349,66 @@ type InviteGuild struct {
 	PremiumSubscriptionCount int64    `json:"premium_subscription_count"`
 }
 
+// InviteApplication is the partial embedded application an invite opens.
+type InviteApplication struct {
+	ID string `json:"id"`
+}
+
+// Invite target types.
+const (
+	InviteTargetStream              = 1
+	InviteTargetEmbeddedApplication = 2
+)
+
 // Invite is an invite. The metadata (max age, uses, creation time) is only
 // returned by the Get Channel Invites and Create Channel Invite endpoints,
 // and the approximate counts only by Get Invite.
 type Invite struct {
-	Type                     int64          `json:"type"`
-	Code                     string         `json:"code"`
-	Guild                    *InviteGuild   `json:"guild,omitempty"`
-	Channel                  *InviteChannel `json:"channel"`
-	Inviter                  *User          `json:"inviter,omitempty"`
-	TargetType               int64          `json:"target_type,omitempty"`
-	TargetUser               *User          `json:"target_user,omitempty"`
-	ApproximateMemberCount   *int64         `json:"approximate_member_count,omitempty"`
-	ApproximatePresenceCount *int64         `json:"approximate_presence_count,omitempty"`
-	Flags                    int64          `json:"flags,omitempty"`
-	MaxAge                   int64          `json:"max_age"`
-	MaxUses                  int64          `json:"max_uses"`
-	Uses                     int64          `json:"uses"`
-	Temporary                bool           `json:"temporary"`
-	CreatedAt                string         `json:"created_at"`
-	ExpiresAt                *string        `json:"expires_at"`
+	Type                     int64              `json:"type"`
+	Code                     string             `json:"code"`
+	Guild                    *InviteGuild       `json:"guild,omitempty"`
+	Channel                  *InviteChannel     `json:"channel"`
+	Inviter                  *User              `json:"inviter,omitempty"`
+	TargetType               int64              `json:"target_type,omitempty"`
+	TargetUser               *User              `json:"target_user,omitempty"`
+	TargetApplication        *InviteApplication `json:"target_application,omitempty"`
+	Roles                    []InviteRole       `json:"roles,omitempty"`
+	ApproximateMemberCount   *int64             `json:"approximate_member_count,omitempty"`
+	ApproximatePresenceCount *int64             `json:"approximate_presence_count,omitempty"`
+	Flags                    int64              `json:"flags,omitempty"`
+	MaxAge                   int64              `json:"max_age"`
+	MaxUses                  int64              `json:"max_uses"`
+	Uses                     int64              `json:"uses"`
+	Temporary                bool               `json:"temporary"`
+	CreatedAt                string             `json:"created_at"`
+	ExpiresAt                *string            `json:"expires_at"`
+}
+
+// GuildTemplate is a server template: a snapshot of a guild's settings,
+// roles and channels that new servers can be created from.
+type GuildTemplate struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	UsageCount    int64   `json:"usage_count"`
+	CreatorID     string  `json:"creator_id"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+	SourceGuildID string  `json:"source_guild_id"`
+	IsDirty       *bool   `json:"is_dirty"`
+}
+
+// PruneResult is the number of members a prune removed or would remove. It
+// is null when the prune was started without computing the count.
+type PruneResult struct {
+	Pruned *int64 `json:"pruned"`
+}
+
+// BulkBanResult lists the users a bulk ban banned and those it could not ban
+// or that were already banned.
+type BulkBanResult struct {
+	BannedUsers []string `json:"banned_users"`
+	FailedUsers []string `json:"failed_users"`
 }
 
 // EmbedFooter is the footer of an embed.
@@ -338,6 +474,46 @@ type Emoji struct {
 	Roles    []string `json:"roles"`
 	Managed  bool     `json:"managed"`
 	Animated bool     `json:"animated"`
+}
+
+// AutoModerationRule is a server AutoMod rule.
+type AutoModerationRule struct {
+	ID              string                        `json:"id"`
+	GuildID         string                        `json:"guild_id"`
+	Name            string                        `json:"name"`
+	CreatorID       string                        `json:"creator_id"`
+	EventType       int64                         `json:"event_type"`
+	TriggerType     int64                         `json:"trigger_type"`
+	TriggerMetadata AutoModerationTriggerMetadata `json:"trigger_metadata"`
+	Actions         []AutoModerationAction        `json:"actions"`
+	Enabled         bool                          `json:"enabled"`
+	ExemptRoles     []string                      `json:"exempt_roles"`
+	ExemptChannels  []string                      `json:"exempt_channels"`
+}
+
+// AutoModerationTriggerMetadata holds the fields of every trigger type;
+// Discord returns only those of the rule's type.
+type AutoModerationTriggerMetadata struct {
+	KeywordFilter                []string `json:"keyword_filter,omitempty"`
+	RegexPatterns                []string `json:"regex_patterns,omitempty"`
+	Presets                      []int64  `json:"presets,omitempty"`
+	AllowList                    []string `json:"allow_list,omitempty"`
+	MentionTotalLimit            *int64   `json:"mention_total_limit,omitempty"`
+	MentionRaidProtectionEnabled *bool    `json:"mention_raid_protection_enabled,omitempty"`
+}
+
+// AutoModerationAction is an action a rule takes when it triggers.
+type AutoModerationAction struct {
+	Type     int64                         `json:"type"`
+	Metadata *AutoModerationActionMetadata `json:"metadata,omitempty"`
+}
+
+// AutoModerationActionMetadata holds the fields of every action type;
+// Discord returns only those of the action's type.
+type AutoModerationActionMetadata struct {
+	ChannelID       string  `json:"channel_id,omitempty"`
+	DurationSeconds *int64  `json:"duration_seconds,omitempty"`
+	CustomMessage   *string `json:"custom_message,omitempty"`
 }
 
 // Scheduled event entity types.
@@ -506,20 +682,6 @@ type Integration struct {
 type IntegrationAccount struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-}
-
-// GuildTemplate is a template that copies a guild's settings, roles and
-// channels into a new guild.
-type GuildTemplate struct {
-	Code          string  `json:"code"`
-	Name          string  `json:"name"`
-	Description   *string `json:"description"`
-	UsageCount    int64   `json:"usage_count"`
-	CreatorID     string  `json:"creator_id"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
-	SourceGuildID string  `json:"source_guild_id"`
-	IsDirty       *bool   `json:"is_dirty"`
 }
 
 // VoiceRegion is a voice server region a voice or stage channel can use.
@@ -691,4 +853,67 @@ type Subscription struct {
 	CurrentPeriodEnd   string   `json:"current_period_end"`
 	Status             int64    `json:"status"`
 	CanceledAt         *string  `json:"canceled_at"`
+}
+
+// Application command types managed by the provider.
+const (
+	ApplicationCommandTypeChatInput = 1
+	ApplicationCommandTypeUser      = 2
+	ApplicationCommandTypeMessage   = 3
+)
+
+// Application command option types.
+const (
+	CommandOptionTypeSubCommand      = 1
+	CommandOptionTypeSubCommandGroup = 2
+	CommandOptionTypeString          = 3
+	CommandOptionTypeInteger         = 4
+	CommandOptionTypeNumber          = 10
+)
+
+// ApplicationCommand is a slash, user or message command. GuildID is empty
+// for a global command.
+type ApplicationCommand struct {
+	ID                       string                     `json:"id"`
+	Type                     int64                      `json:"type"`
+	ApplicationID            string                     `json:"application_id"`
+	GuildID                  string                     `json:"guild_id,omitempty"`
+	Name                     string                     `json:"name"`
+	NameLocalizations        map[string]string          `json:"name_localizations"`
+	Description              string                     `json:"description"`
+	DescriptionLocalizations map[string]string          `json:"description_localizations"`
+	Options                  []ApplicationCommandOption `json:"options,omitempty"`
+	DefaultMemberPermissions *string                    `json:"default_member_permissions"`
+	Contexts                 []int64                    `json:"contexts"`
+	IntegrationTypes         []int64                    `json:"integration_types,omitempty"`
+	NSFW                     bool                       `json:"nsfw"`
+	Version                  string                     `json:"version"`
+}
+
+// ApplicationCommandOption is a parameter, subcommand or subcommand group of
+// a command. Which fields apply depends on Type; the rest are omitted.
+type ApplicationCommandOption struct {
+	Type                     int64                            `json:"type"`
+	Name                     string                           `json:"name"`
+	NameLocalizations        map[string]string                `json:"name_localizations,omitempty"`
+	Description              string                           `json:"description"`
+	DescriptionLocalizations map[string]string                `json:"description_localizations,omitempty"`
+	Required                 bool                             `json:"required,omitempty"`
+	Choices                  []ApplicationCommandOptionChoice `json:"choices,omitempty"`
+	Options                  []ApplicationCommandOption       `json:"options,omitempty"`
+	ChannelTypes             []int64                          `json:"channel_types,omitempty"`
+	MinValue                 *float64                         `json:"min_value,omitempty"`
+	MaxValue                 *float64                         `json:"max_value,omitempty"`
+	MinLength                *int64                           `json:"min_length,omitempty"`
+	MaxLength                *int64                           `json:"max_length,omitempty"`
+	Autocomplete             bool                             `json:"autocomplete,omitempty"`
+	FileTypes                []string                         `json:"file_types,omitempty"`
+}
+
+// ApplicationCommandOptionChoice is a value users pick for an option. Value
+// is a JSON string, integer or number depending on the option type.
+type ApplicationCommandOptionChoice struct {
+	Name              string            `json:"name"`
+	NameLocalizations map[string]string `json:"name_localizations,omitempty"`
+	Value             json.RawMessage   `json:"value"`
 }

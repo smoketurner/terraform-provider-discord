@@ -639,6 +639,72 @@ func newScheduledEventsDataSource() datasource.DataSource {
 	}
 }
 
+// Auto moderation rules.
+
+type autoModerationRulesDataModel struct {
+	ServerID types.String                  `tfsdk:"server_id"`
+	Rules    []autoModerationRuleItemModel `tfsdk:"rules"`
+}
+
+type autoModerationRuleItemModel struct {
+	ID             types.String `tfsdk:"id"`
+	Name           types.String `tfsdk:"name"`
+	EventType      types.String `tfsdk:"event_type"`
+	TriggerType    types.String `tfsdk:"trigger_type"`
+	ActionTypes    types.List   `tfsdk:"action_types"`
+	Enabled        types.Bool   `tfsdk:"enabled"`
+	ExemptRoles    types.Set    `tfsdk:"exempt_role_ids"`
+	ExemptChannels types.Set    `tfsdk:"exempt_channel_ids"`
+	CreatorID      types.String `tfsdk:"creator_id"`
+}
+
+func newAutoModerationRulesDataSource() datasource.DataSource {
+	return &listDataSource[autoModerationRulesDataModel]{
+		name: "auto_moderation_rules",
+		desc: "Lists the AutoMod rules of a server. Requires the Manage Server permission.",
+		attrs: map[string]schema.Attribute{
+			"rules": computedList("The rules.", map[string]schema.Attribute{
+				"id":           computedString("Rule ID."),
+				"name":         computedString("Rule name."),
+				"event_type":   computedString("Event that triggers the rule: " + automodEventTypes.doc() + "."),
+				"trigger_type": computedString("What the rule checks for: " + automodTriggerTypes.doc() + "."),
+				"action_types": schema.ListAttribute{
+					MarkdownDescription: "Types of the actions the rule takes, in order: " + automodActionTypes.doc() + ".",
+					ElementType:         types.StringType,
+					Computed:            true,
+				},
+				"enabled":            computedBool("Whether the rule is enabled."),
+				"exempt_role_ids":    computedStringSet("IDs of the roles the rule does not apply to."),
+				"exempt_channel_ids": computedStringSet("IDs of the channels the rule does not apply to."),
+				"creator_id":         computedString("ID of the user who created the rule."),
+			}),
+		},
+		read: func(ctx context.Context, c *discord.Client, m *autoModerationRulesDataModel, diags *diag.Diagnostics) {
+			rules, err := c.ListAutoModerationRules(ctx, m.ServerID.ValueString())
+			if err != nil {
+				apiError(diags, "list auto moderation rules", err)
+				return
+			}
+			m.Rules = listOf(rules, func(r discord.AutoModerationRule) autoModerationRuleItemModel {
+				actions := listOf(r.Actions, func(a discord.AutoModerationAction) string {
+					return automodActionTypes.name(a.Type).ValueString()
+				})
+				return autoModerationRuleItemModel{
+					ID:             types.StringValue(r.ID),
+					Name:           types.StringValue(r.Name),
+					EventType:      automodEventTypes.name(r.EventType),
+					TriggerType:    automodTriggerTypes.name(r.TriggerType),
+					ActionTypes:    stringListValue(ctx, actions, diags),
+					Enabled:        types.BoolValue(r.Enabled),
+					ExemptRoles:    stringSetValue(ctx, r.ExemptRoles, diags),
+					ExemptChannels: stringSetValue(ctx, r.ExemptChannels, diags),
+					CreatorID:      types.StringValue(r.CreatorID),
+				}
+			})
+		},
+	}
+}
+
 // Threads.
 
 type threadsDataModel struct {
@@ -779,7 +845,7 @@ func newServerTemplatesDataSource() datasource.DataSource {
 			}),
 		},
 		read: func(ctx context.Context, c *discord.Client, m *serverTemplatesDataModel, diags *diag.Diagnostics) {
-			templates, err := c.ListTemplates(ctx, m.ServerID.ValueString())
+			templates, err := c.ListGuildTemplates(ctx, m.ServerID.ValueString())
 			if err != nil {
 				apiError(diags, "list server templates", err)
 				return
