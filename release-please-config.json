@@ -6,6 +6,7 @@
   "bump-patch-for-minor-pre-major": false,
   "draft": true,
   "force-tag-creation": true,
+  "initial-version": "0.1.0",
   "packages": {
     ".": {
       "package-name": "terraform-provider-discord",
