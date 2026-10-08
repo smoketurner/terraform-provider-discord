@@ -44,6 +44,7 @@ type Server struct {
 	members  map[string]map[string]*discord.Member
 	bans     map[string]map[string]*discord.Ban
 	webhooks map[string]*discord.Webhook
+	posters  map[string]string // message ID to the webhook that posted it
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
 	emojis   map[string]map[string]*discord.Emoji
@@ -86,6 +87,7 @@ func NewServer() *Server {
 		members:      map[string]map[string]*discord.Member{},
 		bans:         map[string]map[string]*discord.Ban{GuildID: {}},
 		webhooks:     map[string]*discord.Webhook{},
+		posters:      map[string]string{},
 		invites:      map[string]*discord.Invite{},
 		messages:     map[string]*discord.Message{},
 		emojis:       map[string]map[string]*discord.Emoji{},
@@ -151,6 +153,10 @@ func NewServer() *Server {
 	mux.HandleFunc("GET /webhooks/{webhook}", s.getWebhook)
 	mux.HandleFunc("PATCH /webhooks/{webhook}", s.modifyWebhook)
 	mux.HandleFunc("DELETE /webhooks/{webhook}", s.deleteWebhook)
+	mux.HandleFunc("POST /webhooks/{webhook}/{token}", s.executeWebhook)
+	mux.HandleFunc("GET /webhooks/{webhook}/{token}/messages/{message}", s.getWebhookMessage)
+	mux.HandleFunc("PATCH /webhooks/{webhook}/{token}/messages/{message}", s.editWebhookMessage)
+	mux.HandleFunc("DELETE /webhooks/{webhook}/{token}/messages/{message}", s.deleteWebhookMessage)
 	mux.HandleFunc("POST /channels/{channel}/invites", s.createInvite)
 	mux.HandleFunc("GET /channels/{channel}/invites", s.listChannelInvites)
 	mux.HandleFunc("DELETE /invites/{code}", s.deleteInvite)
@@ -192,7 +198,8 @@ func NewServer() *Server {
 
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bot "+Token {
+		// Webhook token endpoints are authenticated by the token in the path.
+		if !webhookTokenPath(r.URL.Path) && r.Header.Get("Authorization") != "Bot "+Token {
 			writeError(w, http.StatusUnauthorized, 0, "401: Unauthorized")
 			return
 		}
@@ -1281,6 +1288,168 @@ func (s *Server) deleteWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.webhooks, r.PathValue("webhook"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// AddChannelFollowerWebhook adds a Channel Follower webhook to a channel.
+// Discord creates these when a channel follows an announcement channel, and
+// they have no token.
+func (s *Server) AddChannelFollowerWebhook(channelID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name := "Followed"
+	wh := &discord.Webhook{ID: s.newID(), Type: 2, GuildID: s.channels[channelID].GuildID, ChannelID: channelID, Name: &name}
+	s.webhooks[wh.ID] = wh
+	return wh.ID
+}
+
+// webhookTokenPath reports whether a path is /webhooks/{id}/{token} or below.
+func webhookTokenPath(path string) bool {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	return len(parts) >= 3 && parts[0] == "webhooks"
+}
+
+// tokenWebhook returns the webhook a webhook token endpoint names, checking
+// the token in the path.
+func (s *Server) tokenWebhook(w http.ResponseWriter, r *http.Request) (*discord.Webhook, bool) {
+	wh, ok := s.webhooks[r.PathValue("webhook")]
+	if !ok {
+		notFound(w, "Webhook", 10015)
+		return nil, false
+	}
+	if wh.Token == "" || wh.Token != r.PathValue("token") {
+		writeError(w, http.StatusUnauthorized, 50027, "Invalid Webhook Token")
+		return nil, false
+	}
+	return wh, true
+}
+
+// executeWebhook models Execute Webhook: a forum or media webhook posts in
+// the thread_id thread or starts a post named thread_name, and any other
+// webhook posts in its channel or a thread of it.
+func (s *Server) executeWebhook(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	wh, ok := s.tokenWebhook(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	parent := s.channels[wh.ChannelID]
+	forum := parent.Type == discord.ChannelTypeForum || parent.Type == discord.ChannelTypeMedia
+	var threadName, username string
+	set(body, "thread_name", &threadName)
+	set(body, "username", &username)
+	if username == "" {
+		username = *wh.Name
+	}
+	m := &discord.Message{ID: s.newID(), ChannelID: wh.ChannelID, Author: &discord.User{ID: wh.ID, Username: username, Bot: true}, Embeds: []discord.Embed{}}
+	applyMessage(m, body)
+	if m.Content == "" && len(m.Embeds) == 0 {
+		writeError(w, http.StatusBadRequest, 50006, "Cannot send an empty message")
+		return
+	}
+	threadID := r.URL.Query().Get("thread_id")
+	switch {
+	case threadID != "" && threadName != "":
+		writeError(w, http.StatusBadRequest, 50035, "thread_name cannot be used with thread_id")
+		return
+	case threadID != "":
+		t, ok := s.threads[threadID]
+		if !ok || *t.ParentID != wh.ChannelID {
+			notFound(w, "Channel", 10003)
+			return
+		}
+		t.ThreadMetadata.Archived = false
+		m.ChannelID = t.ID
+	case threadName != "":
+		if !forum {
+			writeError(w, http.StatusBadRequest, 220003, "Webhooks can only create threads in forum channels")
+			return
+		}
+		t := s.newThread(m.ID, parent, discord.ChannelTypePublicThread)
+		t.Name = threadName
+		if len(threadName) > 100 {
+			writeError(w, http.StatusBadRequest, 50035, "thread_name must be 1-100 characters")
+			return
+		}
+		s.threads[t.ID] = t
+		m.ChannelID = t.ID
+	case forum:
+		writeError(w, http.StatusBadRequest, 220001, "Webhooks posted to forum channels must have a thread_name or thread_id")
+		return
+	}
+	s.messages[m.ID] = m
+	s.posters[m.ID] = wh.ID
+	if r.URL.Query().Get("wait") != "true" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
+// webhookMessage returns the message a webhook message endpoint names. It
+// must have been posted by the webhook, in the thread_id thread if given or
+// else in the webhook's channel.
+func (s *Server) webhookMessage(w http.ResponseWriter, r *http.Request) (*discord.Message, bool) {
+	wh, ok := s.tokenWebhook(w, r)
+	if !ok {
+		return nil, false
+	}
+	channelID := wh.ChannelID
+	if id := r.URL.Query().Get("thread_id"); id != "" {
+		channelID = id
+	}
+	m, ok := s.messages[r.PathValue("message")]
+	if !ok || s.posters[m.ID] != wh.ID || m.ChannelID != channelID {
+		notFound(w, "Message", 10008)
+		return nil, false
+	}
+	return m, true
+}
+
+func (s *Server) getWebhookMessage(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.webhookMessage(w, r); ok {
+		writeJSON(w, http.StatusOK, m)
+	}
+}
+
+func (s *Server) editWebhookMessage(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.webhookMessage(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	if t, ok := s.threads[m.ChannelID]; ok && t.ThreadMetadata.Archived {
+		writeError(w, http.StatusBadRequest, 50083, "Thread is archived")
+		return
+	}
+	s.edits = append(s.edits, body)
+	applyMessage(m, body)
+	writeJSON(w, http.StatusOK, m)
+}
+
+func (s *Server) deleteWebhookMessage(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.webhookMessage(w, r)
+	if !ok {
+		return
+	}
+	delete(s.messages, m.ID)
+	delete(s.posters, m.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

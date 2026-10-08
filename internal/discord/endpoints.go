@@ -204,6 +204,48 @@ func (c *Client) DeleteWebhook(ctx context.Context, webhookID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/webhooks/"+webhookID, nil, nil)
 }
 
+// ExecuteWebhook posts a message through a webhook and waits for Discord to
+// return it. A non-empty threadID posts in that thread of the webhook's
+// channel.
+func (c *Client) ExecuteWebhook(ctx context.Context, webhookID, token, threadID string, p Payload) (*Message, error) {
+	var m Message
+	path := "/webhooks/" + webhookID + "/" + url.PathEscape(token) + "?wait=true"
+	if threadID != "" {
+		path += "&thread_id=" + threadID
+	}
+	return &m, c.doWebhook(ctx, http.MethodPost, path, p, &m)
+}
+
+// GetWebhookMessage fetches a message the webhook posted. threadID is the
+// thread the message is in, or empty for the webhook's channel.
+func (c *Client) GetWebhookMessage(ctx context.Context, webhookID, token, messageID, threadID string) (*Message, error) {
+	var m Message
+	path := "/webhooks/" + webhookID + "/" + url.PathEscape(token) + "/messages/" + messageID
+	if threadID != "" {
+		path += "?thread_id=" + threadID
+	}
+	return &m, c.doWebhook(ctx, http.MethodGet, path, nil, &m)
+}
+
+// EditWebhookMessage updates a message the webhook posted.
+func (c *Client) EditWebhookMessage(ctx context.Context, webhookID, token, messageID, threadID string, p Payload) (*Message, error) {
+	var m Message
+	path := "/webhooks/" + webhookID + "/" + url.PathEscape(token) + "/messages/" + messageID
+	if threadID != "" {
+		path += "?thread_id=" + threadID
+	}
+	return &m, c.doWebhook(ctx, http.MethodPatch, path, p, &m)
+}
+
+// DeleteWebhookMessage deletes a message the webhook posted.
+func (c *Client) DeleteWebhookMessage(ctx context.Context, webhookID, token, messageID, threadID string) error {
+	path := "/webhooks/" + webhookID + "/" + url.PathEscape(token) + "/messages/" + messageID
+	if threadID != "" {
+		path += "?thread_id=" + threadID
+	}
+	return c.doWebhook(ctx, http.MethodDelete, path, nil, nil)
+}
+
 // CreateInvite creates a channel invite.
 func (c *Client) CreateInvite(ctx context.Context, channelID string, p Payload) (*Invite, error) {
 	var i Invite

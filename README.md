@@ -48,7 +48,8 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member` |
 | Users and application | `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
-| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds` |
+| Webhooks | `discord_webhook`, `discord_webhook_message`, `ephemeral.discord_webhook` (Terraform 1.10+) |
+| Other | `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds` |
 | Events | `discord_scheduled_event`, `discord_stage_instance` |
 | Monetization | `data.discord_skus`, `data.discord_entitlements`, `data.discord_sku_subscriptions` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
