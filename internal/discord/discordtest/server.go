@@ -373,7 +373,24 @@ func (s *Server) getRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, role)
 }
 
-func applyRole(role *discord.Role, body map[string]json.RawMessage) {
+// applyRole applies a role body. Like Discord, it rejects a role icon or
+// emoji unless the guild has the ROLE_ICONS feature, and stores a new hash
+// for every uploaded icon.
+func (s *Server) applyRole(w http.ResponseWriter, g *discord.Guild, role *discord.Role, body map[string]json.RawMessage) bool {
+	var icon, emoji *string
+	set(body, "icon", &icon)
+	set(body, "unicode_emoji", &emoji)
+	if (icon != nil || emoji != nil) && !slices.Contains(g.Features, "ROLE_ICONS") {
+		writeError(w, http.StatusBadRequest, 50101, "This server needs more boosts to perform this action")
+		return false
+	}
+	if _, ok := body["icon"]; ok {
+		if icon != nil {
+			h := "roleicon" + s.newID()
+			icon = &h
+		}
+		role.Icon = icon
+	}
 	set(body, "name", &role.Name)
 	set(body, "permissions", &role.Permissions)
 	set(body, "color", &role.Color)
@@ -389,12 +406,14 @@ func applyRole(role *discord.Role, body map[string]json.RawMessage) {
 	set(body, "hoist", &role.Hoist)
 	set(body, "mentionable", &role.Mentionable)
 	set(body, "unicode_emoji", &role.UnicodeEmoji)
+	return true
 }
 
 func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.guild(w, r); !ok {
+	g, ok := s.guild(w, r)
+	if !ok {
 		return
 	}
 	body, err := decode(r)
@@ -404,7 +423,9 @@ func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	}
 	guildID := r.PathValue("guild")
 	role := &discord.Role{ID: s.newID(), Name: "new role", Permissions: s.roles[guildID][guildID].Permissions, Position: 1, Colors: &discord.RoleColors{}}
-	applyRole(role, body)
+	if !s.applyRole(w, g, role, body) {
+		return
+	}
 	for _, other := range s.roles[guildID] {
 		if other.ID != guildID {
 			other.Position++
@@ -427,8 +448,9 @@ func (s *Server) modifyRole(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	applyRole(role, body)
-	writeJSON(w, http.StatusOK, role)
+	if s.applyRole(w, s.guilds[r.PathValue("guild")], role, body) {
+		writeJSON(w, http.StatusOK, role)
+	}
 }
 
 func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
