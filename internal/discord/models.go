@@ -182,6 +182,13 @@ type Member struct {
 	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`
 }
 
+// Ban is a user's ban from a guild. Reason is the audit log reason sent with
+// the request that created the ban.
+type Ban struct {
+	Reason *string `json:"reason"`
+	User   *User   `json:"user"`
+}
+
 // Webhook is a channel webhook.
 type Webhook struct {
 	ID        string  `json:"id"`
