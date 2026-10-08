@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type Server struct {
 	channels  map[string]*discord.Channel
 	threads   map[string]*discord.Thread
 	members   map[string]map[string]*discord.Member
+	bans      map[string]map[string]*discord.Ban
 	webhooks  map[string]*discord.Webhook
 	invites   map[string]*discord.Invite
 	messages  map[string]*discord.Message
@@ -71,6 +73,7 @@ func NewServer() *Server {
 		channels:  map[string]*discord.Channel{},
 		threads:   map[string]*discord.Thread{},
 		members:   map[string]map[string]*discord.Member{},
+		bans:      map[string]map[string]*discord.Ban{GuildID: {}},
 		webhooks:  map[string]*discord.Webhook{},
 		invites:   map[string]*discord.Invite{},
 		messages:  map[string]*discord.Message{},
@@ -124,6 +127,9 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /guilds/{guild}/members/{user}", s.modifyMember)
 	mux.HandleFunc("PUT /guilds/{guild}/members/{user}/roles/{role}", s.addMemberRole)
 	mux.HandleFunc("DELETE /guilds/{guild}/members/{user}/roles/{role}", s.removeMemberRole)
+	mux.HandleFunc("GET /guilds/{guild}/bans/{user}", s.getBan)
+	mux.HandleFunc("PUT /guilds/{guild}/bans/{user}", s.createBan)
+	mux.HandleFunc("DELETE /guilds/{guild}/bans/{user}", s.removeBan)
 	mux.HandleFunc("POST /channels/{channel}/webhooks", s.createWebhook)
 	mux.HandleFunc("GET /webhooks/{webhook}", s.getWebhook)
 	mux.HandleFunc("PATCH /webhooks/{webhook}", s.modifyWebhook)
@@ -953,6 +959,83 @@ func (s *Server) RemoveMember(guildID, userID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.members[guildID], userID)
+}
+
+func (s *Server) getBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guild(w, r); !ok {
+		return
+	}
+	b, ok := s.bans[r.PathValue("guild")][r.PathValue("user")]
+	if !ok {
+		notFound(w, "Ban", 10026)
+		return
+	}
+	writeJSON(w, http.StatusOK, b)
+}
+
+// maxBanDeleteMessageSeconds is the most message history, 7 days, a ban can
+// delete.
+const maxBanDeleteMessageSeconds = 604800
+
+// createBan bans a user and, as Discord does, removes them from the guild.
+// The ban's reason is the decoded X-Audit-Log-Reason header. Discord refuses
+// to ban the guild owner.
+func (s *Server) createBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	var seconds int
+	set(body, "delete_message_seconds", &seconds)
+	if seconds < 0 || seconds > maxBanDeleteMessageSeconds {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: delete_message_seconds must be between 0 and 604800")
+		return
+	}
+	userID := r.PathValue("user")
+	if userID == g.OwnerID {
+		writeError(w, http.StatusForbidden, 50013, "Missing Permissions")
+		return
+	}
+	user := &discord.User{ID: userID, Username: "user" + userID, Discriminator: "0"}
+	if m, ok := s.members[g.ID][userID]; ok {
+		user = m.User
+	}
+	var reason *string
+	if h := r.Header.Get("X-Audit-Log-Reason"); h != "" {
+		decoded, err := url.PathUnescape(h)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, 50035, "Invalid X-Audit-Log-Reason header")
+			return
+		}
+		reason = &decoded
+	}
+	s.bans[g.ID][userID] = &discord.Ban{Reason: reason, User: user}
+	delete(s.members[g.ID], userID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) removeBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guild(w, r); !ok {
+		return
+	}
+	guildID, userID := r.PathValue("guild"), r.PathValue("user")
+	if _, ok := s.bans[guildID][userID]; !ok {
+		notFound(w, "Ban", 10026)
+		return
+	}
+	delete(s.bans[guildID], userID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // AddManagedRole creates a role managed by an integration, such as a bot's

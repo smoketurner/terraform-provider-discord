@@ -157,6 +157,23 @@ func (c *Client) RemoveMemberRole(ctx context.Context, guildID, userID, roleID s
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
 }
 
+// GetBan fetches a user's ban from a guild.
+func (c *Client) GetBan(ctx context.Context, guildID, userID string) (*Ban, error) {
+	var b Ban
+	return &b, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/bans/"+userID, nil, &b)
+}
+
+// CreateBan bans a user from a guild. Discord stores the audit log reason as
+// the ban's reason.
+func (c *Client) CreateBan(ctx context.Context, guildID, userID string, p Payload) error {
+	return c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/bans/"+userID, p, nil)
+}
+
+// RemoveBan unbans a user from a guild.
+func (c *Client) RemoveBan(ctx context.Context, guildID, userID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/bans/"+userID, nil, nil)
+}
+
 // CreateWebhook creates a channel webhook.
 func (c *Client) CreateWebhook(ctx context.Context, channelID string, p Payload) (*Webhook, error) {
 	var w Webhook
