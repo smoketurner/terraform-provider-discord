@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -315,6 +316,23 @@ func (c *Client) CreateMessage(ctx context.Context, channelID string, body any) 
 func (c *Client) GetMessage(ctx context.Context, channelID, messageID string) (*Message, error) {
 	var m Message
 	return &m, c.do(ctx, http.MethodGet, "/channels/"+channelID+"/messages/"+messageID, nil, &m)
+}
+
+// ListMessages fetches one page of a channel's messages, newest first. At
+// most one of around, p.Before and p.After may be set.
+func (c *Client) ListMessages(ctx context.Context, channelID, around string, p Page) ([]Message, error) {
+	path := "/channels/" + channelID + "/messages?limit=" + strconv.Itoa(p.Limit)
+	if around != "" {
+		path += "&around=" + around
+	}
+	if p.Before != "" {
+		path += "&before=" + p.Before
+	}
+	if p.After != "" {
+		path += "&after=" + p.After
+	}
+	var msgs []Message
+	return msgs, c.do(ctx, http.MethodGet, path, nil, &msgs)
 }
 
 // EditMessage updates a message. body is a Payload, or a *Multipart to

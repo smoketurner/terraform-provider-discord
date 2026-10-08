@@ -302,6 +302,17 @@ resource "discord_application_emoji" "test" {
 		identities["discord_application_role_connection_metadata.test"] = map[string]string{"application_id": "application_id"}
 		identities["discord_application_emoji.test"] = map[string]string{"application_id": "application_id", "emoji_id": "id"}
 	}
+	// Only the fake has an SKU to grant.
+	if !env.live {
+		cfg += `
+resource "discord_test_entitlement" "test" {
+  sku_id     = "` + env.fake.AddSKU(discord.SKU{Type: 5, Name: "Premium"}) + `"
+  owner_type = "server"
+  owner_id   = local.server_id
+}
+`
+		identities["discord_test_entitlement.test"] = map[string]string{"application_id": "application_id", "entitlement_id": "id"}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep

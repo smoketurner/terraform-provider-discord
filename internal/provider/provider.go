@@ -164,6 +164,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newApplicationSettingsResource,
 		newRoleConnectionMetadataResource,
 		newApplicationEmojiResource,
+		newTestEntitlementResource,
 	}
 }
 
@@ -189,14 +190,17 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newServerTemplatesDataSource,
 		newAuditLogDataSource,
 		newDefaultSoundboardSoundsDataSource,
+		newEntitlementDataSource,
 		newEntitlementsDataSource,
 		newInviteDataSource,
 		newMessageDataSource,
+		newMessagesDataSource,
 		newPinnedMessagesDataSource,
 		newRoleMemberCountsDataSource,
 		newServerPreviewDataSource,
 		newServerVanityURLDataSource,
 		newServerWidgetDataSource,
+		newSKUSubscriptionDataSource,
 		newSKUSubscriptionsDataSource,
 		newSKUsDataSource,
 		newStickerDataSource,

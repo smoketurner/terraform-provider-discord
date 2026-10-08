@@ -74,3 +74,27 @@ func (c *Client) ListSKUSubscriptions(ctx context.Context, skuID, userID string,
 	var subs []Subscription
 	return subs, c.do(ctx, http.MethodGet, path, nil, &subs)
 }
+
+// CreateTestEntitlement grants a server or user a test entitlement to an
+// SKU. The returned entitlement has no start, end or subscription.
+func (c *Client) CreateTestEntitlement(ctx context.Context, applicationID string, p Payload) (*Entitlement, error) {
+	var e Entitlement
+	return &e, c.do(ctx, http.MethodPost, "/applications/"+applicationID+"/entitlements", p, &e)
+}
+
+// GetEntitlement fetches an entitlement of an application.
+func (c *Client) GetEntitlement(ctx context.Context, applicationID, entitlementID string) (*Entitlement, error) {
+	var e Entitlement
+	return &e, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/entitlements/"+entitlementID, nil, &e)
+}
+
+// DeleteTestEntitlement deletes a test entitlement.
+func (c *Client) DeleteTestEntitlement(ctx context.Context, applicationID, entitlementID string) error {
+	return c.do(ctx, http.MethodDelete, "/applications/"+applicationID+"/entitlements/"+entitlementID, nil, nil)
+}
+
+// GetSKUSubscription fetches a subscription to an SKU.
+func (c *Client) GetSKUSubscription(ctx context.Context, skuID, subscriptionID string) (*Subscription, error) {
+	var sub Subscription
+	return &sub, c.do(ctx, http.MethodGet, "/skus/"+skuID+"/subscriptions/"+subscriptionID, nil, &sub)
+}

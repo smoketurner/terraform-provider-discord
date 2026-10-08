@@ -15,9 +15,9 @@ import (
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
-// maxMonetizationPage is the most entitlements or subscriptions Discord
+// maxPageLimit is the most entitlements, subscriptions or messages Discord
 // returns per request.
-const maxMonetizationPage = 100
+const maxPageLimit = 100
 
 var (
 	skuTypes          = enumMapping{"", "", "durable", "consumable", "", "subscription", "subscription_group"}
@@ -63,7 +63,7 @@ func resolveApplicationID(ctx context.Context, c *discord.Client, id types.Strin
 func fetchPages[T any](p discord.Page, limit int64, fetch func(discord.Page) ([]T, error), id func(T) string) ([]T, error) {
 	var all []T
 	for remaining := limit; remaining > 0; {
-		p.Limit = int(min(remaining, maxMonetizationPage))
+		p.Limit = int(min(remaining, maxPageLimit))
 		items, err := fetch(p)
 		if err != nil {
 			return nil, err
@@ -222,18 +222,37 @@ func (d *entitlementsDataSource) Schema(_ context.Context, _ datasource.SchemaRe
 			"before":          optionalSnowflake("Only return entitlements with an ID lower than this one. Without `after`, the newest entitlements are returned."),
 			"after":           optionalSnowflake("Only return entitlements with an ID higher than this one, starting with the oldest."),
 			"limit":           optionalLimit("Maximum number of entitlements to return. Defaults to 100. Discord returns at most 100 per request, so higher limits take several requests."),
-			"entitlements": computedList("Entitlements.", map[string]schema.Attribute{
-				"id":        computedString("Entitlement ID."),
-				"sku_id":    computedString("ID of the SKU."),
-				"user_id":   computedString("ID of the user granted the SKU."),
-				"server_id": computedString("ID of the server granted the SKU."),
-				"type":      computedString("Entitlement type: " + entitlementTypes.doc() + "."),
-				"deleted":   computedBool("Whether the entitlement was deleted."),
-				"starts_at": computedString("When the entitlement starts, or null."),
-				"ends_at":   computedString("When the entitlement ends, or null."),
-				"consumed":  computedBool("For consumable SKUs, whether the entitlement has been consumed."),
-			}),
+			"entitlements":    computedList("Entitlements.", entitlementAttributes()),
 		},
+	}
+}
+
+// entitlementAttributes describes entitlementModel.
+func entitlementAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"id":        computedString("Entitlement ID."),
+		"sku_id":    computedString("ID of the SKU."),
+		"user_id":   computedString("ID of the user granted the SKU."),
+		"server_id": computedString("ID of the server granted the SKU."),
+		"type":      computedString("Entitlement type: " + entitlementTypes.doc() + "."),
+		"deleted":   computedBool("Whether the entitlement was deleted."),
+		"starts_at": computedString("When the entitlement starts, or null."),
+		"ends_at":   computedString("When the entitlement ends, or null."),
+		"consumed":  computedBool("For consumable SKUs, whether the entitlement has been consumed."),
+	}
+}
+
+func entitlementValue(e *discord.Entitlement) entitlementModel {
+	return entitlementModel{
+		ID:       types.StringValue(e.ID),
+		SKUID:    types.StringValue(e.SKUID),
+		UserID:   stringPtrValue(e.UserID),
+		ServerID: stringPtrValue(e.GuildID),
+		Type:     entitlementTypes.name(e.Type),
+		Deleted:  types.BoolValue(e.Deleted),
+		StartsAt: stringPtrValue(e.StartsAt),
+		EndsAt:   stringPtrValue(e.EndsAt),
+		Consumed: types.BoolPointerValue(e.Consumed),
 	}
 }
 
@@ -275,18 +294,7 @@ func (d *entitlementsDataSource) Read(ctx context.Context, req datasource.ReadRe
 	}
 	m.Entitlements = []entitlementModel{}
 	for _, e := range all {
-		em := entitlementModel{
-			ID:       types.StringValue(e.ID),
-			SKUID:    types.StringValue(e.SKUID),
-			UserID:   stringPtrValue(e.UserID),
-			ServerID: stringPtrValue(e.GuildID),
-			Type:     entitlementTypes.name(e.Type),
-			Deleted:  types.BoolValue(e.Deleted),
-			StartsAt: stringPtrValue(e.StartsAt),
-			EndsAt:   stringPtrValue(e.EndsAt),
-			Consumed: types.BoolPointerValue(e.Consumed),
-		}
-		m.Entitlements = append(m.Entitlements, em)
+		m.Entitlements = append(m.Entitlements, entitlementValue(&e))
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
@@ -327,23 +335,46 @@ func (d *skuSubscriptionsDataSource) Schema(_ context.Context, _ datasource.Sche
 		MarkdownDescription: "Lists a user's subscriptions that include an SKU, sorted by ID. Use entitlements, not the " +
 			"subscription status, to decide whether the user has access.",
 		Attributes: map[string]schema.Attribute{
-			"sku_id":  requiredSnowflake("ID of the SKU."),
-			"user_id": requiredSnowflake("ID of the user. Discord requires it for bots."),
-			"before":  optionalSnowflake("Only return subscriptions with an ID lower than this one."),
-			"after":   optionalSnowflake("Only return subscriptions with an ID higher than this one, starting with the oldest."),
-			"limit":   optionalLimit("Maximum number of subscriptions to return. Defaults to 50. Discord returns at most 100 per request, so higher limits take several requests."),
-			"subscriptions": computedList("Subscriptions.", map[string]schema.Attribute{
-				"id":                   computedString("Subscription ID."),
-				"user_id":              computedString("ID of the subscribed user."),
-				"sku_ids":              schema.ListAttribute{MarkdownDescription: "IDs of the SKUs subscribed to.", ElementType: types.StringType, Computed: true},
-				"entitlement_ids":      schema.ListAttribute{MarkdownDescription: "IDs of the entitlements the subscription granted.", ElementType: types.StringType, Computed: true},
-				"renewal_sku_ids":      schema.ListAttribute{MarkdownDescription: "IDs of the SKUs the user will be subscribed to at renewal, or null.", ElementType: types.StringType, Computed: true},
-				"current_period_start": computedString("Start of the current period."),
-				"current_period_end":   computedString("End of the current period."),
-				"status":               computedString("Status: " + subscriptionTypes.doc() + "."),
-				"canceled_at":          computedString("When the subscription was canceled, or null."),
-			}),
+			"sku_id":        requiredSnowflake("ID of the SKU."),
+			"user_id":       requiredSnowflake("ID of the user. Discord requires it for bots."),
+			"before":        optionalSnowflake("Only return subscriptions with an ID lower than this one."),
+			"after":         optionalSnowflake("Only return subscriptions with an ID higher than this one, starting with the oldest."),
+			"limit":         optionalLimit("Maximum number of subscriptions to return. Defaults to 50. Discord returns at most 100 per request, so higher limits take several requests."),
+			"subscriptions": computedList("Subscriptions.", subscriptionAttributes()),
 		},
+	}
+}
+
+// subscriptionAttributes describes subscriptionModel.
+func subscriptionAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"id":                   computedString("Subscription ID."),
+		"user_id":              computedString("ID of the subscribed user."),
+		"sku_ids":              schema.ListAttribute{MarkdownDescription: "IDs of the SKUs subscribed to.", ElementType: types.StringType, Computed: true},
+		"entitlement_ids":      schema.ListAttribute{MarkdownDescription: "IDs of the entitlements the subscription granted.", ElementType: types.StringType, Computed: true},
+		"renewal_sku_ids":      schema.ListAttribute{MarkdownDescription: "IDs of the SKUs the user will be subscribed to at renewal, or null.", ElementType: types.StringType, Computed: true},
+		"current_period_start": computedString("Start of the current period."),
+		"current_period_end":   computedString("End of the current period."),
+		"status":               computedString("Status: " + subscriptionTypes.doc() + "."),
+		"canceled_at":          computedString("When the subscription was canceled, or null."),
+	}
+}
+
+func subscriptionValue(ctx context.Context, s *discord.Subscription, diags *diag.Diagnostics) subscriptionModel {
+	renewal := types.ListNull(types.StringType)
+	if s.RenewalSKUIDs != nil {
+		renewal = stringListValue(ctx, s.RenewalSKUIDs, diags)
+	}
+	return subscriptionModel{
+		ID:                 types.StringValue(s.ID),
+		UserID:             types.StringValue(s.UserID),
+		SKUIDs:             stringListValue(ctx, s.SKUIDs, diags),
+		EntitlementIDs:     stringListValue(ctx, s.EntitlementIDs, diags),
+		RenewalSKUIDs:      renewal,
+		CurrentPeriodStart: types.StringValue(s.CurrentPeriodStart),
+		CurrentPeriodEnd:   types.StringValue(s.CurrentPeriodEnd),
+		Status:             subscriptionTypes.name(s.Status),
+		CanceledAt:         stringPtrValue(s.CanceledAt),
 	}
 }
 
@@ -368,21 +399,92 @@ func (d *skuSubscriptionsDataSource) Read(ctx context.Context, req datasource.Re
 	}
 	m.Subscriptions = []subscriptionModel{}
 	for _, s := range all {
-		renewal := types.ListNull(types.StringType)
-		if s.RenewalSKUIDs != nil {
-			renewal = stringListValue(ctx, s.RenewalSKUIDs, &resp.Diagnostics)
-		}
-		m.Subscriptions = append(m.Subscriptions, subscriptionModel{
-			ID:                 types.StringValue(s.ID),
-			UserID:             types.StringValue(s.UserID),
-			SKUIDs:             stringListValue(ctx, s.SKUIDs, &resp.Diagnostics),
-			EntitlementIDs:     stringListValue(ctx, s.EntitlementIDs, &resp.Diagnostics),
-			RenewalSKUIDs:      renewal,
-			CurrentPeriodStart: types.StringValue(s.CurrentPeriodStart),
-			CurrentPeriodEnd:   types.StringValue(s.CurrentPeriodEnd),
-			Status:             subscriptionTypes.name(s.Status),
-			CanceledAt:         stringPtrValue(s.CanceledAt),
-		})
+		m.Subscriptions = append(m.Subscriptions, subscriptionValue(ctx, &s, &resp.Diagnostics))
 	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
+}
+
+// Entitlement.
+
+type entitlementDataSource struct{ readOnlyDataSource }
+
+type entitlementDataModel struct {
+	ApplicationID types.String `tfsdk:"application_id"`
+	entitlementModel
+}
+
+func newEntitlementDataSource() datasource.DataSource { return &entitlementDataSource{} }
+
+func (d *entitlementDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_entitlement"
+}
+
+func (d *entitlementDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	attrs := entitlementAttributes()
+	attrs["id"] = requiredSnowflake("Entitlement ID.")
+	attrs["application_id"] = applicationIDAttribute()
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Reads an entitlement of an application, which grants a user or server access to an SKU.",
+		Attributes:          attrs,
+	}
+}
+
+func (d *entitlementDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var m entitlementDataModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var ok bool
+	if m.ApplicationID, ok = resolveApplicationID(ctx, d.client, m.ApplicationID, &resp.Diagnostics); !ok {
+		return
+	}
+	e, err := d.client.GetEntitlement(ctx, m.ApplicationID.ValueString(), m.ID.ValueString())
+	if err != nil {
+		apiError(&resp.Diagnostics, "read entitlement", err)
+		return
+	}
+	m.entitlementModel = entitlementValue(e)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
+}
+
+// SKU subscription.
+
+type skuSubscriptionDataSource struct{ readOnlyDataSource }
+
+type skuSubscriptionDataModel struct {
+	SKUID types.String `tfsdk:"sku_id"`
+	subscriptionModel
+}
+
+func newSKUSubscriptionDataSource() datasource.DataSource { return &skuSubscriptionDataSource{} }
+
+func (d *skuSubscriptionDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_sku_subscription"
+}
+
+func (d *skuSubscriptionDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	attrs := subscriptionAttributes()
+	attrs["id"] = requiredSnowflake("Subscription ID.")
+	attrs["sku_id"] = requiredSnowflake("ID of an SKU the subscription includes.")
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Reads a subscription to an SKU. Use entitlements, not the subscription status, to decide " +
+			"whether the user has access.",
+		Attributes: attrs,
+	}
+}
+
+func (d *skuSubscriptionDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var m skuSubscriptionDataModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	sub, err := d.client.GetSKUSubscription(ctx, m.SKUID.ValueString(), m.ID.ValueString())
+	if err != nil {
+		apiError(&resp.Diagnostics, "read SKU subscription", err)
+		return
+	}
+	m.subscriptionModel = subscriptionValue(ctx, sub, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }

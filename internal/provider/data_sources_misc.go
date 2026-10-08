@@ -2,8 +2,12 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"maps"
+	"slices"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -580,6 +584,101 @@ func (d *pinnedMessagesDataSource) Read(ctx context.Context, req datasource.Read
 			break
 		}
 		before = page.Items[len(page.Items)-1].PinnedAt
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
+}
+
+// Messages.
+
+type messagesDataSource struct{ readOnlyDataSource }
+
+type messagesDataModel struct {
+	ChannelID types.String    `tfsdk:"channel_id"`
+	Around    types.String    `tfsdk:"around"`
+	Before    types.String    `tfsdk:"before"`
+	After     types.String    `tfsdk:"after"`
+	Limit     types.Int64     `tfsdk:"limit"`
+	Messages  []messageFields `tfsdk:"messages"`
+}
+
+func newMessagesDataSource() datasource.DataSource { return &messagesDataSource{} }
+
+func (d *messagesDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_messages"
+}
+
+func (d *messagesDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	attrs := messageAttributes()
+	attrs["id"] = computedString("Message ID.")
+	cursor := func(desc string) schema.StringAttribute {
+		return schema.StringAttribute{
+			MarkdownDescription: desc + " Conflicts with the other two of `around`, `before` and `after`.",
+			Optional:            true,
+			Validators: []validator.String{
+				snowflakeValidator(),
+				stringvalidator.ConflictsWith(path.MatchRoot("around"), path.MatchRoot("before"), path.MatchRoot("after")),
+			},
+		}
+	}
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Lists messages of a channel or thread, newest first. The bot needs the View Channel " +
+			"permission, and Connect in voice channels; without Read Message History, Discord returns no messages.",
+		Attributes: map[string]schema.Attribute{
+			"channel_id": requiredSnowflake("ID of the channel or thread."),
+			"around":     cursor("Return the messages around this message ID, including it."),
+			"before":     cursor("Return the messages before this message ID."),
+			"after":      cursor("Return the messages after this message ID."),
+			"limit": schema.Int64Attribute{
+				MarkdownDescription: "Maximum number of messages to return. Defaults to 50. Discord returns at most 100 " +
+					"per request, so higher limits take several requests; with `around`, the limit is at most 100.",
+				Optional:   true,
+				Validators: []validator.Int64{int64validator.AtLeast(1)},
+			},
+			"messages": computedList("Messages, newest first.", attrs),
+		},
+	}
+}
+
+func (d *messagesDataSource) ValidateConfig(ctx context.Context, req datasource.ValidateConfigRequest, resp *datasource.ValidateConfigResponse) {
+	var m messagesDataModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !m.Around.IsNull() && !m.Around.IsUnknown() && m.Limit.ValueInt64() > maxPageLimit {
+		resp.Diagnostics.AddAttributeError(path.Root("limit"), "Invalid limit",
+			fmt.Sprintf("With around, limit must be at most %d: Discord cannot page around a message.", maxPageLimit))
+	}
+}
+
+func (d *messagesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var m messagesDataModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	limit := int64(50)
+	if !m.Limit.IsNull() {
+		limit = m.Limit.ValueInt64()
+	}
+	channelID := m.ChannelID.ValueString()
+	var msgs []discord.Message
+	var err error
+	if !m.Around.IsNull() {
+		msgs, err = d.client.ListMessages(ctx, channelID, m.Around.ValueString(), discord.Page{Limit: int(limit)})
+	} else {
+		msgs, err = fetchPages(discord.Page{Before: m.Before.ValueString(), After: m.After.ValueString()}, limit,
+			func(p discord.Page) ([]discord.Message, error) { return d.client.ListMessages(ctx, channelID, "", p) },
+			func(msg discord.Message) string { return msg.ID })
+	}
+	if err != nil {
+		apiError(&resp.Diagnostics, "list messages", err)
+		return
+	}
+	slices.SortFunc(msgs, func(a, b discord.Message) int { return compareSnowflakes(b.ID, a.ID) })
+	m.Messages = make([]messageFields, 0, len(msgs))
+	for _, msg := range msgs {
+		m.Messages = append(m.Messages, messageFieldsValue(&msg))
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
