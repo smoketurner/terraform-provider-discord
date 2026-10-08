@@ -3,12 +3,12 @@
 page_title: "discord_member_role Resource - discord"
 subcategory: ""
 description: |-
-  Grants one role to a server member. Other roles the member has are left alone. If the role is removed outside Terraform it is granted again on the next apply.
+  Grants one role to a server member. Other roles the member has are left alone. If the role is removed outside Terraform it is granted again on the next apply. To set a member's complete list of roles instead, use discord_member_roles; do not use both for the same member.
 ---
 
 # discord_member_role (Resource)
 
-Grants one role to a server member. Other roles the member has are left alone. If the role is removed outside Terraform it is granted again on the next apply.
+Grants one role to a server member. Other roles the member has are left alone. If the role is removed outside Terraform it is granted again on the next apply. To set a member's complete list of roles instead, use `discord_member_roles`; do not use both for the same member.
 
 ## Example Usage
 

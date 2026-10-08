@@ -127,7 +127,7 @@ operations:
   get_guild_ban: {status: planned, issue: 25}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
-  get_guild_member: {status: covered, by: [data.discord_member, discord_member_role]}
+  get_guild_member: {status: covered, by: [data.discord_member, discord_member, discord_member_role, discord_member_roles]}
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: planned, issue: 44}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
@@ -137,11 +137,11 @@ operations:
   get_guild_template: {status: planned, issue: 29}
   get_guild_vanity_url: {status: planned, issue: 44}
   get_guild_webhooks: {status: planned, issue: 41}
-  get_guild_welcome_screen: {status: planned, issue: 19}
+  get_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
   get_guild_widget: {status: planned, issue: 44}
   get_guild_widget_png: {status: out_of_scope, reason: "returns an image"}
-  get_guild_widget_settings: {status: planned, issue: 28}
-  get_guilds_onboarding: {status: planned, issue: 18}
+  get_guild_widget_settings: {status: covered, by: [discord_server_widget]}
+  get_guilds_onboarding: {status: covered, by: [discord_onboarding]}
   get_invite_target_users: {status: planned, issue: 38}
   get_invite_target_users_job_status: {status: planned, issue: 38}
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
@@ -214,7 +214,7 @@ operations:
   poll_expire: {status: planned, issue: 50}
   preview_prune_guild: {status: planned, issue: 50}
   prune_guild: {status: planned, issue: 50}
-  put_guilds_onboarding: {status: planned, issue: 18}
+  put_guilds_onboarding: {status: covered, by: [discord_onboarding]}
   remove_invite_target_user: {status: planned, issue: 38}
   search_guild_members: {status: covered, by: [data.discord_member]}
   send_soundboard_sound: {status: out_of_scope, reason: "playing a sound in a voice channel is transient"}
@@ -235,15 +235,15 @@ operations:
   update_guild_application_command: {status: planned, issue: 7}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
   update_guild_incident_actions: {status: planned, issue: 39}
-  update_guild_member: {status: planned, issue: 22}
+  update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}
   update_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   update_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   update_guild_scheduled_event_exception: {status: pending_docs}
   update_guild_soundboard_sound: {status: planned, issue: 26}
   update_guild_sticker: {status: planned, issue: 16}
   update_guild_template: {status: planned, issue: 29}
-  update_guild_welcome_screen: {status: planned, issue: 19}
-  update_guild_widget_settings: {status: planned, issue: 28}
+  update_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
+  update_guild_widget_settings: {status: covered, by: [discord_server_widget]}
   update_invite_target_users: {status: planned, issue: 38}
   update_lobby_message_external_moderation_metadata: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   update_message: {status: covered, by: [discord_message, discord_thread]}

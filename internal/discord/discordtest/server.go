@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+	"unicode/utf8"
 
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
@@ -45,6 +47,7 @@ type Server struct {
 	emojis    map[string]map[string]*discord.Emoji
 	events    map[string]*discord.ScheduledEvent
 	stages    map[string]*discord.StageInstance
+	settings  map[string]*guildSettings
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -116,6 +119,7 @@ func NewServer() *Server {
 	mux.HandleFunc("DELETE /channels/{channel}/permissions/{overwrite}", s.deletePermission)
 	mux.HandleFunc("GET /guilds/{guild}/members/search", s.searchMembers)
 	mux.HandleFunc("GET /guilds/{guild}/members/{user}", s.getMember)
+	mux.HandleFunc("PATCH /guilds/{guild}/members/{user}", s.modifyMember)
 	mux.HandleFunc("PUT /guilds/{guild}/members/{user}/roles/{role}", s.addMemberRole)
 	mux.HandleFunc("DELETE /guilds/{guild}/members/{user}/roles/{role}", s.removeMemberRole)
 	mux.HandleFunc("POST /channels/{channel}/webhooks", s.createWebhook)
@@ -143,6 +147,7 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /stage-instances", s.createStageInstance)
 	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
+	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
@@ -823,6 +828,126 @@ func (s *Server) RemoveMemberRole(guildID, userID, roleID string) {
 	defer s.mu.Unlock()
 	if m, ok := s.members[guildID][userID]; ok {
 		m.Roles = slices.DeleteFunc(m.Roles, func(id string) bool { return id == roleID })
+	}
+}
+
+// maxTimeout is how far ahead Discord accepts communication_disabled_until.
+const maxTimeout = 28 * 24 * time.Hour
+
+func (s *Server) modifyMember(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.member(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	guildID, userID := r.PathValue("guild"), r.PathValue("user")
+	nick := m.Nick
+	set(body, "nick", &nick)
+	if nick != nil && *nick == "" {
+		nick = nil
+	}
+	if nick != nil && utf8.RuneCountInString(*nick) > 32 {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: nick must be 32 or fewer in length")
+		return
+	}
+	roles := m.Roles
+	if _, ok := body["roles"]; ok {
+		var ids []string
+		set(body, "roles", &ids)
+		if msg := s.checkMemberRoles(guildID, m.Roles, ids); msg != "" {
+			writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: "+msg)
+			return
+		}
+		roles = slices.Compact(slices.Sorted(slices.Values(ids)))
+	}
+	until := m.CommunicationDisabledUntil
+	if _, ok := body["communication_disabled_until"]; ok {
+		// Discord refuses to time out the owner and administrators.
+		if userID == s.guilds[guildID].OwnerID {
+			writeError(w, http.StatusForbidden, 50013, "Missing Permissions")
+			return
+		}
+		set(body, "communication_disabled_until", &until)
+		if until != nil {
+			t, err := time.Parse(time.RFC3339, *until)
+			if err != nil || t.After(time.Now().Add(maxTimeout)) {
+				writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: communication_disabled_until must be at most 28 days in the future")
+				return
+			}
+		}
+	}
+	m.Nick, m.Roles, m.CommunicationDisabledUntil = nick, roles, until
+	writeJSON(w, http.StatusOK, m)
+}
+
+// checkMemberRoles describes why a member's role list cannot change from
+// current to next, or returns "". @everyone is implicit, and managed roles
+// can only be granted and revoked by their integration.
+func (s *Server) checkMemberRoles(guildID string, current, next []string) string {
+	for _, id := range next {
+		role, ok := s.roles[guildID][id]
+		switch {
+		case !ok || id == guildID:
+			return "unknown role " + id
+		case role.Managed && !slices.Contains(current, id):
+			return "cannot add managed role " + id
+		}
+	}
+	for _, id := range current {
+		if role, ok := s.roles[guildID][id]; ok && role.Managed && !slices.Contains(next, id) {
+			return "cannot remove managed role " + id
+		}
+	}
+	return ""
+}
+
+// AddMember adds a member with no roles to a guild and returns its user ID.
+func (s *Server) AddMember(guildID, username string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := s.newID()
+	s.members[guildID][id] = &discord.Member{
+		User:     &discord.User{ID: id, Username: username, Discriminator: "0"},
+		Roles:    []string{},
+		JoinedAt: "2024-01-01T00:00:00.000000+00:00",
+	}
+	return id
+}
+
+// RemoveMember removes a member from a guild, as when they leave.
+func (s *Server) RemoveMember(guildID, userID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.members[guildID], userID)
+}
+
+// AddManagedRole creates a role managed by an integration, such as a bot's
+// role, grants it to the given members and returns its ID.
+func (s *Server) AddManagedRole(guildID, name string, userIDs ...string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	role := &discord.Role{ID: s.newID(), Name: name, Permissions: "0", Position: 1, Managed: true, Colors: &discord.RoleColors{}}
+	s.roles[guildID][role.ID] = role
+	for _, userID := range userIDs {
+		m := s.members[guildID][userID]
+		m.Roles = append(m.Roles, role.ID)
+	}
+	return role.ID
+}
+
+// SetMemberTimeout sets a member's communication_disabled_until outside of
+// the API, as when a timeout expires or a moderator changes it.
+func (s *Server) SetMemberTimeout(guildID, userID string, until *string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.members[guildID][userID]; ok {
+		m.CommunicationDisabledUntil = until
 	}
 }
 

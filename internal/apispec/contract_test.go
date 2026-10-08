@@ -49,7 +49,15 @@ var modelSchemas = map[string]struct {
 	"ScheduledEvent": {reflect.TypeFor[discord.ScheduledEvent](), []string{
 		"ExternalScheduledEventResponse", "StageScheduledEventResponse", "VoiceScheduledEventResponse",
 	}},
-	"StageInstance": {reflect.TypeFor[discord.StageInstance](), []string{"StageInstanceResponse"}},
+	"StageInstance":  {reflect.TypeFor[discord.StageInstance](), []string{"StageInstanceResponse"}},
+	"WidgetSettings": {reflect.TypeFor[discord.WidgetSettings](), []string{"WidgetSettingsResponse"}},
+	"WelcomeScreen":  {reflect.TypeFor[discord.WelcomeScreen](), []string{"GuildWelcomeScreenResponse"}},
+	"WelcomeScreenChannel": {reflect.TypeFor[discord.WelcomeScreenChannel](), []string{
+		"GuildWelcomeScreenChannelResponse", "GuildWelcomeChannel"}},
+	"Onboarding":             {reflect.TypeFor[discord.Onboarding](), []string{"GuildOnboardingResponse", "UserGuildOnboardingResponse"}},
+	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
+	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
+	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go
