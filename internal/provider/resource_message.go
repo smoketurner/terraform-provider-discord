@@ -110,95 +110,105 @@ func (r *messageResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringvalidator.AtLeastOneOf(path.MatchRoot("embeds")),
 				},
 			},
-			"embeds": schema.ListNestedAttribute{
-				MarkdownDescription: "Rich embeds (at most 10, 6000 characters in total).",
-				Optional:            true,
-				Validators:          []validator.List{listvalidator.SizeBetween(1, 10)},
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"title":       optionalString("Title (up to 256 characters).", 256),
-						"description": optionalString("Description (up to 4096 characters).", 4096),
-						"url":         optionalString("URL the title links to.", 2048),
-						"color": schema.Int64Attribute{
-							MarkdownDescription: "RGB color of the left border. Use `provider::discord::color()` to convert hex.",
-							Optional:            true,
-							Validators:          []validator.Int64{int64validator.Between(0, 0xFFFFFF)},
-						},
-						"footer_text": optionalString("Footer text (up to 2048 characters).", 2048),
-						"footer_icon_url": schema.StringAttribute{
-							MarkdownDescription: "Footer icon URL. Requires `footer_text`.",
-							Optional:            true,
-							Validators: []validator.String{
-								stringvalidator.LengthBetween(1, 2048),
-								stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("footer_text")),
-							},
-						},
-						"image_url":     optionalString("Image URL.", 2048),
-						"thumbnail_url": optionalString("Thumbnail URL.", 2048),
-						"author_name":   optionalString("Author name (up to 256 characters).", 256),
-						"author_url": schema.StringAttribute{
-							MarkdownDescription: "URL the author name links to. Requires `author_name`.",
-							Optional:            true,
-							Validators: []validator.String{
-								stringvalidator.LengthBetween(1, 2048),
-								stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("author_name")),
-							},
-						},
-						"author_icon_url": schema.StringAttribute{
-							MarkdownDescription: "Author icon URL. Requires `author_name`.",
-							Optional:            true,
-							Validators: []validator.String{
-								stringvalidator.LengthBetween(1, 2048),
-								stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("author_name")),
-							},
-						},
-						"fields": schema.ListNestedAttribute{
-							MarkdownDescription: "Fields (at most 25).",
-							Optional:            true,
-							Validators:          []validator.List{listvalidator.SizeBetween(1, 25)},
-							NestedObject: schema.NestedAttributeObject{
-								Attributes: map[string]schema.Attribute{
-									"name": schema.StringAttribute{
-										MarkdownDescription: "Field name (up to 256 characters).",
-										Required:            true,
-										Validators:          []validator.String{stringvalidator.LengthBetween(1, 256)},
-									},
-									"value": schema.StringAttribute{
-										MarkdownDescription: "Field value (up to 1024 characters).",
-										Required:            true,
-										Validators:          []validator.String{stringvalidator.LengthBetween(1, 1024)},
-									},
-									"inline": schema.BoolAttribute{
-										MarkdownDescription: "Whether the field is displayed inline. Defaults to `false`.",
-										Optional:            true,
-										Computed:            true,
-										Default:             booldefault.StaticBool(false),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
+			"embeds": embedsAttribute(),
 			"pinned": schema.BoolAttribute{
 				MarkdownDescription: "Whether the message is pinned. Requires the Pin Messages permission. Defaults to `false`.",
 				Optional:            true,
 				Computed:            true,
 				Default:             booldefault.StaticBool(false),
 			},
-			"allowed_mentions": schema.SetAttribute{
-				MarkdownDescription: "Mention types that notify people: any of `roles`, `users` and `everyone`. " +
-					"Defaults to none, so posting or editing the message never pings anyone.",
-				ElementType: types.StringType,
-				Optional:    true,
-				Validators:  []validator.Set{setvalidator.ValueStringsAre(stringvalidator.OneOf("roles", "users", "everyone"))},
-			},
+			"allowed_mentions": allowedMentionsAttribute(),
 			"author_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the user that posted the message (the bot).",
 				Computed:            true,
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 		},
+	}
+}
+
+// embedsAttribute is the rich embeds of a message, shared with the starter
+// message of discord_thread.
+func embedsAttribute() schema.ListNestedAttribute {
+	return schema.ListNestedAttribute{
+		MarkdownDescription: "Rich embeds (at most 10, 6000 characters in total).",
+		Optional:            true,
+		Validators:          []validator.List{listvalidator.SizeBetween(1, 10)},
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: map[string]schema.Attribute{
+				"title":       optionalString("Title (up to 256 characters).", 256),
+				"description": optionalString("Description (up to 4096 characters).", 4096),
+				"url":         optionalString("URL the title links to.", 2048),
+				"color": schema.Int64Attribute{
+					MarkdownDescription: "RGB color of the left border. Use `provider::discord::color()` to convert hex.",
+					Optional:            true,
+					Validators:          []validator.Int64{int64validator.Between(0, 0xFFFFFF)},
+				},
+				"footer_text": optionalString("Footer text (up to 2048 characters).", 2048),
+				"footer_icon_url": schema.StringAttribute{
+					MarkdownDescription: "Footer icon URL. Requires `footer_text`.",
+					Optional:            true,
+					Validators: []validator.String{
+						stringvalidator.LengthBetween(1, 2048),
+						stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("footer_text")),
+					},
+				},
+				"image_url":     optionalString("Image URL.", 2048),
+				"thumbnail_url": optionalString("Thumbnail URL.", 2048),
+				"author_name":   optionalString("Author name (up to 256 characters).", 256),
+				"author_url": schema.StringAttribute{
+					MarkdownDescription: "URL the author name links to. Requires `author_name`.",
+					Optional:            true,
+					Validators: []validator.String{
+						stringvalidator.LengthBetween(1, 2048),
+						stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("author_name")),
+					},
+				},
+				"author_icon_url": schema.StringAttribute{
+					MarkdownDescription: "Author icon URL. Requires `author_name`.",
+					Optional:            true,
+					Validators: []validator.String{
+						stringvalidator.LengthBetween(1, 2048),
+						stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("author_name")),
+					},
+				},
+				"fields": schema.ListNestedAttribute{
+					MarkdownDescription: "Fields (at most 25).",
+					Optional:            true,
+					Validators:          []validator.List{listvalidator.SizeBetween(1, 25)},
+					NestedObject: schema.NestedAttributeObject{
+						Attributes: map[string]schema.Attribute{
+							"name": schema.StringAttribute{
+								MarkdownDescription: "Field name (up to 256 characters).",
+								Required:            true,
+								Validators:          []validator.String{stringvalidator.LengthBetween(1, 256)},
+							},
+							"value": schema.StringAttribute{
+								MarkdownDescription: "Field value (up to 1024 characters).",
+								Required:            true,
+								Validators:          []validator.String{stringvalidator.LengthBetween(1, 1024)},
+							},
+							"inline": schema.BoolAttribute{
+								MarkdownDescription: "Whether the field is displayed inline. Defaults to `false`.",
+								Optional:            true,
+								Computed:            true,
+								Default:             booldefault.StaticBool(false),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func allowedMentionsAttribute() schema.SetAttribute {
+	return schema.SetAttribute{
+		MarkdownDescription: "Mention types that notify people: any of `roles`, `users` and `everyone`. " +
+			"Defaults to none, so posting or editing the message never pings anyone.",
+		ElementType: types.StringType,
+		Optional:    true,
+		Validators:  []validator.Set{setvalidator.ValueStringsAre(stringvalidator.OneOf("roles", "users", "everyone"))},
 	}
 }
 

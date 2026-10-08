@@ -37,6 +37,7 @@ type Server struct {
 	guilds    map[string]*discord.Guild
 	roles     map[string]map[string]*discord.Role
 	channels  map[string]*discord.Channel
+	threads   map[string]*discord.Thread
 	members   map[string]map[string]*discord.Member
 	webhooks  map[string]*discord.Webhook
 	invites   map[string]*discord.Invite
@@ -62,6 +63,7 @@ func NewServer() *Server {
 		guilds:    map[string]*discord.Guild{},
 		roles:     map[string]map[string]*discord.Role{},
 		channels:  map[string]*discord.Channel{},
+		threads:   map[string]*discord.Thread{},
 		members:   map[string]map[string]*discord.Member{},
 		webhooks:  map[string]*discord.Webhook{},
 		invites:   map[string]*discord.Invite{},
@@ -104,6 +106,8 @@ func NewServer() *Server {
 	mux.HandleFunc("GET /channels/{channel}", s.getChannel)
 	mux.HandleFunc("PATCH /channels/{channel}", s.modifyChannel)
 	mux.HandleFunc("DELETE /channels/{channel}", s.deleteChannel)
+	mux.HandleFunc("POST /channels/{channel}/threads", s.startThread)
+	mux.HandleFunc("POST /channels/{channel}/messages/{message}/threads", s.startThreadFromMessage)
 	mux.HandleFunc("PUT /channels/{channel}/permissions/{overwrite}", s.editPermission)
 	mux.HandleFunc("DELETE /channels/{channel}/permissions/{overwrite}", s.deletePermission)
 	mux.HandleFunc("GET /guilds/{guild}/members/search", s.searchMembers)
@@ -575,6 +579,10 @@ func (s *Server) getChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, 50001, "Missing Access")
 		return
 	}
+	if t, ok := s.threads[r.PathValue("channel")]; ok {
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
 	if ch, ok := s.channel(w, r); ok {
 		writeJSON(w, http.StatusOK, ch)
 	}
@@ -600,6 +608,10 @@ func (s *Server) DenyChannel(channelID string) {
 func (s *Server) modifyChannel(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if t, ok := s.threads[r.PathValue("channel")]; ok {
+		s.modifyThread(w, r, t)
+		return
+	}
 	ch, ok := s.channel(w, r)
 	if !ok {
 		return
@@ -621,11 +633,21 @@ func (s *Server) modifyChannel(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteChannel(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if t, ok := s.threads[r.PathValue("channel")]; ok {
+		s.deleteThread(t.ID)
+		writeJSON(w, http.StatusOK, t)
+		return
+	}
 	ch, ok := s.channel(w, r)
 	if !ok {
 		return
 	}
 	delete(s.channels, ch.ID)
+	for _, t := range s.threads {
+		if t.ParentID != nil && *t.ParentID == ch.ID {
+			s.deleteThread(t.ID)
+		}
+	}
 	for _, other := range s.channels {
 		if other.ParentID != nil && *other.ParentID == ch.ID {
 			other.ParentID = nil
@@ -995,6 +1017,10 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
+	if t, ok := s.threads[m.ChannelID]; ok && t.ThreadMetadata.Archived {
+		writeError(w, http.StatusBadRequest, 50083, "Thread is archived")
+		return
+	}
 	s.edits = append(s.edits, body)
 	applyMessage(m, body)
 	writeJSON(w, http.StatusOK, m)
@@ -1097,4 +1123,229 @@ func (s *Server) deleteEmoji(w http.ResponseWriter, r *http.Request) {
 	}
 	delete(s.emojis[r.PathValue("guild")], r.PathValue("emoji"))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+var autoArchiveDurations = []int64{60, 1440, 4320, 10080}
+
+func (s *Server) newThread(id string, parent *discord.Channel, threadType int) *discord.Thread {
+	return &discord.Thread{
+		ID:               id,
+		Type:             threadType,
+		GuildID:          parent.GuildID,
+		ParentID:         &parent.ID,
+		OwnerID:          s.botUserID,
+		RateLimitPerUser: parent.DefaultThreadRateLimitPerUser,
+		AppliedTags:      []string{},
+		ThreadMetadata:   &discord.ThreadMetadata{AutoArchiveDuration: parent.DefaultAutoArchiveDuration},
+	}
+}
+
+// applyThreadCreate sets the parameters every Start Thread endpoint accepts.
+func applyThreadCreate(t *discord.Thread, body map[string]json.RawMessage) error {
+	set(body, "name", &t.Name)
+	if t.Name == "" || len(t.Name) > 100 {
+		return errors.New("name must be 1-100 characters")
+	}
+	set(body, "auto_archive_duration", &t.ThreadMetadata.AutoArchiveDuration)
+	if !slices.Contains(autoArchiveDurations, t.ThreadMetadata.AutoArchiveDuration) {
+		return fmt.Errorf("invalid auto_archive_duration %d", t.ThreadMetadata.AutoArchiveDuration)
+	}
+	set(body, "rate_limit_per_user", &t.RateLimitPerUser)
+	return nil
+}
+
+// setAppliedTags checks applied_tags against the parent's tags, as Discord
+// does for forum and media posts.
+func setAppliedTags(t *discord.Thread, parent *discord.Channel, body map[string]json.RawMessage) error {
+	if _, ok := body["applied_tags"]; !ok {
+		return nil
+	}
+	if parent.Type != discord.ChannelTypeForum && parent.Type != discord.ChannelTypeMedia {
+		return errors.New("applied_tags is only valid in forum and media channels")
+	}
+	var tags []string
+	set(body, "applied_tags", &tags)
+	if len(tags) > 5 {
+		return errors.New("at most 5 applied_tags")
+	}
+	for _, id := range tags {
+		if !slices.ContainsFunc(parent.AvailableTags, func(tag discord.ForumTag) bool { return tag.ID == id }) {
+			return fmt.Errorf("unknown tag %s", id)
+		}
+	}
+	if tags == nil {
+		tags = []string{}
+	}
+	t.AppliedTags = tags
+	return nil
+}
+
+// startThread models Start Thread without Message, whose type defaults to a
+// private thread, and Start Thread in Forum or Media Channel, which posts the
+// starter message with the thread's ID.
+func (s *Server) startThread(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	parent, ok := s.channel(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	forum := parent.Type == discord.ChannelTypeForum || parent.Type == discord.ChannelTypeMedia
+	threadType := discord.ChannelTypePrivateThread
+	if forum {
+		threadType = discord.ChannelTypePublicThread
+	} else {
+		set(body, "type", &threadType)
+	}
+	switch {
+	case forum:
+	case parent.Type == discord.ChannelTypeText && (threadType == discord.ChannelTypePublicThread || threadType == discord.ChannelTypePrivateThread):
+	case parent.Type == discord.ChannelTypeAnnouncement && threadType == discord.ChannelTypeAnnouncementThread:
+	default:
+		writeError(w, http.StatusBadRequest, 50024, "Cannot execute action on this channel type")
+		return
+	}
+	t := s.newThread(s.newID(), parent, threadType)
+	if err := applyThreadCreate(t, body); err != nil {
+		writeError(w, http.StatusBadRequest, 50035, err.Error())
+		return
+	}
+	if threadType == discord.ChannelTypePrivateThread {
+		invitable := true
+		set(body, "invitable", &invitable)
+		t.ThreadMetadata.Invitable = &invitable
+	}
+	if !forum {
+		s.threads[t.ID] = t
+		writeJSON(w, http.StatusCreated, t)
+		return
+	}
+	if err := setAppliedTags(t, parent, body); err != nil {
+		writeError(w, http.StatusBadRequest, 50035, err.Error())
+		return
+	}
+	if parent.Flags&discord.ChannelFlagRequireTag != 0 && len(t.AppliedTags) == 0 {
+		writeError(w, http.StatusBadRequest, 40067, "A tag is required to create a forum post in this channel")
+		return
+	}
+	var msgBody map[string]json.RawMessage
+	set(body, "message", &msgBody)
+	m := &discord.Message{ID: t.ID, ChannelID: t.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{}}
+	applyMessage(m, msgBody)
+	if m.Content == "" && len(m.Embeds) == 0 {
+		writeError(w, http.StatusBadRequest, 50006, "Cannot send an empty message")
+		return
+	}
+	s.threads[t.ID] = t
+	s.messages[m.ID] = m
+	writeJSON(w, http.StatusCreated, struct {
+		*discord.Thread
+		Message *discord.Message `json:"message"`
+	}{t, m})
+}
+
+func (s *Server) startThreadFromMessage(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	parent, ok := s.channel(w, r)
+	if !ok {
+		return
+	}
+	m, ok := s.message(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	var threadType int
+	switch parent.Type {
+	case discord.ChannelTypeText:
+		threadType = discord.ChannelTypePublicThread
+	case discord.ChannelTypeAnnouncement:
+		threadType = discord.ChannelTypeAnnouncementThread
+	default:
+		writeError(w, http.StatusBadRequest, 50024, "Cannot execute action on this channel type")
+		return
+	}
+	if _, ok := s.threads[m.ID]; ok {
+		writeError(w, http.StatusBadRequest, 160004, "A thread has already been created for this message")
+		return
+	}
+	t := s.newThread(m.ID, parent, threadType)
+	if err := applyThreadCreate(t, body); err != nil {
+		writeError(w, http.StatusBadRequest, 50035, err.Error())
+		return
+	}
+	s.threads[t.ID] = t
+	writeJSON(w, http.StatusCreated, t)
+}
+
+// modifyThread models Modify Channel for threads: an archived thread only
+// accepts requests that unarchive it, and archiving clears PINNED.
+func (s *Server) modifyThread(w http.ResponseWriter, r *http.Request, t *discord.Thread) {
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	updated := *t
+	meta := *t.ThreadMetadata
+	updated.ThreadMetadata = &meta
+	archived := meta.Archived
+	set(body, "archived", &archived)
+	if meta.Archived && archived {
+		writeError(w, http.StatusBadRequest, 50083, "Thread is archived")
+		return
+	}
+	parent := s.channels[*t.ParentID]
+	forum := parent.Type == discord.ChannelTypeForum || parent.Type == discord.ChannelTypeMedia
+	set(body, "name", &updated.Name)
+	if updated.Name == "" || len(updated.Name) > 100 {
+		writeError(w, http.StatusBadRequest, 50035, "name must be 1-100 characters")
+		return
+	}
+	set(body, "locked", &meta.Locked)
+	set(body, "rate_limit_per_user", &updated.RateLimitPerUser)
+	set(body, "auto_archive_duration", &meta.AutoArchiveDuration)
+	if !slices.Contains(autoArchiveDurations, meta.AutoArchiveDuration) {
+		writeError(w, http.StatusBadRequest, 50035, "invalid auto_archive_duration")
+		return
+	}
+	if _, ok := body["invitable"]; ok && t.Type == discord.ChannelTypePrivateThread {
+		var invitable bool
+		set(body, "invitable", &invitable)
+		meta.Invitable = &invitable
+	}
+	set(body, "flags", &updated.Flags)
+	if updated.Flags&discord.ChannelFlagPinned != 0 && !forum {
+		writeError(w, http.StatusBadRequest, 50035, "PINNED can only be set on forum and media posts")
+		return
+	}
+	if err := setAppliedTags(&updated, parent, body); err != nil {
+		writeError(w, http.StatusBadRequest, 50035, err.Error())
+		return
+	}
+	meta.Archived = archived
+	if archived {
+		updated.Flags &^= discord.ChannelFlagPinned
+	}
+	*t = updated
+	writeJSON(w, http.StatusOK, t)
+}
+
+func (s *Server) deleteThread(id string) {
+	delete(s.threads, id)
+	for msgID, m := range s.messages {
+		if m.ChannelID == id {
+			delete(s.messages, msgID)
+		}
+	}
 }

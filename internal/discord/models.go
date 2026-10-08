@@ -11,6 +11,13 @@ const (
 	ChannelTypeMedia        = 16
 )
 
+// Thread types.
+const (
+	ChannelTypeAnnouncementThread = 10
+	ChannelTypePublicThread       = 11
+	ChannelTypePrivateThread      = 12
+)
+
 // Permission overwrite target types.
 const (
 	OverwriteTypeRole   = 0
@@ -19,6 +26,9 @@ const (
 
 // Channel flags managed by the provider.
 const (
+	// ChannelFlagPinned pins a thread to the top of its forum or media
+	// channel. Archiving the thread clears it.
+	ChannelFlagPinned = 1 << 1
 	// ChannelFlagRequireTag requires forum and media posts to have a tag.
 	ChannelFlagRequireTag = 1 << 4
 	// ChannelFlagHideMediaDownloadOptions hides the download options on a
@@ -120,6 +130,30 @@ type Channel struct {
 	DefaultThreadRateLimitPerUser int64            `json:"default_thread_rate_limit_per_user"`
 	DefaultSortOrder              *int64           `json:"default_sort_order"`
 	DefaultForumLayout            int64            `json:"default_forum_layout"`
+}
+
+// ThreadMetadata holds the fields specific to threads. Invitable is only
+// present on private threads.
+type ThreadMetadata struct {
+	Archived            bool  `json:"archived"`
+	AutoArchiveDuration int64 `json:"auto_archive_duration"`
+	Locked              bool  `json:"locked"`
+	Invitable           *bool `json:"invitable,omitempty"`
+}
+
+// Thread is a thread in a text or announcement channel, or a post in a forum
+// or media channel. ParentID is the channel it was created in.
+type Thread struct {
+	ID               string          `json:"id"`
+	Type             int             `json:"type"`
+	GuildID          string          `json:"guild_id"`
+	ParentID         *string         `json:"parent_id"`
+	OwnerID          string          `json:"owner_id"`
+	Name             string          `json:"name"`
+	RateLimitPerUser int64           `json:"rate_limit_per_user"`
+	Flags            int64           `json:"flags"`
+	AppliedTags      []string        `json:"applied_tags"`
+	ThreadMetadata   *ThreadMetadata `json:"thread_metadata"`
 }
 
 // PositionUpdate moves a role or channel to a new position.

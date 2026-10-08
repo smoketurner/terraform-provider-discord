@@ -131,6 +131,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newWebhookResource,
 		newInviteResource,
 		newMessageResource,
+		newThreadResource,
 		newEmojiResource,
 	}
 }

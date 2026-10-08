@@ -85,6 +85,33 @@ func (c *Client) DeleteChannel(ctx context.Context, channelID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/channels/"+channelID, nil, nil)
 }
 
+// GetThread fetches a thread. Threads are channels, but Get Guild Channels
+// does not list them.
+func (c *Client) GetThread(ctx context.Context, threadID string) (*Thread, error) {
+	var t Thread
+	return &t, c.do(ctx, http.MethodGet, "/channels/"+threadID, nil, &t)
+}
+
+// StartThread starts a thread that is not attached to a message. In a forum
+// or media channel the payload carries the post's starter message.
+func (c *Client) StartThread(ctx context.Context, channelID string, p Payload) (*Thread, error) {
+	var t Thread
+	return &t, c.doAudited(ctx, http.MethodPost, "/channels/"+channelID+"/threads", p, &t)
+}
+
+// StartThreadFromMessage starts a thread on an existing message. The thread
+// has the message's ID.
+func (c *Client) StartThreadFromMessage(ctx context.Context, channelID, messageID string, p Payload) (*Thread, error) {
+	var t Thread
+	return &t, c.doAudited(ctx, http.MethodPost, "/channels/"+channelID+"/messages/"+messageID+"/threads", p, &t)
+}
+
+// ModifyThread updates a thread.
+func (c *Client) ModifyThread(ctx context.Context, threadID string, p Payload) (*Thread, error) {
+	var t Thread
+	return &t, c.doAudited(ctx, http.MethodPatch, "/channels/"+threadID, p, &t)
+}
+
 // ModifyChannelPositions moves several channels in a single request.
 func (c *Client) ModifyChannelPositions(ctx context.Context, guildID string, updates []PositionUpdate) error {
 	return c.do(ctx, http.MethodPatch, "/guilds/"+guildID+"/channels", updates, nil)
