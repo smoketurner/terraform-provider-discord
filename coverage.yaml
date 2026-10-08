@@ -127,7 +127,7 @@ operations:
   get_guild_ban: {status: planned, issue: 25}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
-  get_guild_member: {status: covered, by: [data.discord_member, discord_member_role]}
+  get_guild_member: {status: covered, by: [data.discord_member, discord_member, discord_member_role, discord_member_roles]}
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: planned, issue: 44}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
@@ -235,7 +235,7 @@ operations:
   update_guild_application_command: {status: planned, issue: 7}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
   update_guild_incident_actions: {status: planned, issue: 39}
-  update_guild_member: {status: planned, issue: 22}
+  update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}
   update_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   update_guild_scheduled_event: {status: planned, issue: 17}
   update_guild_scheduled_event_exception: {status: pending_docs}

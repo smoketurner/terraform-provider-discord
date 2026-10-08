@@ -56,7 +56,8 @@ func (r *memberRoleResource) Schema(_ context.Context, _ resource.SchemaRequest,
 	}
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Grants one role to a server member. Other roles the member has are left alone. If the role " +
-			"is removed outside Terraform it is granted again on the next apply.",
+			"is removed outside Terraform it is granted again on the next apply. To set a member's complete list of " +
+			"roles instead, use `discord_member_roles`; do not use both for the same member.",
 		Attributes: map[string]schema.Attribute{
 			"audit_log_reason": auditLogReasonAttribute(),
 			"id":               idAttribute("`server_id/user_id/role_id`."),
