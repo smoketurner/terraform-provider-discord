@@ -51,6 +51,7 @@ type Server struct {
 	stages    map[string]*discord.StageInstance
 	settings  map[string]*guildSettings
 	ro        *readOnlyState
+	money     *monetization
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -160,6 +161,7 @@ func NewServer() *Server {
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
 	s.handleReadOnly(mux)
+	s.handleMonetization(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s

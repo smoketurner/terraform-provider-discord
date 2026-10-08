@@ -43,11 +43,9 @@ func (c *Client) GetGuildWidget(ctx context.Context, guildID string) (*GuildWidg
 // AuditLogQuery filters a page of a guild's audit log. Empty and zero fields
 // are not sent.
 type AuditLogQuery struct {
+	Page
 	UserID     string
 	ActionType int64
-	Before     string
-	After      string
-	Limit      int
 }
 
 // GetGuildAuditLog fetches one page of a guild's audit log. Entries are

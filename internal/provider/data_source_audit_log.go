@@ -52,9 +52,6 @@ func (d *auditLogDataSource) Metadata(_ context.Context, req datasource.Metadata
 }
 
 func (d *auditLogDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	optionalSnowflake := func(desc string) schema.StringAttribute {
-		return schema.StringAttribute{MarkdownDescription: desc, Optional: true, Validators: []validator.String{snowflakeValidator()}}
-	}
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Reads entries from a server's audit log, for example to check who changed a setting " +
 			"outside Terraform. The bot needs the View Audit Log permission. Discord keeps entries for 45 days.\n\n" +
@@ -71,12 +68,8 @@ func (d *auditLogDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			},
 			"before": optionalSnowflake("Only return entries with an ID lower than this entry ID."),
 			"after":  optionalSnowflake("Only return entries with an ID higher than this entry ID. Entries are then returned oldest first."),
-			"limit": schema.Int64Attribute{
-				MarkdownDescription: "Maximum number of entries to return. Defaults to 50. Discord returns at most 100 per " +
-					"request, so higher limits take several requests.",
-				Optional:   true,
-				Validators: []validator.Int64{int64validator.AtLeast(1)},
-			},
+			"limit": optionalLimit("Maximum number of entries to return. Defaults to 50. Discord returns at most 100 per " +
+				"request, so higher limits take several requests."),
 			"entries": computedList("Audit log entries.", map[string]schema.Attribute{
 				"id":          computedString("Entry ID."),
 				"action_type": computedInt("Audit log event type."),
@@ -111,8 +104,7 @@ func (d *auditLogDataSource) Read(ctx context.Context, req datasource.ReadReques
 	q := discord.AuditLogQuery{
 		UserID:     m.UserID.ValueString(),
 		ActionType: m.ActionType.ValueInt64(),
-		Before:     m.Before.ValueString(),
-		After:      m.After.ValueString(),
+		Page:       discord.Page{Before: m.Before.ValueString(), After: m.After.ValueString()},
 	}
 	ascending := q.After != ""
 	m.Entries = []auditLogEntryModel{}
