@@ -130,24 +130,9 @@ func featureFlag(desc string) schema.BoolAttribute {
 	}
 }
 
-// serverImageAttributes returns the arguments of an uploaded server image,
-// following the write-only convention in write_only.go.
+// serverImageAttributes returns the arguments of an uploaded server image.
 func serverImageAttributes(attrs map[string]schema.Attribute, name, label, requirement string) {
-	attrs[name] = schema.StringAttribute{
-		MarkdownDescription: "Server " + label + " as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"" + name +
-			".png\")}\"`." + requirement + " Stored in state; prefer `" + name + "_wo` on Terraform 1.11 or later. " +
-			"Removing the attribute leaves the current " + label + " in place.",
-		Optional:   true,
-		Validators: []validator.String{dataURIValidator(), stringvalidator.ConflictsWith(path.MatchRoot(name + "_wo"))},
-	}
-	attrs[name+"_wo"] = writeOnlyImage("Server "+label+" as a data URI."+requirement, name)
-	attrs[name+"_wo_version"] = writeOnlyVersion(name,
-		"Setting or changing it uploads `"+name+"_wo`; removing it leaves the current "+label+" in place.")
-	attrs[name+"_hash"] = schema.StringAttribute{
-		MarkdownDescription: "Hash of the current " + label + ". Discord only returns this hash, so a change made outside " +
-			"Terraform makes the next plan upload the configured " + label + " again.",
-		Computed: true,
-	}
+	imageAttributes(attrs, name, "Server", label, requirement)
 }
 
 func (r *serverSettingsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -244,17 +229,8 @@ func (r *serverSettingsResource) ValidateConfig(ctx context.Context, req resourc
 	}
 }
 
-// serverImage ties an uploaded image's arguments to the hash Discord returns.
-type serverImage struct {
-	name    string
-	image   *types.String
-	version *types.Int64
-	hash    *types.String
-	current func(*discord.Guild) *string
-}
-
-func (m *serverSettingsModel) images() []serverImage {
-	return []serverImage{
+func (m *serverSettingsModel) images() []imageArg[discord.Guild] {
+	return []imageArg[discord.Guild]{
 		{"icon", &m.Icon, &m.IconWOVersion, &m.IconHash, func(g *discord.Guild) *string { return g.Icon }},
 		{"banner", &m.Banner, &m.BannerWOVersion, &m.BannerHash, func(g *discord.Guild) *string { return g.Banner }},
 		{"splash", &m.Splash, &m.SplashWOVersion, &m.SplashHash, func(g *discord.Guild) *string { return g.Splash }},
@@ -362,9 +338,7 @@ func (m *serverSettingsModel) apply(ctx context.Context, g *discord.Guild, diags
 	m.ServerID = types.StringValue(g.ID)
 	m.Name = types.StringValue(g.Name)
 	m.Description = clearableValue(m.Description, g.Description)
-	for _, img := range m.images() {
-		*img.hash = stringPtrValue(img.current(g))
-	}
+	setImageHashes(m.images(), g)
 	m.VerificationLevel = verificationLevels.name(g.VerificationLevel)
 	m.DefaultMessageNotifications = messageNotifications.name(g.DefaultMessageNotifications)
 	m.ExplicitContentFilter = explicitContentFilter.name(g.ExplicitContentFilter)
@@ -400,11 +374,7 @@ func (r *serverSettingsResource) Create(ctx context.Context, req resource.Create
 	var current serverSettingsModel
 	current.apply(ctx, g, &resp.Diagnostics)
 	p := diffPayload(plan.payload(), current.payload())
-	for _, img := range plan.images() {
-		if !img.version.IsNull() {
-			putKnownString(p, img.name, writeOnlyString(ctx, req.Config, img.name+"_wo", &resp.Diagnostics))
-		}
-	}
+	putWriteOnlyImages(ctx, req.Config, p, plan.images(), nil, &resp.Diagnostics)
 	if features, changed := plan.features(g.Features); changed {
 		p["features"] = features
 	}
@@ -437,9 +407,7 @@ func (r *serverSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 		apiError(&resp.Diagnostics, "read server", err)
 		return
 	}
-	for _, img := range state.images() {
-		clearImageOnDrift(*img.hash, img.current(g), img.image, img.version)
-	}
+	clearImagesOnDrift(state.images(), g)
 	state.apply(ctx, g, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -457,12 +425,7 @@ func (r *serverSettingsResource) Update(ctx context.Context, req resource.Update
 	}
 	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	p := diffPayload(plan.payload(), state.payload())
-	prior := state.images()
-	for i, img := range plan.images() {
-		if writeOnlyChanged(*img.version, *prior[i].version) {
-			putKnownString(p, img.name, writeOnlyString(ctx, req.Config, img.name+"_wo", &resp.Diagnostics))
-		}
-	}
+	putWriteOnlyImages(ctx, req.Config, p, plan.images(), state.images(), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}

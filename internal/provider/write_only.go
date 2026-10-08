@@ -12,7 +12,70 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
+
+// imageAttributes adds the arguments of an image that can be replaced in
+// place, such as a server icon: the stored and write-only image, the version,
+// and the hash Discord returns. Removing the image arguments leaves the
+// current image in place.
+func imageAttributes(attrs map[string]schema.Attribute, name, owner, label, requirement string) {
+	attrs[name] = schema.StringAttribute{
+		MarkdownDescription: owner + " " + label + " as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"" + name +
+			".png\")}\"`." + requirement + " Stored in state; prefer `" + name + "_wo` on Terraform 1.11 or later. " +
+			"Removing the attribute leaves the current " + label + " in place.",
+		Optional:   true,
+		Validators: []validator.String{dataURIValidator(), stringvalidator.ConflictsWith(path.MatchRoot(name + "_wo"))},
+	}
+	attrs[name+"_wo"] = writeOnlyImage(owner+" "+label+" as a data URI."+requirement, name)
+	attrs[name+"_wo_version"] = writeOnlyVersion(name,
+		"Setting or changing it uploads `"+name+"_wo`; removing it leaves the current "+label+" in place.")
+	attrs[name+"_hash"] = schema.StringAttribute{
+		MarkdownDescription: "Hash of the current " + label + ". Discord only returns this hash, so a change made outside " +
+			"Terraform makes the next plan upload the configured " + label + " again.",
+		Computed: true,
+	}
+}
+
+// imageArg ties the arguments added by imageAttributes to the hash Discord
+// returns in a T.
+type imageArg[T any] struct {
+	name    string
+	image   *types.String
+	version *types.Int64
+	hash    *types.String
+	current func(*T) *string
+}
+
+// putWriteOnlyImages adds the write-only images whose version was set or
+// changed since prior; pass nil prior when creating. The stored images are
+// part of the resource's payload.
+func putWriteOnlyImages[T any](ctx context.Context, config tfsdk.Config, p discord.Payload, plan, prior []imageArg[T], diags *diag.Diagnostics) {
+	for i, img := range plan {
+		priorVersion := types.Int64Null()
+		if prior != nil {
+			priorVersion = *prior[i].version
+		}
+		if writeOnlyChanged(*img.version, priorVersion) {
+			putKnownString(p, img.name, writeOnlyString(ctx, config, img.name+"_wo", diags))
+		}
+	}
+}
+
+// clearImagesOnDrift applies clearImageOnDrift to each image. Call it in Read
+// before recording the new hashes with setImageHashes.
+func clearImagesOnDrift[T any](images []imageArg[T], v *T) {
+	for _, img := range images {
+		clearImageOnDrift(*img.hash, img.current(v), img.image, img.version)
+	}
+}
+
+func setImageHashes[T any](images []imageArg[T], v *T) {
+	for _, img := range images {
+		*img.hash = stringPtrValue(img.current(v))
+	}
+}
 
 // Uploaded images have write-only variants named <name>_wo (Terraform 1.11+).
 // Their values never reach plan or state, so Terraform cannot diff them; the

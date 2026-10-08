@@ -209,15 +209,48 @@ resource "discord_server_widget" "test" {
 			identities[name] = map[string]string{"server_id": "server_id"}
 		}
 	}
+	// These change the bot and its application, so live runs leave them
+	// out.
+	if !env.live {
+		cfg += `
+resource "discord_bot_user" "test" {
+  username = "tf-acc-identity"
+}
+resource "discord_bot_member" "test" {
+  server_id = local.server_id
+  nick      = "tf-acc-identity"
+}
+resource "discord_application_settings" "test" {
+  description = "tf-acc-identity"
+}
+resource "discord_application_role_connection_metadata" "test" {
+  records = [{
+    type        = "boolean_equal"
+    key         = "identity"
+    name        = "Identity"
+    description = "tf-acc-identity"
+  }]
+}
+resource "discord_application_emoji" "test" {
+  name  = "tf_acc_identity"
+  image = "` + onePixelPNG + `"
+}
+`
+		identities["discord_bot_user.test"] = map[string]string{"user_id": "id"}
+		identities["discord_bot_member.test"] = map[string]string{"server_id": "server_id"}
+		identities["discord_application_settings.test"] = map[string]string{"application_id": "id"}
+		identities["discord_application_role_connection_metadata.test"] = map[string]string{"application_id": "application_id"}
+		identities["discord_application_emoji.test"] = map[string]string{"application_id": "application_id", "emoji_id": "id"}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep
 	for name, attrs := range identities {
 		first.ConfigStateChecks = append(first.ConfigStateChecks, expectIdentity(name, attrs)...)
 		step := identityImportStep(name)
-		// The emoji image cannot be read back, so the imported emoji plans
-		// to set it.
-		step.ExpectNonEmptyPlan = name == "discord_emoji.test"
+		// Emoji images cannot be read back, so imported emojis plan to set
+		// them.
+		step.ExpectNonEmptyPlan = name == "discord_emoji.test" || name == "discord_application_emoji.test"
 		steps = append(steps, step)
 	}
 	env.run(resource.TestCase{

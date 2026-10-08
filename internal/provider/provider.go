@@ -142,6 +142,11 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newEmojiResource,
 		newScheduledEventResource,
 		newStageInstanceResource,
+		newBotUserResource,
+		newBotMemberResource,
+		newApplicationSettingsResource,
+		newRoleConnectionMetadataResource,
+		newApplicationEmojiResource,
 	}
 }
 

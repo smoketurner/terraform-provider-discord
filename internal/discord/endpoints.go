@@ -378,3 +378,58 @@ func (c *Client) GetCurrentApplication(ctx context.Context) (*Application, error
 	var a Application
 	return &a, c.do(ctx, http.MethodGet, "/applications/@me", nil, &a)
 }
+
+// ModifyCurrentUser updates the bot's own user.
+func (c *Client) ModifyCurrentUser(ctx context.Context, p Payload) (*User, error) {
+	var u User
+	return &u, c.do(ctx, http.MethodPatch, "/users/@me", p, &u)
+}
+
+// ModifyCurrentMember updates the bot's own member profile in a guild.
+func (c *Client) ModifyCurrentMember(ctx context.Context, guildID string, p Payload) (*Member, error) {
+	var m Member
+	return &m, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/members/@me", p, &m)
+}
+
+// ModifyCurrentApplication updates the application the bot token belongs to.
+func (c *Client) ModifyCurrentApplication(ctx context.Context, p Payload) (*Application, error) {
+	var a Application
+	return &a, c.do(ctx, http.MethodPatch, "/applications/@me", p, &a)
+}
+
+// GetRoleConnectionMetadata lists an application's role connection metadata
+// records.
+func (c *Client) GetRoleConnectionMetadata(ctx context.Context, applicationID string) ([]RoleConnectionMetadata, error) {
+	var records []RoleConnectionMetadata
+	return records, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/role-connections/metadata", nil, &records)
+}
+
+// UpdateRoleConnectionMetadata replaces all of an application's role
+// connection metadata records.
+func (c *Client) UpdateRoleConnectionMetadata(ctx context.Context, applicationID string, records []RoleConnectionMetadata) ([]RoleConnectionMetadata, error) {
+	var out []RoleConnectionMetadata
+	return out, c.do(ctx, http.MethodPut, "/applications/"+applicationID+"/role-connections/metadata", records, &out)
+}
+
+// GetApplicationEmoji fetches an emoji owned by an application.
+func (c *Client) GetApplicationEmoji(ctx context.Context, applicationID, emojiID string) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/emojis/"+emojiID, nil, &e)
+}
+
+// CreateApplicationEmoji uploads an emoji owned by an application.
+func (c *Client) CreateApplicationEmoji(ctx context.Context, applicationID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPost, "/applications/"+applicationID+"/emojis", p, &e)
+}
+
+// ModifyApplicationEmoji renames an emoji owned by an application.
+func (c *Client) ModifyApplicationEmoji(ctx context.Context, applicationID, emojiID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPatch, "/applications/"+applicationID+"/emojis/"+emojiID, p, &e)
+}
+
+// DeleteApplicationEmoji deletes an emoji owned by an application.
+func (c *Client) DeleteApplicationEmoji(ctx context.Context, applicationID, emojiID string) error {
+	return c.do(ctx, http.MethodDelete, "/applications/"+applicationID+"/emojis/"+emojiID, nil, nil)
+}
