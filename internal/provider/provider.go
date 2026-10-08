@@ -150,6 +150,19 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newRoleDataSource,
 		newChannelDataSource,
 		newMemberDataSource,
+		newAuditLogDataSource,
+		newDefaultSoundboardSoundsDataSource,
+		newInviteDataSource,
+		newMessageDataSource,
+		newPinnedMessagesDataSource,
+		newRoleMemberCountsDataSource,
+		newServerPreviewDataSource,
+		newServerVanityURLDataSource,
+		newServerWidgetDataSource,
+		newStickerDataSource,
+		newStickerPackDataSource,
+		newStickerPacksDataSource,
+		newVoiceRegionsDataSource,
 	}
 }
 
