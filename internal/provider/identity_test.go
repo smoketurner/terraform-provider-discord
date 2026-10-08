@@ -105,6 +105,10 @@ resource "discord_message" "test" {
 resource "discord_invite" "test" {
   channel_id = discord_text_channel.test.id
 }
+resource "discord_thread" "test" {
+  channel_id = discord_text_channel.test.id
+  name       = "tf-acc-identity"
+}
 resource "discord_webhook" "test" {
   channel_id = discord_text_channel.test.id
   name       = "tf-acc-identity"
@@ -130,6 +134,7 @@ resource "discord_emoji" "test" {
 		"discord_message.test":              {"channel_id": "channel_id", "message_id": "id"},
 		"discord_invite.test":               {"channel_id": "channel_id", "code": "id"},
 		"discord_webhook.test":              {"webhook_id": "id"},
+		"discord_thread.test":               {"thread_id": "id"},
 		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
 	}
 	if env.userID != "" {

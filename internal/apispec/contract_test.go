@@ -28,6 +28,8 @@ var modelSchemas = map[string]struct {
 	"ForumTag":        {reflect.TypeFor[discord.ForumTag](), []string{"ForumTagResponse", "UpdateThreadTagRequest"}},
 	"DefaultReaction": {reflect.TypeFor[discord.DefaultReaction](), []string{"DefaultReactionEmojiResponse", "UpdateDefaultReactionEmojiRequest"}},
 	"Channel":         {reflect.TypeFor[discord.Channel](), []string{"GuildChannelResponse"}},
+	"ThreadMetadata":  {reflect.TypeFor[discord.ThreadMetadata](), []string{"ThreadMetadataResponse"}},
+	"Thread":          {reflect.TypeFor[discord.Thread](), []string{"ThreadResponse", "CreatedThreadResponse"}},
 	"PositionUpdate":  {reflect.TypeFor[discord.PositionUpdate](), []string{"UpdateRolePositionsRequest"}},
 	"User":            {reflect.TypeFor[discord.User](), []string{"UserResponse"}},
 	"Member":          {reflect.TypeFor[discord.Member](), []string{"GuildMemberResponse"}},

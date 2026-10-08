@@ -61,8 +61,8 @@ operations:
   create_or_join_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_pin: {status: covered, by: [discord_message]}
   create_stage_instance: {status: planned, issue: 27}
-  create_thread: {status: planned, issue: 20}
-  create_thread_from_message: {status: planned, issue: 20}
+  create_thread: {status: covered, by: [discord_thread]}
+  create_thread_from_message: {status: covered, by: [discord_thread]}
   create_webhook: {status: covered, by: [discord_webhook]}
   crosspost_message: {status: planned, issue: 50}
   delete_all_message_reactions: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
@@ -71,7 +71,7 @@ operations:
   delete_application_emoji: {status: planned, issue: 30}
   delete_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   delete_auto_moderation_rule: {status: planned, issue: 6}
-  delete_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
+  delete_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   delete_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
   delete_entitlement: {status: planned, issue: 47}
   delete_group_dm_user: {status: out_of_scope, reason: "group DMs are not server configuration"}
@@ -116,7 +116,7 @@ operations:
   get_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_auto_moderation_rule: {status: planned, issue: 6}
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
-  get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
+  get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_entitlement: {status: planned, issue: 47}
   get_entitlements: {status: planned, issue: 47}
@@ -146,7 +146,7 @@ operations:
   get_invite_target_users_job_status: {status: planned, issue: 38}
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
-  get_message: {status: covered, by: [discord_message]}
+  get_message: {status: covered, by: [discord_message, discord_thread]}
   get_my_application: {status: planned, issue: 31}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
@@ -230,7 +230,7 @@ operations:
   update_application_role_connections_metadata: {status: planned, issue: 8}
   update_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   update_auto_moderation_rule: {status: planned, issue: 6}
-  update_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
+  update_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   update_guild: {status: covered, by: [discord_server_settings]}
   update_guild_application_command: {status: planned, issue: 7}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
@@ -246,7 +246,7 @@ operations:
   update_guild_widget_settings: {status: planned, issue: 28}
   update_invite_target_users: {status: planned, issue: 38}
   update_lobby_message_external_moderation_metadata: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
-  update_message: {status: covered, by: [discord_message]}
+  update_message: {status: covered, by: [discord_message, discord_thread]}
   update_my_application: {status: planned, issue: 31}
   update_my_guild_member: {status: planned, issue: 24}
   update_my_user: {status: planned, issue: 24}
