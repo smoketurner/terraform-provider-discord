@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/smoketurner/terraform-provider-discord/compare/v0.2.0...v0.3.0) (2026-10-08)
+
+
+### Features
+
+* add test entitlements, entitlement and subscription lookups, and message listing ([2051656](https://github.com/smoketurner/terraform-provider-discord/commit/205165628dd18f599809632f88267fbd9dadba05))
+* support moved blocks from Lucky3028/discord ([2051656](https://github.com/smoketurner/terraform-provider-discord/commit/205165628dd18f599809632f88267fbd9dadba05))
+
 ## [0.2.0](https://github.com/smoketurner/terraform-provider-discord/compare/v0.1.0...v0.2.0) (2026-10-08)
 
 
