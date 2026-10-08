@@ -1,7 +1,7 @@
 name: Live acceptance tests
 
 # Runs the acceptance tests against a real Discord server. Configure the
-# "discord-live" environment with secrets DISCORD_TOKEN and DISCORD_SERVER_ID,
+# "dev" environment with the secret DISCORD_TOKEN, the variable DISCORD_SERVER_ID,
 # and optionally the variable DISCORD_TEST_USER_ID for member tests.
 on:
   schedule:
@@ -19,7 +19,7 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: discord-live
+    environment: dev
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,7 +34,7 @@ jobs:
         env:
           TF_ACC: "1"
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-          DISCORD_SERVER_ID: ${{ secrets.DISCORD_SERVER_ID }}
+          DISCORD_SERVER_ID: ${{ vars.DISCORD_SERVER_ID }}
           DISCORD_TEST_USER_ID: ${{ vars.DISCORD_TEST_USER_ID }}
         run: |
           if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_SERVER_ID" ]; then
