@@ -18,18 +18,18 @@ operations:
   add_group_dm_user: {status: out_of_scope, reason: "group DMs are not server configuration"}
   add_guild_member: {status: out_of_scope, reason: "needs a user OAuth2 access token"}
   add_guild_member_role: {status: covered, by: [discord_member_role]}
-  add_invite_target_user: {status: planned, issue: 38}
+  add_invite_target_user: {status: out_of_scope, reason: "discord_invite changes target users with the bulk operations"}
   add_lobby_member: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
-  add_my_message_reaction: {status: planned, issue: 33}
+  add_my_message_reaction: {status: covered, by: [discord_message_reaction]}
   add_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   applications_get_activity_instance: {status: out_of_scope, reason: "activity instances are runtime state of the game SDK"}
   ban_user_from_guild: {status: covered, by: [discord_ban]}
   bot_partner_sdk_token: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
   bot_partner_sdk_unmerge_provisional_account: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
-  bulk_add_invite_target_users: {status: planned, issue: 38}
-  bulk_ban_users_from_guild: {status: planned, issue: 50}
-  bulk_delete_messages: {status: planned, issue: 50}
-  bulk_remove_invite_target_users: {status: planned, issue: 38}
+  bulk_add_invite_target_users: {status: covered, by: [discord_invite]}
+  bulk_ban_users_from_guild: {status: covered, by: [action.discord_bulk_ban]}
+  bulk_delete_messages: {status: covered, by: [action.discord_bulk_delete_messages]}
+  bulk_remove_invite_target_users: {status: covered, by: [discord_invite]}
   bulk_set_application_commands: {status: out_of_scope, reason: "replaces every command, including ones managed elsewhere; discord_application_command uses the per-command operations"}
   bulk_set_guild_application_commands: {status: out_of_scope, reason: "replaces every command, including ones managed elsewhere; discord_application_command uses the per-command operations"}
   bulk_update_guild_channels: {status: covered, by: [discord_channel_positions]}
@@ -37,13 +37,13 @@ operations:
   bulk_update_lobby_members: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   consume_entitlement: {status: out_of_scope, reason: "consuming a purchase is runtime state of the application"}
   count_guild_scheduled_event_users: {status: pending_docs}
-  create_application_command: {status: planned, issue: 7}
-  create_application_emoji: {status: planned, issue: 30}
-  create_auto_moderation_rule: {status: planned, issue: 6}
+  create_application_command: {status: covered, by: [discord_application_command]}
+  create_application_emoji: {status: covered, by: [discord_application_emoji]}
+  create_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   create_channel_invite: {status: covered, by: [discord_invite]}
   create_dm: {status: out_of_scope, reason: "DMs are not server configuration"}
   create_entitlement: {status: planned, issue: 82}
-  create_guild_application_command: {status: planned, issue: 7}
+  create_guild_application_command: {status: covered, by: [discord_application_command]}
   create_guild_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
   create_guild_emoji: {status: covered, by: [discord_emoji]}
   create_guild_role: {status: covered, by: [discord_role]}
@@ -51,31 +51,31 @@ operations:
   create_guild_scheduled_event_exception: {status: pending_docs}
   create_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
   create_guild_sticker: {status: covered, by: [discord_sticker]}
-  create_guild_template: {status: planned, issue: 29}
+  create_guild_template: {status: covered, by: [discord_server_template]}
   create_interaction_response: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   create_linked_lobby_guild_invite_for_self: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_linked_lobby_guild_invite_for_user: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_lobby_message: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
-  create_message: {status: covered, by: [discord_message]}
+  create_message: {status: covered, by: [action.discord_send_message, discord_message]}
   create_or_join_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   create_pin: {status: covered, by: [discord_message]}
   create_stage_instance: {status: covered, by: [discord_stage_instance]}
   create_thread: {status: covered, by: [discord_thread]}
   create_thread_from_message: {status: covered, by: [discord_thread]}
   create_webhook: {status: covered, by: [discord_webhook]}
-  crosspost_message: {status: planned, issue: 50}
+  crosspost_message: {status: covered, by: [action.discord_crosspost_message]}
   delete_all_message_reactions: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
   delete_all_message_reactions_by_emoji: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
-  delete_application_command: {status: planned, issue: 7}
-  delete_application_emoji: {status: planned, issue: 30}
+  delete_application_command: {status: covered, by: [discord_application_command]}
+  delete_application_emoji: {status: covered, by: [discord_application_emoji]}
   delete_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  delete_auto_moderation_rule: {status: planned, issue: 6}
+  delete_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   delete_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   delete_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
   delete_entitlement: {status: planned, issue: 82}
   delete_group_dm_user: {status: out_of_scope, reason: "group DMs are not server configuration"}
-  delete_guild_application_command: {status: planned, issue: 7}
+  delete_guild_application_command: {status: covered, by: [discord_application_command]}
   delete_guild_emoji: {status: covered, by: [discord_emoji]}
   delete_guild_integration: {status: out_of_scope, reason: "integrations are added by users in the Discord client"}
   delete_guild_member: {status: out_of_scope, reason: "kicking members is moderation, not configuration"}
@@ -85,17 +85,17 @@ operations:
   delete_guild_scheduled_event_exception: {status: pending_docs}
   delete_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
   delete_guild_sticker: {status: covered, by: [discord_sticker]}
-  delete_guild_template: {status: planned, issue: 29}
+  delete_guild_template: {status: covered, by: [discord_server_template]}
   delete_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   delete_lobby_member: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   delete_message: {status: covered, by: [discord_message]}
-  delete_my_message_reaction: {status: planned, issue: 33}
+  delete_my_message_reaction: {status: covered, by: [discord_message_reaction]}
   delete_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   delete_pin: {status: covered, by: [discord_message]}
   delete_stage_instance: {status: covered, by: [discord_stage_instance]}
   delete_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   delete_user_message_reaction: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
-  delete_webhook: {status: covered, by: [discord_webhook]}
+  delete_webhook: {status: covered, by: [discord_channel_follower, discord_webhook]}
   delete_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
   delete_webhook_message: {status: covered, by: [discord_webhook_message]}
   deprecated_create_pin: {status: out_of_scope, reason: "deprecated in favor of create_pin"}
@@ -106,15 +106,15 @@ operations:
   execute_github_compatible_webhook: {status: out_of_scope, reason: "GitHub payload format for external services"}
   execute_slack_compatible_webhook: {status: out_of_scope, reason: "Slack payload format for external services"}
   execute_webhook: {status: covered, by: [discord_webhook_message]}
-  follow_channel: {status: planned, issue: 32}
+  follow_channel: {status: covered, by: [discord_channel_follower]}
   get_active_guild_threads: {status: planned, issue: 41}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
   get_application: {status: pending_docs}
-  get_application_command: {status: planned, issue: 7}
-  get_application_emoji: {status: planned, issue: 30}
-  get_application_role_connections_metadata: {status: planned, issue: 8}
+  get_application_command: {status: covered, by: [discord_application_command]}
+  get_application_emoji: {status: covered, by: [discord_application_emoji]}
+  get_application_role_connections_metadata: {status: covered, by: [discord_application_role_connection_metadata]}
   get_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  get_auto_moderation_rule: {status: planned, issue: 6}
+  get_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
@@ -122,19 +122,19 @@ operations:
   get_entitlements: {status: covered, by: [data.discord_entitlements]}
   get_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_guild: {status: covered, by: [data.discord_server, discord_server_settings]}
-  get_guild_application_command: {status: planned, issue: 7}
-  get_guild_application_command_permissions: {status: planned, issue: 7}
+  get_guild_application_command: {status: covered, by: [discord_application_command]}
+  get_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
   get_guild_ban: {status: covered, by: [discord_ban]}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
-  get_guild_member: {status: covered, by: [data.discord_member, discord_member, discord_member_role, discord_member_roles]}
+  get_guild_member: {status: covered, by: [data.discord_member, discord_bot_member, discord_member, discord_member_role, discord_member_roles]}
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: covered, by: [data.discord_server_preview]}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   get_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   get_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
   get_guild_sticker: {status: covered, by: [discord_sticker]}
-  get_guild_template: {status: planned, issue: 29}
+  get_guild_template: {status: out_of_scope, reason: "looks up any server's template by code; discord_server_template reads its own from list_guild_templates"}
   get_guild_vanity_url: {status: covered, by: [data.discord_server_vanity_url]}
   get_guild_webhooks: {status: planned, issue: 41}
   get_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
@@ -142,16 +142,16 @@ operations:
   get_guild_widget_png: {status: out_of_scope, reason: "returns an image"}
   get_guild_widget_settings: {status: covered, by: [discord_server_widget]}
   get_guilds_onboarding: {status: covered, by: [discord_onboarding]}
-  get_invite_target_users: {status: planned, issue: 38}
-  get_invite_target_users_job_status: {status: planned, issue: 38}
+  get_invite_target_users: {status: covered, by: [discord_invite]}
+  get_invite_target_users_job_status: {status: out_of_scope, reason: "tracks CSV uploads, which discord_invite does not use"}
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_message: {status: covered, by: [data.discord_message, discord_message, discord_thread]}
-  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus]}
+  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus, discord_application_command, discord_application_emoji, discord_application_role_connection_metadata, discord_application_settings]}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
-  get_my_user: {status: covered, by: [data.discord_current_user]}
+  get_my_user: {status: covered, by: [data.discord_current_user, discord_bot_member, discord_bot_user, discord_message_reaction]}
   get_openid_connect_userinfo: {status: out_of_scope, reason: "OpenID Connect for OAuth2 users"}
   get_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   get_public_keys: {status: out_of_scope, reason: "OAuth2 token signing keys"}
@@ -165,7 +165,7 @@ operations:
   get_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   get_user: {status: covered, by: [data.discord_user]}
   get_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
-  get_webhook: {status: covered, by: [discord_webhook, discord_webhook_message, ephemeral.discord_webhook]}
+  get_webhook: {status: covered, by: [discord_channel_follower, discord_webhook, discord_webhook_message, ephemeral.discord_webhook]}
   get_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
   get_webhook_message: {status: covered, by: [discord_webhook_message]}
   guild_role_member_counts: {status: covered, by: [data.discord_role_member_counts]}
@@ -176,13 +176,13 @@ operations:
   leave_guild: {status: out_of_scope, reason: "removes the bot from the server"}
   leave_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   leave_thread: {status: out_of_scope, reason: "leaving threads is runtime state"}
-  list_application_commands: {status: planned, issue: 7}
+  list_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_application_emojis: {status: planned, issue: 30}
   list_auto_moderation_rules: {status: planned, issue: 41}
   list_channel_invites: {status: covered, by: [discord_invite]}
   list_channel_webhooks: {status: planned, issue: 41}
-  list_guild_application_command_permissions: {status: planned, issue: 7}
-  list_guild_application_commands: {status: planned, issue: 7}
+  list_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
+  list_guild_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_guild_audit_log_entries: {status: covered, by: [data.discord_audit_log]}
   list_guild_bans: {status: planned, issue: 41}
   list_guild_channels: {status: covered, by: [data.discord_channel, discord_channel_positions]}
@@ -196,9 +196,9 @@ operations:
   list_guild_scheduled_events: {status: planned, issue: 41}
   list_guild_soundboard_sounds: {status: planned, issue: 41}
   list_guild_stickers: {status: planned, issue: 41}
-  list_guild_templates: {status: planned, issue: 41}
+  list_guild_templates: {status: covered, by: [discord_server_template]}
   list_guild_voice_regions: {status: covered, by: [data.discord_voice_regions]}
-  list_message_reactions_by_emoji: {status: planned, issue: 33}
+  list_message_reactions_by_emoji: {status: covered, by: [discord_message_reaction]}
   list_messages: {status: planned, issue: 82}
   list_my_connections: {status: out_of_scope, reason: "third-party account connections of an OAuth2 user"}
   list_my_guilds: {status: out_of_scope, reason: "configurations name their servers explicitly"}
@@ -211,28 +211,28 @@ operations:
   list_voice_regions: {status: covered, by: [data.discord_voice_regions]}
   partner_sdk_token: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
   partner_sdk_unmerge_provisional_account: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
-  poll_expire: {status: planned, issue: 50}
-  preview_prune_guild: {status: planned, issue: 50}
-  prune_guild: {status: planned, issue: 50}
+  poll_expire: {status: covered, by: [action.discord_end_poll]}
+  preview_prune_guild: {status: covered, by: [action.discord_prune_members]}
+  prune_guild: {status: covered, by: [action.discord_prune_members]}
   put_guilds_onboarding: {status: covered, by: [discord_onboarding]}
-  remove_invite_target_user: {status: planned, issue: 38}
+  remove_invite_target_user: {status: out_of_scope, reason: "discord_invite changes target users with the bulk operations"}
   search_guild_members: {status: covered, by: [data.discord_member]}
   send_soundboard_sound: {status: out_of_scope, reason: "playing a sound in a voice channel is transient"}
   set_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
   set_guild_application_command_permissions: {status: out_of_scope, reason: "needs a user OAuth2 access token"}
-  sync_guild_template: {status: planned, issue: 29}
+  sync_guild_template: {status: covered, by: [action.discord_sync_server_template]}
   thread_search: {status: pending_docs}
   trigger_typing_indicator: {status: out_of_scope, reason: "typing indicators are transient"}
   unban_user_from_guild: {status: covered, by: [discord_ban]}
   update_application: {status: pending_docs}
-  update_application_command: {status: planned, issue: 7}
-  update_application_emoji: {status: planned, issue: 30}
-  update_application_role_connections_metadata: {status: planned, issue: 8}
+  update_application_command: {status: covered, by: [discord_application_command]}
+  update_application_emoji: {status: covered, by: [discord_application_emoji]}
+  update_application_role_connections_metadata: {status: covered, by: [discord_application_role_connection_metadata]}
   update_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  update_auto_moderation_rule: {status: planned, issue: 6}
+  update_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   update_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   update_guild: {status: covered, by: [discord_server_settings]}
-  update_guild_application_command: {status: planned, issue: 7}
+  update_guild_application_command: {status: covered, by: [discord_application_command]}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
   update_guild_incident_actions: {status: covered, by: [discord_server_incident_actions]}
   update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}
@@ -241,20 +241,20 @@ operations:
   update_guild_scheduled_event_exception: {status: pending_docs}
   update_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
   update_guild_sticker: {status: covered, by: [discord_sticker]}
-  update_guild_template: {status: planned, issue: 29}
+  update_guild_template: {status: covered, by: [discord_server_template]}
   update_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
   update_guild_widget_settings: {status: covered, by: [discord_server_widget]}
-  update_invite_target_users: {status: planned, issue: 38}
+  update_invite_target_users: {status: out_of_scope, reason: "replaces target users from a CSV upload; discord_invite changes them with the bulk operations"}
   update_lobby_message_external_moderation_metadata: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   update_message: {status: covered, by: [discord_message, discord_thread]}
-  update_my_application: {status: planned, issue: 31}
-  update_my_guild_member: {status: planned, issue: 24}
-  update_my_user: {status: planned, issue: 24}
+  update_my_application: {status: covered, by: [discord_application_settings]}
+  update_my_guild_member: {status: covered, by: [discord_bot_member]}
+  update_my_user: {status: covered, by: [discord_bot_user]}
   update_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   update_self_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
   update_stage_instance: {status: covered, by: [discord_stage_instance]}
   update_user_message_external_moderation_metadata: {status: out_of_scope, reason: "partner SDK is a game SDK feature"}
-  update_voice_channel_status: {status: planned, issue: 40}
+  update_voice_channel_status: {status: covered, by: [action.discord_set_voice_channel_status]}
   update_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
   update_webhook: {status: covered, by: [discord_webhook]}
   update_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}

@@ -34,21 +34,31 @@ var modelSchemas = map[string]struct {
 	"PositionUpdate":  {reflect.TypeFor[discord.PositionUpdate](), []string{"UpdateRolePositionsRequest"}},
 	"User":            {reflect.TypeFor[discord.User](), []string{"UserResponse", "UserPIIResponse"}},
 	"Application":     {reflect.TypeFor[discord.Application](), []string{"PrivateApplicationResponse"}},
-	"Member":          {reflect.TypeFor[discord.Member](), []string{"GuildMemberResponse"}},
-	"Ban":             {reflect.TypeFor[discord.Ban](), []string{"GuildBanResponse"}},
-	"Webhook":         {reflect.TypeFor[discord.Webhook](), []string{"GuildIncomingWebhookResponse"}},
-	"InviteChannel":   {reflect.TypeFor[discord.InviteChannel](), []string{"InviteChannelResponse"}},
-	"Invite":          {reflect.TypeFor[discord.Invite](), []string{"GuildInviteResponse"}},
-	"EmbedFooter":     {reflect.TypeFor[discord.EmbedFooter](), []string{"MessageEmbedFooterResponse", "RichEmbedFooter"}},
-	"EmbedMedia":      {reflect.TypeFor[discord.EmbedMedia](), []string{"MessageEmbedImageResponse", "RichEmbedImage", "RichEmbedThumbnail"}},
-	"EmbedAuthor":     {reflect.TypeFor[discord.EmbedAuthor](), []string{"MessageEmbedAuthorResponse", "RichEmbedAuthor"}},
-	"EmbedField":      {reflect.TypeFor[discord.EmbedField](), []string{"MessageEmbedFieldResponse", "RichEmbedField"}},
-	"Embed":           {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
-	"Message":         {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
-	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
-	"EntityMetadata":  {reflect.TypeFor[discord.EntityMetadata](), []string{"EntityMetadataExternalResponse", "EntityMetadataExternal"}},
-	"NWeekday":        {reflect.TypeFor[discord.NWeekday](), []string{"ByNWeekdayResponse", "ByNWeekday"}},
-	"RecurrenceRule":  {reflect.TypeFor[discord.RecurrenceRule](), []string{"RecurrenceRuleResponse", "RecurrenceRule"}},
+	"InstallParams":   {reflect.TypeFor[discord.InstallParams](), []string{"ApplicationOAuth2InstallParamsResponse"}},
+	"IntegrationTypeConfig": {reflect.TypeFor[discord.IntegrationTypeConfig](), []string{
+		"ApplicationIntegrationTypeConfigurationResponse", "ApplicationIntegrationTypeConfiguration"}},
+	"RoleConnectionMetadata": {reflect.TypeFor[discord.RoleConnectionMetadata](), []string{
+		"ApplicationRoleConnectionsMetadataItemResponse", "ApplicationRoleConnectionsMetadataItemRequest"}},
+	"Member":            {reflect.TypeFor[discord.Member](), []string{"GuildMemberResponse"}},
+	"Ban":               {reflect.TypeFor[discord.Ban](), []string{"GuildBanResponse"}},
+	"Webhook":           {reflect.TypeFor[discord.Webhook](), []string{"GuildIncomingWebhookResponse"}},
+	"InviteChannel":     {reflect.TypeFor[discord.InviteChannel](), []string{"InviteChannelResponse"}},
+	"InviteRole":        {reflect.TypeFor[discord.InviteRole](), []string{"InviteGuildRoleResponse"}},
+	"InviteApplication": {reflect.TypeFor[discord.InviteApplication](), []string{"InviteApplicationResponse"}},
+	"Invite":            {reflect.TypeFor[discord.Invite](), []string{"GuildInviteResponse"}},
+	"GuildTemplate":     {reflect.TypeFor[discord.GuildTemplate](), []string{"GuildTemplateResponse"}},
+	"PruneResult":       {reflect.TypeFor[discord.PruneResult](), []string{"GuildPruneResponse"}},
+	"BulkBanResult":     {reflect.TypeFor[discord.BulkBanResult](), []string{"BulkBanUsersResponse"}},
+	"EmbedFooter":       {reflect.TypeFor[discord.EmbedFooter](), []string{"MessageEmbedFooterResponse", "RichEmbedFooter"}},
+	"EmbedMedia":        {reflect.TypeFor[discord.EmbedMedia](), []string{"MessageEmbedImageResponse", "RichEmbedImage", "RichEmbedThumbnail"}},
+	"EmbedAuthor":       {reflect.TypeFor[discord.EmbedAuthor](), []string{"MessageEmbedAuthorResponse", "RichEmbedAuthor"}},
+	"EmbedField":        {reflect.TypeFor[discord.EmbedField](), []string{"MessageEmbedFieldResponse", "RichEmbedField"}},
+	"Embed":             {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
+	"Message":           {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
+	"Emoji":             {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
+	"EntityMetadata":    {reflect.TypeFor[discord.EntityMetadata](), []string{"EntityMetadataExternalResponse", "EntityMetadataExternal"}},
+	"NWeekday":          {reflect.TypeFor[discord.NWeekday](), []string{"ByNWeekdayResponse", "ByNWeekday"}},
+	"RecurrenceRule":    {reflect.TypeFor[discord.RecurrenceRule](), []string{"RecurrenceRuleResponse", "RecurrenceRule"}},
 	"ScheduledEvent": {reflect.TypeFor[discord.ScheduledEvent](), []string{
 		"ExternalScheduledEventResponse", "StageScheduledEventResponse", "VoiceScheduledEventResponse",
 	}},
@@ -61,18 +71,22 @@ var modelSchemas = map[string]struct {
 	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
 	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
 	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
-	"InviteGuild":            {reflect.TypeFor[discord.InviteGuild](), []string{"InviteGuildResponse"}},
-	"Sticker":                {reflect.TypeFor[discord.Sticker](), []string{"GuildStickerResponse"}},
-	"SoundboardSound":        {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
-	"VoiceRegion":            {reflect.TypeFor[discord.VoiceRegion](), []string{"VoiceRegionResponse"}},
-	"GuildPreview":           {reflect.TypeFor[discord.GuildPreview](), []string{"GuildPreviewResponse"}},
-	"VanityURL":              {reflect.TypeFor[discord.VanityURL](), []string{"VanityURLResponse"}},
-	"GuildWidget":            {reflect.TypeFor[discord.GuildWidget](), []string{"WidgetResponse"}},
-	"WidgetChannel":          {reflect.TypeFor[discord.WidgetChannel](), []string{"WidgetChannel"}},
-	"WidgetMember":           {reflect.TypeFor[discord.WidgetMember](), []string{"WidgetMember"}},
-	"MessagePin":             {reflect.TypeFor[discord.MessagePin](), []string{"PinnedMessageResponse"}},
-	"MessagePins":            {reflect.TypeFor[discord.MessagePins](), []string{"PinnedMessagesResponse"}},
-	"StandardSticker":        {reflect.TypeFor[discord.StandardSticker](), []string{"StandardStickerResponse"}},
+
+	"FollowedChannel":      {reflect.TypeFor[discord.FollowedChannel](), []string{"ChannelFollowerResponse"}},
+	"FollowerWebhook":      {reflect.TypeFor[discord.FollowerWebhook](), []string{"ChannelFollowerWebhookResponse"}},
+	"WebhookSourceChannel": {reflect.TypeFor[discord.WebhookSourceChannel](), []string{"WebhookSourceChannelResponse"}},
+	"InviteGuild":          {reflect.TypeFor[discord.InviteGuild](), []string{"InviteGuildResponse"}},
+	"Sticker":              {reflect.TypeFor[discord.Sticker](), []string{"GuildStickerResponse"}},
+	"SoundboardSound":      {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
+	"VoiceRegion":          {reflect.TypeFor[discord.VoiceRegion](), []string{"VoiceRegionResponse"}},
+	"GuildPreview":         {reflect.TypeFor[discord.GuildPreview](), []string{"GuildPreviewResponse"}},
+	"VanityURL":            {reflect.TypeFor[discord.VanityURL](), []string{"VanityURLResponse"}},
+	"GuildWidget":          {reflect.TypeFor[discord.GuildWidget](), []string{"WidgetResponse"}},
+	"WidgetChannel":        {reflect.TypeFor[discord.WidgetChannel](), []string{"WidgetChannel"}},
+	"WidgetMember":         {reflect.TypeFor[discord.WidgetMember](), []string{"WidgetMember"}},
+	"MessagePin":           {reflect.TypeFor[discord.MessagePin](), []string{"PinnedMessageResponse"}},
+	"MessagePins":          {reflect.TypeFor[discord.MessagePins](), []string{"PinnedMessagesResponse"}},
+	"StandardSticker":      {reflect.TypeFor[discord.StandardSticker](), []string{"StandardStickerResponse"}},
 	// AnySticker embeds StandardSticker, which is checked on its own; only
 	// the guild sticker fields it adds are checked here.
 	"AnySticker":     {reflect.TypeFor[discord.AnySticker](), []string{"GuildStickerResponse"}},
@@ -82,9 +96,43 @@ var modelSchemas = map[string]struct {
 	"AuditLogEntry":  {reflect.TypeFor[discord.AuditLogEntry](), []string{"AuditLogEntryResponse"}},
 	"AuditLogChange": {reflect.TypeFor[discord.AuditLogChange](), []string{"AuditLogObjectChangeResponse"}},
 	// List SKUs is documented but missing from the spec.
-	"SKU":          {reflect.TypeFor[discord.SKU](), nil},
-	"Entitlement":  {reflect.TypeFor[discord.Entitlement](), []string{"EntitlementResponse"}},
-	"Subscription": {reflect.TypeFor[discord.Subscription](), []string{"SubscriptionResponse"}},
+	"SKU":                {reflect.TypeFor[discord.SKU](), nil},
+	"Entitlement":        {reflect.TypeFor[discord.Entitlement](), []string{"EntitlementResponse"}},
+	"Subscription":       {reflect.TypeFor[discord.Subscription](), []string{"SubscriptionResponse"}},
+	"ApplicationCommand": {reflect.TypeFor[discord.ApplicationCommand](), []string{"ApplicationCommandResponse"}},
+	"ApplicationCommandOption": {reflect.TypeFor[discord.ApplicationCommandOption](), []string{
+		"ApplicationCommandAttachmentOptionResponse", "ApplicationCommandBooleanOptionResponse",
+		"ApplicationCommandChannelOptionResponse", "ApplicationCommandIntegerOptionResponse",
+		"ApplicationCommandMentionableOptionResponse", "ApplicationCommandNumberOptionResponse",
+		"ApplicationCommandRoleOptionResponse", "ApplicationCommandStringOptionResponse",
+		"ApplicationCommandSubcommandGroupOptionResponse", "ApplicationCommandSubcommandOptionResponse",
+		"ApplicationCommandUserOptionResponse",
+	}},
+	"ApplicationCommandOptionChoice": {reflect.TypeFor[discord.ApplicationCommandOptionChoice](), []string{
+		"ApplicationCommandOptionStringChoiceResponse", "ApplicationCommandOptionIntegerChoiceResponse",
+		"ApplicationCommandOptionNumberChoiceResponse",
+	}},
+	"AutoModerationRule": {reflect.TypeFor[discord.AutoModerationRule](), []string{
+		"KeywordRuleResponse", "MLSpamRuleResponse", "DefaultKeywordRuleResponse", "MentionSpamRuleResponse", "UserProfileRuleResponse",
+	}},
+	"AutoModerationAction": {reflect.TypeFor[discord.AutoModerationAction](), []string{
+		"BlockMessageActionResponse", "FlagToChannelActionResponse", "UserCommunicationDisabledActionResponse", "QuarantineUserActionResponse",
+	}},
+	"AutoModerationTriggerMetadata": {reflect.TypeFor[discord.AutoModerationTriggerMetadata](), []string{
+		"KeywordTriggerMetadataResponse", "DefaultKeywordListTriggerMetadataResponse", "MentionSpamTriggerMetadataResponse", "UserProfileMetadataResponse",
+	}},
+	"AutoModerationActionMetadata": {reflect.TypeFor[discord.AutoModerationActionMetadata](), []string{
+		"BlockMessageActionMetadataResponse", "FlagToChannelActionMetadataResponse", "UserCommunicationDisabledActionMetadataResponse",
+	}},
+}
+
+// modelUnions lists the structs that model a union, such as the trigger
+// metadata of every AutoMod trigger type: each JSON field must exist in at
+// least one of the schemas listed, rather than in all of them.
+var modelUnions = map[string]bool{
+	"ApplicationCommandOption":      true,
+	"AutoModerationTriggerMetadata": true,
+	"AutoModerationActionMetadata":  true,
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go
@@ -109,7 +157,8 @@ func TestModelsTableIsComplete(t *testing.T) {
 		}
 	}
 	slices.Sort(structs)
-	if want := slices.Sorted(maps.Keys(modelSchemas)); !slices.Equal(structs, want) {
+	want := slices.Sorted(maps.Keys(modelSchemas))
+	if !slices.Equal(structs, want) {
 		t.Errorf("models.go structs %v do not match modelSchemas %v", structs, want)
 	}
 }
@@ -120,6 +169,19 @@ func TestModelsTableIsComplete(t *testing.T) {
 func TestModelsMatchSpec(t *testing.T) {
 	s := pinnedSpec(t)
 	for name, m := range modelSchemas {
+		if modelUnions[name] {
+			union := &Schema{}
+			for _, schemaName := range m.schemas {
+				if _, ok := s.Schema(schemaName); !ok {
+					t.Errorf("discord.%s: schema %s is not in the spec", name, schemaName)
+				}
+				union.OneOf = append(union.OneOf, &Schema{Ref: "#/components/schemas/" + schemaName})
+			}
+			for _, err := range structMismatches(s, m.typ, union) {
+				t.Errorf("discord.%s against the union of its schemas: %s", name, err)
+			}
+			continue
+		}
 		for _, schemaName := range m.schemas {
 			sc, ok := s.Schema(schemaName)
 			if !ok {

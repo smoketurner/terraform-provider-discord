@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // Payload is a JSON request body. Only the keys present are sent, and a nil
@@ -204,6 +205,20 @@ func (c *Client) DeleteWebhook(ctx context.Context, webhookID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/webhooks/"+webhookID, nil, nil)
 }
 
+// FollowChannel follows an announcement channel into a target channel, which
+// creates a Channel Follower webhook there.
+func (c *Client) FollowChannel(ctx context.Context, channelID, targetChannelID string) (*FollowedChannel, error) {
+	var f FollowedChannel
+	return &f, c.doAudited(ctx, http.MethodPost, "/channels/"+channelID+"/followers", Payload{"webhook_channel_id": targetChannelID}, &f)
+}
+
+// GetFollowerWebhook fetches a webhook as a Channel Follower webhook. Callers
+// check Type, since the endpoint returns webhooks of every type.
+func (c *Client) GetFollowerWebhook(ctx context.Context, webhookID string) (*FollowerWebhook, error) {
+	var w FollowerWebhook
+	return &w, c.do(ctx, http.MethodGet, "/webhooks/"+webhookID, nil, &w)
+}
+
 // ExecuteWebhook posts a message through a webhook and waits for Discord to
 // return it. A non-empty threadID posts in that thread of the webhook's
 // channel.
@@ -263,6 +278,32 @@ func (c *Client) DeleteInvite(ctx context.Context, code string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/invites/"+url.PathEscape(code), nil, nil)
 }
 
+// GetInviteTargetUsers returns the IDs of the users allowed to accept an
+// invite. Discord returns them as a CSV file with a user_id header.
+func (c *Client) GetInviteTargetUsers(ctx context.Context, code string) ([]string, error) {
+	var csv []byte
+	if err := c.do(ctx, http.MethodGet, "/invites/"+url.PathEscape(code)+"/target-users", nil, &csv); err != nil {
+		return nil, err
+	}
+	ids := []string{}
+	for line := range strings.Lines(string(csv)) {
+		if id := strings.TrimSpace(line); id != "" && id != "user_id" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+// AddInviteTargetUsers allows up to 1000 more users to accept an invite.
+func (c *Client) AddInviteTargetUsers(ctx context.Context, code string, userIDs []string) error {
+	return c.do(ctx, http.MethodPost, "/invites/"+url.PathEscape(code)+"/target-users/bulk-add", Payload{"user_ids": userIDs}, nil)
+}
+
+// RemoveInviteTargetUsers stops up to 1000 users from accepting an invite.
+func (c *Client) RemoveInviteTargetUsers(ctx context.Context, code string, userIDs []string) error {
+	return c.do(ctx, http.MethodPost, "/invites/"+url.PathEscape(code)+"/target-users/bulk-delete", Payload{"user_ids": userIDs}, nil)
+}
+
 // CreateMessage posts a message to a channel.
 func (c *Client) CreateMessage(ctx context.Context, channelID string, p Payload) (*Message, error) {
 	var m Message
@@ -294,6 +335,37 @@ func (c *Client) PinMessage(ctx context.Context, channelID, messageID string) er
 // UnpinMessage unpins a message.
 func (c *Client) UnpinMessage(ctx context.Context, channelID, messageID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/channels/"+channelID+"/messages/pins/"+messageID, nil, nil)
+}
+
+// The reaction endpoints take the emoji as a unicode emoji or "name:id" for a
+// custom emoji, and reject it unless it is URL-encoded.
+
+// AddOwnReaction reacts to a message as the bot.
+func (c *Client) AddOwnReaction(ctx context.Context, channelID, messageID, emoji string) error {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "/@me"
+	return c.do(ctx, http.MethodPut, path, nil, nil)
+}
+
+// DeleteOwnReaction removes the bot's reaction from a message.
+func (c *Client) DeleteOwnReaction(ctx context.Context, channelID, messageID, emoji string) error {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "/@me"
+	return c.do(ctx, http.MethodDelete, path, nil, nil)
+}
+
+// MaxReactionsPage is the most users Discord returns per page of reactions,
+// which ListReactions requests.
+const MaxReactionsPage = 100
+
+// ListReactions returns one page of the users who reacted to a message with
+// an emoji, in user ID order, starting after the user ID after, or from the
+// first user when after is empty. Burst reactions are not included.
+func (c *Client) ListReactions(ctx context.Context, channelID, messageID, emoji, after string) ([]User, error) {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "?limit=100"
+	if after != "" {
+		path += "&after=" + after
+	}
+	var users []User
+	return users, c.do(ctx, http.MethodGet, path, nil, &users)
 }
 
 // GetEmoji fetches a custom guild emoji.
@@ -365,6 +437,29 @@ func (c *Client) ModifySoundboardSound(ctx context.Context, guildID, soundID str
 // DeleteSoundboardSound deletes a guild soundboard sound.
 func (c *Client) DeleteSoundboardSound(ctx context.Context, guildID, soundID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, nil, nil)
+}
+
+// GetAutoModerationRule fetches an AutoMod rule.
+func (c *Client) GetAutoModerationRule(ctx context.Context, guildID, ruleID string) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, &r)
+}
+
+// CreateAutoModerationRule creates an AutoMod rule.
+func (c *Client) CreateAutoModerationRule(ctx context.Context, guildID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/auto-moderation/rules", p, &r)
+}
+
+// ModifyAutoModerationRule updates an AutoMod rule.
+func (c *Client) ModifyAutoModerationRule(ctx context.Context, guildID, ruleID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, p, &r)
+}
+
+// DeleteAutoModerationRule deletes an AutoMod rule.
+func (c *Client) DeleteAutoModerationRule(ctx context.Context, guildID, ruleID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, nil)
 }
 
 // GetScheduledEvent fetches a guild scheduled event.
@@ -467,4 +562,59 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 func (c *Client) GetCurrentApplication(ctx context.Context) (*Application, error) {
 	var a Application
 	return &a, c.do(ctx, http.MethodGet, "/applications/@me", nil, &a)
+}
+
+// ModifyCurrentUser updates the bot's own user.
+func (c *Client) ModifyCurrentUser(ctx context.Context, p Payload) (*User, error) {
+	var u User
+	return &u, c.do(ctx, http.MethodPatch, "/users/@me", p, &u)
+}
+
+// ModifyCurrentMember updates the bot's own member profile in a guild.
+func (c *Client) ModifyCurrentMember(ctx context.Context, guildID string, p Payload) (*Member, error) {
+	var m Member
+	return &m, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/members/@me", p, &m)
+}
+
+// ModifyCurrentApplication updates the application the bot token belongs to.
+func (c *Client) ModifyCurrentApplication(ctx context.Context, p Payload) (*Application, error) {
+	var a Application
+	return &a, c.do(ctx, http.MethodPatch, "/applications/@me", p, &a)
+}
+
+// GetRoleConnectionMetadata lists an application's role connection metadata
+// records.
+func (c *Client) GetRoleConnectionMetadata(ctx context.Context, applicationID string) ([]RoleConnectionMetadata, error) {
+	var records []RoleConnectionMetadata
+	return records, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/role-connections/metadata", nil, &records)
+}
+
+// UpdateRoleConnectionMetadata replaces all of an application's role
+// connection metadata records.
+func (c *Client) UpdateRoleConnectionMetadata(ctx context.Context, applicationID string, records []RoleConnectionMetadata) ([]RoleConnectionMetadata, error) {
+	var out []RoleConnectionMetadata
+	return out, c.do(ctx, http.MethodPut, "/applications/"+applicationID+"/role-connections/metadata", records, &out)
+}
+
+// GetApplicationEmoji fetches an emoji owned by an application.
+func (c *Client) GetApplicationEmoji(ctx context.Context, applicationID, emojiID string) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/emojis/"+emojiID, nil, &e)
+}
+
+// CreateApplicationEmoji uploads an emoji owned by an application.
+func (c *Client) CreateApplicationEmoji(ctx context.Context, applicationID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPost, "/applications/"+applicationID+"/emojis", p, &e)
+}
+
+// ModifyApplicationEmoji renames an emoji owned by an application.
+func (c *Client) ModifyApplicationEmoji(ctx context.Context, applicationID, emojiID string, p Payload) (*Emoji, error) {
+	var e Emoji
+	return &e, c.do(ctx, http.MethodPatch, "/applications/"+applicationID+"/emojis/"+emojiID, p, &e)
+}
+
+// DeleteApplicationEmoji deletes an emoji owned by an application.
+func (c *Client) DeleteApplicationEmoji(ctx context.Context, applicationID, emojiID string) error {
+	return c.do(ctx, http.MethodDelete, "/applications/"+applicationID+"/emojis/"+emojiID, nil, nil)
 }
