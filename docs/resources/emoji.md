@@ -31,6 +31,7 @@ resource "discord_emoji" "party" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `roles` (Set of String) Role IDs allowed to use the emoji. Omit to allow everyone.
 
 ### Read-Only

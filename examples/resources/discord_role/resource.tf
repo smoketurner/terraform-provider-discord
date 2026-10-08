@@ -12,4 +12,7 @@ resource "discord_role" "member" {
     "CONNECT",
     "SPEAK",
   ])
+
+  # Overrides the provider's audit_log_reason for this role.
+  audit_log_reason = "Default member role (OPS-42)"
 }

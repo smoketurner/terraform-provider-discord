@@ -27,12 +27,13 @@ type channelPermissionResource struct {
 }
 
 type channelPermissionModel struct {
-	ID          types.String `tfsdk:"id"`
-	ChannelID   types.String `tfsdk:"channel_id"`
-	OverwriteID types.String `tfsdk:"overwrite_id"`
-	Type        types.String `tfsdk:"type"`
-	Allow       types.String `tfsdk:"allow"`
-	Deny        types.String `tfsdk:"deny"`
+	ID             types.String `tfsdk:"id"`
+	ChannelID      types.String `tfsdk:"channel_id"`
+	OverwriteID    types.String `tfsdk:"overwrite_id"`
+	Type           types.String `tfsdk:"type"`
+	Allow          types.String `tfsdk:"allow"`
+	Deny           types.String `tfsdk:"deny"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newChannelPermissionResource() resource.Resource { return &channelPermissionResource{} }
@@ -48,7 +49,8 @@ func (r *channelPermissionResource) Schema(_ context.Context, _ resource.SchemaR
 			"written in a single request, so permissions are never temporarily removed. If the overwrite is deleted " +
 			"outside Terraform it is recreated on the next apply.",
 		Attributes: map[string]schema.Attribute{
-			"id": idAttribute("`channel_id/overwrite_id`."),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("`channel_id/overwrite_id`."),
 			"channel_id": schema.StringAttribute{
 				MarkdownDescription: "ID of the channel.",
 				Required:            true,
@@ -104,6 +106,7 @@ func (r *channelPermissionResource) Create(ctx context.Context, req resource.Cre
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	if err := r.write(ctx, &plan); err != nil {
 		apiError(&resp.Diagnostics, "set channel permission", err)
 		return
@@ -140,11 +143,15 @@ func (r *channelPermissionResource) Read(ctx context.Context, req resource.ReadR
 }
 
 func (r *channelPermissionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan channelPermissionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	if err := r.write(ctx, &plan); err != nil {
 		apiError(&resp.Diagnostics, "set channel permission", err)
 		return
@@ -158,6 +165,7 @@ func (r *channelPermissionResource) Delete(ctx context.Context, req resource.Del
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	err := r.client.DeleteChannelPermission(ctx, state.ChannelID.ValueString(), state.OverwriteID.ValueString())
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete channel permission", err)

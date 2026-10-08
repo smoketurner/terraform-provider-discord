@@ -35,6 +35,7 @@ output "deploy_webhook_url" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `avatar` (String) Default avatar as a data URI, e.g. `"data:image/png;base64,${filebase64("avatar.png")}"`.
 
 ### Read-Only

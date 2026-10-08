@@ -31,6 +31,7 @@ resource "discord_stage_channel" "town_hall" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `bitrate` (Number) Bitrate in bits per second, at least `8000`. At most `64000` for stage channels. Defaults to Discord's default (64000).
 - `category_id` (String) ID of the parent category channel. Omit to place the channel outside any category.
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.

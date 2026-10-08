@@ -27,6 +27,9 @@ resource "discord_role" "member" {
     "CONNECT",
     "SPEAK",
   ])
+
+  # Overrides the provider's audit_log_reason for this role.
+  audit_log_reason = "Default member role (OPS-42)"
 }
 ```
 
@@ -40,6 +43,7 @@ resource "discord_role" "member" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `color` (Number) RGB color as an integer. Use `provider::discord::color("#rrggbb")` to convert a hex color. Defaults to `0` (no color).
 - `hoist` (Boolean) Whether members with this role are displayed separately in the member list. Defaults to `false`.
 - `mentionable` (Boolean) Whether anyone can mention this role. Defaults to `false`.

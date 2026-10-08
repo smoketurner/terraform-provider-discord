@@ -32,6 +32,7 @@ resource "discord_text_channel" "general" {
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `category_id` (String) ID of the parent category channel. Omit to place the channel outside any category.
 - `default_auto_archive_duration` (Number) Default minutes of inactivity after which new threads are archived: `60`, `1440`, `4320` or `10080`.
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.

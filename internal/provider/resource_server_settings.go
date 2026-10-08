@@ -55,6 +55,7 @@ type serverSettingsModel struct {
 	PremiumProgressBarEnabled   types.Bool   `tfsdk:"premium_progress_bar_enabled"`
 	OwnerID                     types.String `tfsdk:"owner_id"`
 	Features                    types.Set    `tfsdk:"features"`
+	AuditLogReason              types.String `tfsdk:"audit_log_reason"`
 }
 
 func newServerSettingsResource() resource.Resource { return &serverSettingsResource{} }
@@ -90,10 +91,11 @@ func (r *serverSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"servers, so this resource adopts a server the bot has been invited to. Settings omitted from configuration are " +
 			"left unmanaged. Destroying the resource only removes it from Terraform state.",
 		Attributes: map[string]schema.Attribute{
-			"id":          idAttribute("Server ID."),
-			"server_id":   serverIDAttribute(),
-			"name":        optionalComputedString("Server name (2-100 characters).", stringvalidator.LengthBetween(2, 100)),
-			"description": optionalComputedString("Server description. Requires Community."),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Server ID."),
+			"server_id":        serverIDAttribute(),
+			"name":             optionalComputedString("Server name (2-100 characters).", stringvalidator.LengthBetween(2, 100)),
+			"description":      optionalComputedString("Server description. Requires Community."),
 			"icon": schema.StringAttribute{
 				MarkdownDescription: "Server icon as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"icon.png\")}\"`. " +
 					"Discord only returns a hash of the icon, so changes made outside Terraform are detected through `icon_hash` only. " +
@@ -204,6 +206,7 @@ func (r *serverSettingsResource) Create(ctx context.Context, req resource.Create
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	g, err := r.client.GetGuild(ctx, plan.ServerID.ValueString())
 	if err != nil {
 		apiError(&resp.Diagnostics, "read server", err)
@@ -241,12 +244,16 @@ func (r *serverSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *serverSettingsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan, state serverSettingsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	g, err := r.client.ModifyGuild(ctx, state.ServerID.ValueString(), diffPayload(plan.payload(), state.payload()))
 	if err != nil {
 		apiError(&resp.Diagnostics, "update server", err)
