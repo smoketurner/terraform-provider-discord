@@ -3,18 +3,24 @@
 page_title: "discord_threads Data Source - discord"
 subcategory: ""
 description: |-
-  Lists the active (not archived) threads of a server, public and private, newest first.
+  Lists the active (not archived) threads of a server, public and private, newest first, or the archived threads of one channel, most recently archived first.
 ---
 
 # discord_threads (Data Source)
 
-Lists the active (not archived) threads of a server, public and private, newest first.
+Lists the active (not archived) threads of a server, public and private, newest first, or the archived threads of one channel, most recently archived first.
 
 ## Example Usage
 
 ```terraform
 data "discord_threads" "active" {
   server_id = var.server_id
+}
+
+data "discord_threads" "archived" {
+  server_id  = var.server_id
+  channel_id = var.channel_id
+  archived   = "public"
 }
 ```
 
@@ -24,6 +30,11 @@ data "discord_threads" "active" {
 ### Required
 
 - `server_id` (String) ID of the server (guild).
+
+### Optional
+
+- `archived` (String) List the archived threads of `channel_id` instead of active ones: `public` (public and announcement threads; requires the Read Message History permission) or `private` (requires the Read Message History and Manage Threads permissions).
+- `channel_id` (String) Only list the threads in this channel. Required with `archived`.
 
 ### Read-Only
 

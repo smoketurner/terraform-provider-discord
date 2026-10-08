@@ -3,18 +3,23 @@
 page_title: "discord_webhooks Data Source - discord"
 subcategory: ""
 description: |-
-  Lists the webhooks of every channel in a server. Requires the Manage Webhooks permission.
+  Lists the webhooks of every channel in a server, or of one channel. Requires the Manage Webhooks permission.
 ---
 
 # discord_webhooks (Data Source)
 
-Lists the webhooks of every channel in a server. Requires the Manage Webhooks permission.
+Lists the webhooks of every channel in a server, or of one channel. Requires the Manage Webhooks permission.
 
 ## Example Usage
 
 ```terraform
 data "discord_webhooks" "all" {
   server_id = var.server_id
+}
+
+data "discord_webhooks" "announcements" {
+  server_id  = var.server_id
+  channel_id = var.channel_id
 }
 ```
 
@@ -24,6 +29,10 @@ data "discord_webhooks" "all" {
 ### Required
 
 - `server_id` (String) ID of the server (guild).
+
+### Optional
+
+- `channel_id` (String) Only list the webhooks of this channel.
 
 ### Read-Only
 

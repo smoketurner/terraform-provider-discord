@@ -3,6 +3,7 @@ package discord
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
@@ -117,4 +118,45 @@ func (c *Client) ListActiveThreads(ctx context.Context, guildID string) ([]Threa
 func (c *Client) ListIntegrations(ctx context.Context, guildID string) ([]Integration, error) {
 	var integrations []Integration
 	return integrations, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/integrations", nil, &integrations)
+}
+
+// ListChannelWebhooks lists the webhooks of a channel.
+func (c *Client) ListChannelWebhooks(ctx context.Context, channelID string) ([]Webhook, error) {
+	var webhooks []Webhook
+	return webhooks, c.do(ctx, http.MethodGet, "/channels/"+channelID+"/webhooks", nil, &webhooks)
+}
+
+// ArchivedThreadsPageSize is the largest page List Public Archived Threads
+// and List Private Archived Threads return.
+const ArchivedThreadsPageSize = 100
+
+// ListArchivedThreads lists the archived public or private threads of a
+// channel, most recently archived first, following has_more with the archive
+// timestamp of the last thread of each page.
+func (c *Client) ListArchivedThreads(ctx context.Context, channelID string, private bool) ([]Thread, error) {
+	kind := "public"
+	if private {
+		kind = "private"
+	}
+	all := []Thread{}
+	query := url.Values{"limit": {strconv.Itoa(ArchivedThreadsPageSize)}}
+	for {
+		var page struct {
+			Threads []Thread `json:"threads"`
+			HasMore bool     `json:"has_more"`
+		}
+		path := "/channels/" + channelID + "/threads/archived/" + kind + "?" + query.Encode()
+		if err := c.do(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return nil, err
+		}
+		all = append(all, page.Threads...)
+		if !page.HasMore || len(page.Threads) == 0 {
+			return all, nil
+		}
+		last := page.Threads[len(page.Threads)-1].ThreadMetadata
+		if last == nil || last.ArchiveTimestamp == nil {
+			return all, nil
+		}
+		query.Set("before", *last.ArchiveTimestamp)
+	}
 }

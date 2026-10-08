@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -470,8 +471,9 @@ func newSoundboardSoundsDataSource() datasource.DataSource {
 var webhookTypes = enumMapping{"", "incoming", "channel_follower", "application"}
 
 type webhooksDataModel struct {
-	ServerID types.String       `tfsdk:"server_id"`
-	Webhooks []webhookItemModel `tfsdk:"webhooks"`
+	ServerID  types.String       `tfsdk:"server_id"`
+	ChannelID types.String       `tfsdk:"channel_id"`
+	Webhooks  []webhookItemModel `tfsdk:"webhooks"`
 }
 
 type webhookItemModel struct {
@@ -484,8 +486,13 @@ type webhookItemModel struct {
 func newWebhooksDataSource() datasource.DataSource {
 	return &listDataSource[webhooksDataModel]{
 		name: "webhooks",
-		desc: "Lists the webhooks of every channel in a server. Requires the Manage Webhooks permission.",
+		desc: "Lists the webhooks of every channel in a server, or of one channel. Requires the Manage Webhooks permission.",
 		attrs: map[string]schema.Attribute{
+			"channel_id": schema.StringAttribute{
+				MarkdownDescription: "Only list the webhooks of this channel.",
+				Optional:            true,
+				Validators:          []validator.String{snowflakeValidator()},
+			},
 			"webhooks": computedList("The webhooks.", map[string]schema.Attribute{
 				"id":         computedString("Webhook ID."),
 				"name":       computedString("Webhook name."),
@@ -494,7 +501,13 @@ func newWebhooksDataSource() datasource.DataSource {
 			}),
 		},
 		read: func(ctx context.Context, c *discord.Client, m *webhooksDataModel, diags *diag.Diagnostics) {
-			webhooks, err := c.ListGuildWebhooks(ctx, m.ServerID.ValueString())
+			var webhooks []discord.Webhook
+			var err error
+			if m.ChannelID.IsNull() {
+				webhooks, err = c.ListGuildWebhooks(ctx, m.ServerID.ValueString())
+			} else {
+				webhooks, err = c.ListChannelWebhooks(ctx, m.ChannelID.ValueString())
+			}
 			if err != nil {
 				apiError(diags, "list webhooks", err)
 				return
@@ -708,8 +721,10 @@ func newAutoModerationRulesDataSource() datasource.DataSource {
 // Threads.
 
 type threadsDataModel struct {
-	ServerID types.String      `tfsdk:"server_id"`
-	Threads  []threadItemModel `tfsdk:"threads"`
+	ServerID  types.String      `tfsdk:"server_id"`
+	ChannelID types.String      `tfsdk:"channel_id"`
+	Archived  types.String      `tfsdk:"archived"`
+	Threads   []threadItemModel `tfsdk:"threads"`
 }
 
 type threadItemModel struct {
@@ -724,8 +739,24 @@ type threadItemModel struct {
 func newThreadsDataSource() datasource.DataSource {
 	return &listDataSource[threadsDataModel]{
 		name: "threads",
-		desc: "Lists the active (not archived) threads of a server, public and private, newest first.",
+		desc: "Lists the active (not archived) threads of a server, public and private, newest first, or the " +
+			"archived threads of one channel, most recently archived first.",
 		attrs: map[string]schema.Attribute{
+			"channel_id": schema.StringAttribute{
+				MarkdownDescription: "Only list the threads in this channel. Required with `archived`.",
+				Optional:            true,
+				Validators:          []validator.String{snowflakeValidator()},
+			},
+			"archived": schema.StringAttribute{
+				MarkdownDescription: "List the archived threads of `channel_id` instead of active ones: `public` " +
+					"(public and announcement threads; requires the Read Message History permission) or `private` " +
+					"(requires the Read Message History and Manage Threads permissions).",
+				Optional: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("public", "private"),
+					stringvalidator.AlsoRequires(path.MatchRoot("channel_id")),
+				},
+			},
 			"threads": computedList("The threads.", map[string]schema.Attribute{
 				"id":         computedString("Thread ID."),
 				"name":       computedString("Thread name."),
@@ -736,10 +767,21 @@ func newThreadsDataSource() datasource.DataSource {
 			}),
 		},
 		read: func(ctx context.Context, c *discord.Client, m *threadsDataModel, diags *diag.Diagnostics) {
-			threads, err := c.ListActiveThreads(ctx, m.ServerID.ValueString())
+			var threads []discord.Thread
+			var err error
+			if m.Archived.IsNull() {
+				threads, err = c.ListActiveThreads(ctx, m.ServerID.ValueString())
+			} else {
+				threads, err = c.ListArchivedThreads(ctx, m.ChannelID.ValueString(), m.Archived.ValueString() == "private")
+			}
 			if err != nil {
-				apiError(diags, "list active threads", err)
+				apiError(diags, "list threads", err)
 				return
+			}
+			if !m.ChannelID.IsNull() {
+				threads = slices.DeleteFunc(threads, func(t discord.Thread) bool {
+					return t.ParentID == nil || *t.ParentID != m.ChannelID.ValueString()
+				})
 			}
 			m.Threads = listOf(threads, func(t discord.Thread) threadItemModel {
 				typ, ok := threadTypes[t.Type]

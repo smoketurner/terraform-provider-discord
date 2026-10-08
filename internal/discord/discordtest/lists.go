@@ -27,6 +27,9 @@ func (s *Server) handleLists(mux *http.ServeMux) {
 	mux.HandleFunc("GET /guilds/{guild}/threads/active", s.listActiveThreads)
 	mux.HandleFunc("GET /guilds/{guild}/auto-moderation/rules", s.listAutomodRules)
 	mux.HandleFunc("GET /guilds/{guild}/integrations", s.listIntegrations)
+	mux.HandleFunc("GET /channels/{channel}/webhooks", s.listChannelWebhooks)
+	mux.HandleFunc("GET /channels/{channel}/threads/archived/public", s.listArchivedThreads(false))
+	mux.HandleFunc("GET /channels/{channel}/threads/archived/private", s.listArchivedThreads(true))
 }
 
 // userPage returns the items after the "after" user ID, in ascending order of
@@ -215,4 +218,49 @@ func (s *Server) listIntegrations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, append([]discord.Integration{}, s.lists.integrations[g.ID]...))
+}
+
+func (s *Server) listChannelWebhooks(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch, ok := s.channel(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, sortedByID(s.webhooks, func(wh *discord.Webhook) bool { return wh.ChannelID == ch.ID }))
+}
+
+// listArchivedThreads models List Public and Private Archived Threads: the
+// channel's archived threads of the requested visibility, most recently
+// archived first, before the "before" timestamp, in pages of "limit" (2-100).
+func (s *Server) listArchivedThreads(private bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		ch, ok := s.channel(w, r)
+		if !ok {
+			return
+		}
+		limit := 50
+		if v := r.URL.Query().Get("limit"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 2 || n > discord.ArchivedThreadsPageSize {
+				invalidForm(w, "limit must be between 2 and 100")
+				return
+			}
+			limit = n
+		}
+		before := r.URL.Query().Get("before")
+		threads := sortedByID(s.threads, func(t *discord.Thread) bool {
+			meta := t.ThreadMetadata
+			return *t.ParentID == ch.ID && meta.Archived && meta.ArchiveTimestamp != nil &&
+				(t.Type == discord.ChannelTypePrivateThread) == private &&
+				(before == "" || *meta.ArchiveTimestamp < before)
+		})
+		slices.SortStableFunc(threads, func(a, b *discord.Thread) int {
+			return cmp.Compare(*b.ThreadMetadata.ArchiveTimestamp, *a.ThreadMetadata.ArchiveTimestamp)
+		})
+		hasMore := len(threads) > limit
+		writeJSON(w, http.StatusOK, map[string]any{"threads": threads[:min(limit, len(threads))], "members": []any{}, "has_more": hasMore})
+	}
 }

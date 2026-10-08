@@ -312,9 +312,22 @@ resource "discord_webhook" "test" {
   channel_id = discord_text_channel.test.id
   name       = "tf-acc-webhooks"
 }
+resource "discord_text_channel" "other" {
+  server_id = local.server_id
+  name      = "tf-acc-webhooks-other"
+}
+resource "discord_webhook" "other" {
+  channel_id = discord_text_channel.other.id
+  name       = "tf-acc-webhooks-other"
+}
 data "discord_webhooks" "test" {
   server_id  = local.server_id
-  depends_on = [discord_webhook.test]
+  depends_on = [discord_webhook.test, discord_webhook.other]
+}
+data "discord_webhooks" "channel" {
+  server_id  = local.server_id
+  channel_id = discord_text_channel.other.id
+  depends_on = [discord_webhook.test, discord_webhook.other]
 }`)
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{{
@@ -326,6 +339,9 @@ data "discord_webhooks" "test" {
 				}),
 				resource.TestCheckTypeSetElemAttrPair("data.discord_webhooks.test", "webhooks.*.id", "discord_webhook.test", "id"),
 				resource.TestCheckTypeSetElemAttrPair("data.discord_webhooks.test", "webhooks.*.channel_id", "discord_text_channel.test", "id"),
+				resource.TestCheckTypeSetElemAttrPair("data.discord_webhooks.test", "webhooks.*.id", "discord_webhook.other", "id"),
+				resource.TestCheckResourceAttr("data.discord_webhooks.channel", "webhooks.#", "1"),
+				resource.TestCheckResourceAttrPair("data.discord_webhooks.channel", "webhooks.0.id", "discord_webhook.other", "id"),
 			),
 		}},
 	})
@@ -469,34 +485,69 @@ func TestAccThreadsDataSource(t *testing.T) {
 	}
 	older := start("tf-acc-older")
 	newer := start("tf-acc-newer")
+	other := env.seedChannel("tf-acc-threads-other", discord.ChannelTypeText, 0, "")
+	if _, err := env.client.StartThread(ctx, other, discord.Payload{"name": "tf-acc-other", "type": discord.ChannelTypePublicThread}); err != nil {
+		t.Fatal(err)
+	}
 	cfg := env.config(`
 data "discord_threads" "test" {
   server_id = local.server_id
+}
+data "discord_threads" "channel" {
+  server_id  = local.server_id
+  channel_id = "` + parent + `"
 }`)
+	archivedCfg := cfg + `
+data "discord_threads" "public" {
+  server_id  = local.server_id
+  channel_id = "` + parent + `"
+  archived   = "public"
+}
+data "discord_threads" "private" {
+  server_id  = local.server_id
+  channel_id = "` + parent + `"
+  archived   = "private"
+}`
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
+				Config: env.config(`
+data "discord_threads" "test" {
+  server_id = local.server_id
+  archived  = "public"
+}`),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile(`channel_id`),
+			},
+			{
 				Config: cfg,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.#", "2"),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.id", newer),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.name", "tf-acc-newer"),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.type", "public_thread"),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.channel_id", parent),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.locked", "false"),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.1.id", older),
+					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.#", "3"),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.#", "2"),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.id", newer),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.1.id", older),
+					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.1.id", newer),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.name", "tf-acc-newer"),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.type", "public_thread"),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.channel_id", parent),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.locked", "false"),
+					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.2.id", older),
 				),
 			},
 			{
-				// Archived threads are not active.
+				// Archived threads are not active, and are listed per channel
+				// with archived.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
 					_, err := c.ModifyThread(ctx, newer, discord.Payload{"archived": true})
 					return err
 				}),
-				Config: cfg,
+				Config: archivedCfg,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.#", "1"),
-					resource.TestCheckResourceAttr("data.discord_threads.test", "threads.0.id", older),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.#", "1"),
+					resource.TestCheckResourceAttr("data.discord_threads.channel", "threads.0.id", older),
+					resource.TestCheckResourceAttr("data.discord_threads.public", "threads.#", "1"),
+					resource.TestCheckResourceAttr("data.discord_threads.public", "threads.0.id", newer),
+					resource.TestCheckResourceAttr("data.discord_threads.private", "threads.#", "0"),
 				),
 			},
 		},

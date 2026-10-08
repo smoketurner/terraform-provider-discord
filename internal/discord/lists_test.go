@@ -120,6 +120,49 @@ func TestListActiveThreadsUnwrapsResponse(t *testing.T) {
 	}
 }
 
+func TestListArchivedThreadsPagination(t *testing.T) {
+	var queries []string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Path+"?"+r.URL.RawQuery)
+		switch r.URL.Query().Get("before") {
+		case "":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"3","thread_metadata":{"archived":true,"archive_timestamp":"2026-03-01T00:00:00Z"}},` +
+				`{"id":"2","thread_metadata":{"archived":true,"archive_timestamp":"2026-02-01T00:00:00Z"}}],"members":[],"has_more":true}`))
+		default:
+			_, _ = w.Write([]byte(`{"threads":[{"id":"1","thread_metadata":{"archived":true,"archive_timestamp":"2026-01-01T00:00:00Z"}}],"members":[],"has_more":false}`))
+		}
+	})
+	threads, err := c.ListArchivedThreads(context.Background(), "9", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(threads) != 3 || threads[2].ID != "1" {
+		t.Errorf("threads = %+v", threads)
+	}
+	want := []string{
+		"/channels/9/threads/archived/private?limit=100",
+		"/channels/9/threads/archived/private?before=2026-02-01T00%3A00%3A00Z&limit=100",
+	}
+	if !slices.Equal(queries, want) {
+		t.Errorf("queries = %v, want %v", queries, want)
+	}
+}
+
+func TestListArchivedThreadsEmptyPage(t *testing.T) {
+	calls := 0
+	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		_, _ = w.Write([]byte(`{"threads":[],"members":[],"has_more":true}`))
+	})
+	threads, err := c.ListArchivedThreads(context.Background(), "9", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if threads == nil || len(threads) != 0 || calls != 1 {
+		t.Errorf("threads = %v after %d calls, want one call and an empty slice", threads, calls)
+	}
+}
+
 func TestListActiveThreadsError(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

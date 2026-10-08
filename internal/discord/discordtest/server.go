@@ -2204,6 +2204,11 @@ func (s *Server) modifyThread(w http.ResponseWriter, r *http.Request, t *discord
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return
 	}
+	if archived != meta.Archived {
+		// Fixed-width, so that timestamps order as strings.
+		ts := s.now().UTC().Format("2006-01-02T15:04:05.000000+00:00")
+		meta.ArchiveTimestamp = &ts
+	}
 	meta.Archived = archived
 	if archived {
 		updated.Flags &^= discord.ChannelFlagPinned

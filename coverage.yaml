@@ -180,7 +180,7 @@ operations:
   list_application_emojis: {status: planned, issue: 30}
   list_auto_moderation_rules: {status: covered, by: [data.discord_auto_moderation_rules]}
   list_channel_invites: {status: covered, by: [discord_invite]}
-  list_channel_webhooks: {status: planned, issue: 41}
+  list_channel_webhooks: {status: covered, by: [data.discord_webhooks]}
   list_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
   list_guild_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_guild_audit_log_entries: {status: covered, by: [data.discord_audit_log]}
@@ -204,8 +204,8 @@ operations:
   list_my_guilds: {status: out_of_scope, reason: "configurations name their servers explicitly"}
   list_my_private_archived_threads: {status: out_of_scope, reason: "thread membership is runtime state"}
   list_pins: {status: covered, by: [data.discord_pinned_messages]}
-  list_private_archived_threads: {status: planned, issue: 41}
-  list_public_archived_threads: {status: planned, issue: 41}
+  list_private_archived_threads: {status: covered, by: [data.discord_threads]}
+  list_public_archived_threads: {status: covered, by: [data.discord_threads]}
   list_sticker_packs: {status: covered, by: [data.discord_sticker_packs]}
   list_thread_members: {status: out_of_scope, reason: "thread membership is runtime state"}
   list_voice_regions: {status: covered, by: [data.discord_voice_regions]}

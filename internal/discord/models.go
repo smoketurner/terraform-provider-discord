@@ -148,10 +148,11 @@ type Channel struct {
 // ThreadMetadata holds the fields specific to threads. Invitable is only
 // present on private threads.
 type ThreadMetadata struct {
-	Archived            bool  `json:"archived"`
-	AutoArchiveDuration int64 `json:"auto_archive_duration"`
-	Locked              bool  `json:"locked"`
-	Invitable           *bool `json:"invitable,omitempty"`
+	Archived            bool    `json:"archived"`
+	AutoArchiveDuration int64   `json:"auto_archive_duration"`
+	Locked              bool    `json:"locked"`
+	Invitable           *bool   `json:"invitable,omitempty"`
+	ArchiveTimestamp    *string `json:"archive_timestamp"`
 }
 
 // Thread is a thread in a text or announcement channel, or a post in a forum
