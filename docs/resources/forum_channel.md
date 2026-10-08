@@ -3,12 +3,12 @@
 page_title: "discord_forum_channel Resource - discord"
 subcategory: ""
 description: |-
-  Manages a forum channel, where members create posts (threads) that can be tagged. Permission overwrites are managed with discord_channel_permission.
+  Manages a forum channel, where members create posts (threads) that can be tagged. Permission overwrites are managed with discord_channel_permission; initial_permission_overwrites only sets them when the channel is created.
 ---
 
 # discord_forum_channel (Resource)
 
-Manages a forum channel, where members create posts (threads) that can be tagged. Permission overwrites are managed with `discord_channel_permission`.
+Manages a forum channel, where members create posts (threads) that can be tagged. Permission overwrites are managed with `discord_channel_permission`; `initial_permission_overwrites` only sets them when the channel is created.
 
 ## Example Usage
 
@@ -52,6 +52,7 @@ resource "discord_forum_channel" "help" {
 - `default_reaction_emoji` (Attributes) Emoji shown in the add-reaction button on posts. (see [below for nested schema](#nestedatt--default_reaction_emoji))
 - `default_sort_order` (String) Default sort order for posts: `latest_activity`, `creation_date`. Omit to let each member choose.
 - `default_thread_rate_limit_per_user` (Number) Slowmode applied to new posts, in seconds between `0` and `21600`. Defaults to `0`.
+- `initial_permission_overwrites` (Attributes Set) Permission overwrites sent in the request that creates the channel, so a private channel is never visible without them. They are used only when the channel is created or replaced: Terraform does not read them back, and changing this argument later only updates state, without calling Discord. Manage overwrites after creation with `discord_channel_permission`; one with the same `overwrite_id` takes over the initial overwrite and writes its own `allow` and `deny`. The bot can only allow or deny permissions it has in the server, and only an Administrator can set `MANAGE_ROLES` in an overwrite. (see [below for nested schema](#nestedatt--initial_permission_overwrites))
 - `nsfw` (Boolean) Whether the channel is age-restricted. Defaults to `false`.
 - `rate_limit_per_user` (Number) Slowmode: seconds a member must wait between creating posts. Between `0` and `21600` seconds. Defaults to `0`.
 - `require_tag` (Boolean) Whether posts must have at least one tag. Defaults to `false`.
@@ -87,6 +88,20 @@ Optional:
 
 - `emoji_id` (String) ID of a custom server emoji. Exactly one of `emoji_id` or `emoji_name` is required.
 - `emoji_name` (String) Unicode emoji.
+
+
+<a id="nestedatt--initial_permission_overwrites"></a>
+### Nested Schema for `initial_permission_overwrites`
+
+Required:
+
+- `id` (String) ID of the role or member the overwrite applies to. Use the server ID for `@everyone`.
+- `type` (String) Overwrite target type: `role`, `member`.
+
+Optional:
+
+- `allow` (String) Allowed permission bitfield as a decimal string. Omit for `0`.
+- `deny` (String) Denied permission bitfield as a decimal string. Omit for `0`.
 
 ## Import
 

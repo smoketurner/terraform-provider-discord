@@ -3,12 +3,12 @@
 page_title: "discord_channel_permission Resource - discord"
 subcategory: ""
 description: |-
-  Manages one permission overwrite on a channel for a role or member. The overwrite is written in a single request, so permissions are never temporarily removed. If the overwrite is deleted outside Terraform it is recreated on the next apply.
+  Manages one permission overwrite on a channel for a role or member. The overwrite is written in a single request, so permissions are never temporarily removed. If the overwrite is deleted outside Terraform it is recreated on the next apply. An existing overwrite for the same role or member, such as one from a channel's initial_permission_overwrites, is taken over and replaced.
 ---
 
 # discord_channel_permission (Resource)
 
-Manages one permission overwrite on a channel for a role or member. The overwrite is written in a single request, so permissions are never temporarily removed. If the overwrite is deleted outside Terraform it is recreated on the next apply.
+Manages one permission overwrite on a channel for a role or member. The overwrite is written in a single request, so permissions are never temporarily removed. If the overwrite is deleted outside Terraform it is recreated on the next apply. An existing overwrite for the same role or member, such as one from a channel's `initial_permission_overwrites`, is taken over and replaced.
 
 ## Example Usage
 

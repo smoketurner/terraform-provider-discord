@@ -28,6 +28,9 @@ var (
 	forumSortOrders    = enumMapping{"latest_activity", "creation_date"}
 	forumLayouts       = enumMapping{"not_set", "list_view", "gallery_view"}
 	autoArchiveMinutes = []int64{60, 1440, 4320, 10080}
+	// convertibleChannelTypes names the channel types Discord converts
+	// between in place.
+	convertibleChannelTypes = enumMapping{discord.ChannelTypeText: "text", discord.ChannelTypeAnnouncement: "announcement"}
 )
 
 // Shared attribute definitions.
@@ -150,8 +153,32 @@ func newCategoryChannelResource() resource.Resource {
 
 // Text and announcement.
 
+// convertibleType is the current channel type of a text or announcement
+// channel.
+type convertibleType struct {
+	Type types.String `tfsdk:"type"`
+}
+
+func (c *convertibleType) apply(ch *discord.Channel) {
+	c.Type = convertibleChannelTypes.name(int64(ch.Type))
+}
+
+// convertibleTypeAttribute plans the kind's own type, so a channel of the
+// other type shows its conversion in the plan.
+func convertibleTypeAttribute(kind string) schema.StringAttribute {
+	return schema.StringAttribute{
+		MarkdownDescription: "Current channel type: `text` or `announcement`. Read-only. To convert between a text and " +
+			"an announcement channel without recreating it, change the resource type and add a `moved` block " +
+			"(Terraform 1.8 or later); the next apply sets the type to `" + kind + "`. Converting requires the server " +
+			"to have the `NEWS` feature (Community enabled).",
+		Computed: true,
+		Default:  stringdefault.StaticString(kind),
+	}
+}
+
 type textChannelModel struct {
 	channelBase
+	convertibleType
 	CategoryID                 types.String `tfsdk:"category_id"`
 	Topic                      types.String `tfsdk:"topic"`
 	NSFW                       types.Bool   `tfsdk:"nsfw"`
@@ -174,6 +201,7 @@ func (m *textChannelModel) payload(context.Context) (discord.Payload, diag.Diagn
 
 func (m *textChannelModel) apply(_ context.Context, ch *discord.Channel) diag.Diagnostics {
 	m.channelBase.apply(ch)
+	m.convertibleType.apply(ch)
 	m.CategoryID = stringPtrValue(ch.ParentID)
 	m.Topic = stringPtrValue(ch.Topic)
 	m.NSFW = types.BoolValue(ch.NSFW)
@@ -187,7 +215,11 @@ func newTextChannelResource() resource.Resource {
 		typeName:    "text_channel",
 		channelType: discord.ChannelTypeText,
 		description: "Manages a text channel.",
+		convertible: &channelConversion{
+			typeName: "announcement_channel", channelType: discord.ChannelTypeAnnouncement, resource: newAnnouncementChannelResource,
+		},
 		attributes: map[string]schema.Attribute{
+			"type":                          convertibleTypeAttribute("text"),
 			"category_id":                   categoryIDAttribute(),
 			"topic":                         topicAttribute(1024, "Channel topic (up to 1024 characters)."),
 			"nsfw":                          nsfwAttribute(),
@@ -199,6 +231,7 @@ func newTextChannelResource() resource.Resource {
 
 type announcementChannelModel struct {
 	channelBase
+	convertibleType
 	CategoryID                 types.String `tfsdk:"category_id"`
 	Topic                      types.String `tfsdk:"topic"`
 	NSFW                       types.Bool   `tfsdk:"nsfw"`
@@ -219,6 +252,7 @@ func (m *announcementChannelModel) payload(context.Context) (discord.Payload, di
 
 func (m *announcementChannelModel) apply(_ context.Context, ch *discord.Channel) diag.Diagnostics {
 	m.channelBase.apply(ch)
+	m.convertibleType.apply(ch)
 	m.CategoryID = stringPtrValue(ch.ParentID)
 	m.Topic = stringPtrValue(ch.Topic)
 	m.NSFW = types.BoolValue(ch.NSFW)
@@ -232,7 +266,11 @@ func newAnnouncementChannelResource() resource.Resource {
 		channelType: discord.ChannelTypeAnnouncement,
 		description: "Manages an announcement (news) channel whose messages other servers can follow. " +
 			"Requires the server to have Community enabled; otherwise Discord rejects the channel type.",
+		convertible: &channelConversion{
+			typeName: "text_channel", channelType: discord.ChannelTypeText, resource: newTextChannelResource,
+		},
 		attributes: map[string]schema.Attribute{
+			"type":                          convertibleTypeAttribute("announcement"),
 			"category_id":                   categoryIDAttribute(),
 			"topic":                         topicAttribute(1024, "Channel topic (up to 1024 characters)."),
 			"nsfw":                          nsfwAttribute(),

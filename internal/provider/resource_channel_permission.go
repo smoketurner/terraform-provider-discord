@@ -47,7 +47,8 @@ func (r *channelPermissionResource) Schema(_ context.Context, _ resource.SchemaR
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Manages one permission overwrite on a channel for a role or member. The overwrite is " +
 			"written in a single request, so permissions are never temporarily removed. If the overwrite is deleted " +
-			"outside Terraform it is recreated on the next apply.",
+			"outside Terraform it is recreated on the next apply. An existing overwrite for the same role or member, such " +
+			"as one from a channel's `initial_permission_overwrites`, is taken over and replaced.",
 		Attributes: map[string]schema.Attribute{
 			"audit_log_reason": auditLogReasonAttribute(),
 			"id":               idAttribute("`channel_id/overwrite_id`."),

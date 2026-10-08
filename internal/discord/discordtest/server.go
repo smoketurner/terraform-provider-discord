@@ -552,6 +552,28 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 	if ch.Type == discord.ChannelTypeMedia {
 		delete(body, "nsfw")
 	}
+	var overwrites []struct {
+		ID    string  `json:"id"`
+		Type  *int    `json:"type"`
+		Allow *string `json:"allow"`
+		Deny  *string `json:"deny"`
+	}
+	set(body, "permission_overwrites", &overwrites)
+	for _, o := range overwrites {
+		if o.Type == nil || (*o.Type != 0 && *o.Type != 1) {
+			writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+			return
+		}
+		// Discord defaults an omitted or null allow and deny to "0".
+		ow := discord.Overwrite{ID: o.ID, Type: *o.Type, Allow: "0", Deny: "0"}
+		if o.Allow != nil {
+			ow.Allow = *o.Allow
+		}
+		if o.Deny != nil {
+			ow.Deny = *o.Deny
+		}
+		ch.PermissionOverwrites = append(ch.PermissionOverwrites, ow)
+	}
 	if err := s.applyChannel(ch, body); err != nil {
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return
@@ -597,6 +619,13 @@ func (s *Server) DenyChannel(channelID string) {
 	s.denied[channelID] = true
 }
 
+// SetGuildFeatures replaces the features of the seeded guild.
+func (s *Server) SetGuildFeatures(features ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.guilds[GuildID].Features = features
+}
+
 func (s *Server) modifyChannel(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -610,6 +639,17 @@ func (s *Server) modifyChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated := *ch
+	if _, ok := body["type"]; ok {
+		set(body, "type", &updated.Type)
+		// Only text and announcement channels convert, and only in guilds
+		// with the NEWS feature.
+		convertible := func(t int) bool { return t == discord.ChannelTypeText || t == discord.ChannelTypeAnnouncement }
+		if updated.Type != ch.Type && (!convertible(ch.Type) || !convertible(updated.Type) ||
+			!slices.Contains(s.guilds[ch.GuildID].Features, "NEWS")) {
+			writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+			return
+		}
+	}
 	if err := s.applyChannel(&updated, body); err != nil {
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return

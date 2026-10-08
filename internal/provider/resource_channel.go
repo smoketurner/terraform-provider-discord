@@ -11,7 +11,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
@@ -23,7 +25,45 @@ type channelBase struct {
 	Name     types.String `tfsdk:"name"`
 	Position types.Int64  `tfsdk:"position"`
 
+	// InitialPermissionOverwrites is only sent on create and is never read
+	// back, so it cannot drift or conflict with discord_channel_permission.
+	InitialPermissionOverwrites types.Set `tfsdk:"initial_permission_overwrites"`
+
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
+}
+
+type initialOverwriteModel struct {
+	ID    types.String `tfsdk:"id"`
+	Type  types.String `tfsdk:"type"`
+	Allow types.String `tfsdk:"allow"`
+	Deny  types.String `tfsdk:"deny"`
+}
+
+// initialOverwrites returns the initial permission overwrites for the create
+// request, or nil when there are none.
+func (b *channelBase) initialOverwrites(ctx context.Context) ([]discord.Overwrite, diag.Diagnostics) {
+	if b.InitialPermissionOverwrites.IsNull() || b.InitialPermissionOverwrites.IsUnknown() {
+		return nil, nil
+	}
+	var models []initialOverwriteModel
+	diags := b.InitialPermissionOverwrites.ElementsAs(ctx, &models, false)
+	out := make([]discord.Overwrite, 0, len(models))
+	for _, m := range models {
+		t, _ := overwriteTypes.value(m.Type.ValueString())
+		out = append(out, discord.Overwrite{
+			ID: m.ID.ValueString(), Type: int(t), Allow: permissionsOrZero(m.Allow), Deny: permissionsOrZero(m.Deny),
+		})
+	}
+	return out, diags
+}
+
+// permissionsOrZero matches Discord, which treats an omitted allow or deny as
+// "0".
+func permissionsOrZero(v types.String) string {
+	if v.IsNull() {
+		return "0"
+	}
+	return v.ValueString()
 }
 
 func (b *channelBase) payload(p discord.Payload) {
@@ -84,6 +124,17 @@ type channelKind struct {
 	channelType int
 	description string
 	attributes  map[string]schema.Attribute
+	// convertible is the kind Discord can convert this kind to and from in
+	// place, if any. Both kinds expose the channel's current type as the
+	// "type" attribute.
+	convertible *channelConversion
+}
+
+// channelConversion describes the other side of an in-place type conversion.
+type channelConversion struct {
+	typeName    string
+	channelType int
+	resource    func() resource.Resource
 }
 
 type channelResource[T any, PT interface {
@@ -113,14 +164,52 @@ func (r *channelResource[T, PT]) Schema(_ context.Context, _ resource.SchemaRequ
 			MarkdownDescription: "Current sort position. Read-only; use `discord_channel_positions` to reorder channels.",
 			Computed:            true,
 		},
-		"audit_log_reason": auditLogReasonAttribute(),
+		"initial_permission_overwrites": initialPermissionOverwritesAttribute(),
+		"audit_log_reason":              auditLogReasonAttribute(),
 	}
 	for k, v := range r.kind.attributes {
 		attrs[k] = v
 	}
 	resp.Schema = schema.Schema{
-		MarkdownDescription: r.kind.description + " Permission overwrites are managed with `discord_channel_permission`.",
-		Attributes:          attrs,
+		MarkdownDescription: r.kind.description + " Permission overwrites are managed with `discord_channel_permission`; " +
+			"`initial_permission_overwrites` only sets them when the channel is created.",
+		Attributes: attrs,
+	}
+}
+
+func initialPermissionOverwritesAttribute() schema.SetNestedAttribute {
+	return schema.SetNestedAttribute{
+		MarkdownDescription: "Permission overwrites sent in the request that creates the channel, so a private channel is " +
+			"never visible without them. They are used only when the channel is created or replaced: Terraform does not " +
+			"read them back, and changing this argument later only updates state, without calling Discord. Manage " +
+			"overwrites after creation with `discord_channel_permission`; one with the same `overwrite_id` takes over the " +
+			"initial overwrite and writes its own `allow` and `deny`. The bot can only allow or deny permissions it has " +
+			"in the server, and only an Administrator can set `MANAGE_ROLES` in an overwrite.",
+		Optional: true,
+		NestedObject: schema.NestedAttributeObject{
+			Attributes: map[string]schema.Attribute{
+				"id": schema.StringAttribute{
+					MarkdownDescription: "ID of the role or member the overwrite applies to. Use the server ID for `@everyone`.",
+					Required:            true,
+					Validators:          []validator.String{snowflakeValidator()},
+				},
+				"type": schema.StringAttribute{
+					MarkdownDescription: "Overwrite target type: " + overwriteTypes.doc() + ".",
+					Required:            true,
+					Validators:          []validator.String{overwriteTypes.validator()},
+				},
+				"allow": schema.StringAttribute{
+					MarkdownDescription: "Allowed permission bitfield as a decimal string. Omit for `0`.",
+					Optional:            true,
+					Validators:          []validator.String{permissionsValidator()},
+				},
+				"deny": schema.StringAttribute{
+					MarkdownDescription: "Denied permission bitfield as a decimal string. Omit for `0`.",
+					Optional:            true,
+					Validators:          []validator.String{permissionsValidator()},
+				},
+			},
+		},
 	}
 }
 
@@ -176,6 +265,14 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 	if f, ok := p["flags"].(channelFlags); ok {
 		p["flags"] = f.merge(0)
 	}
+	overwrites, diags := m.base().initialOverwrites(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if overwrites != nil {
+		p["permission_overwrites"] = overwrites
+	}
 	var followUp discord.Payload
 	if s, ok := any(m).(createSplitter); ok {
 		followUp = s.splitCreate(p)
@@ -226,7 +323,10 @@ func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequ
 		apiError(&resp.Diagnostics, "read "+r.kind.typeName, err)
 		return
 	}
-	if ch.Type != r.kind.channelType {
+	// A channel of the convertible type is accepted after a moved block or a
+	// conversion outside Terraform; its "type" then shows the pending
+	// conversion.
+	if ch.Type != r.kind.channelType && (r.kind.convertible == nil || ch.Type != r.kind.convertible.channelType) {
 		resp.Diagnostics.AddError("Unexpected channel type",
 			fmt.Sprintf("Channel %s has type %d, but discord_%s manages type %d. Use the resource matching the channel's type.",
 				ch.ID, ch.Type, r.kind.typeName, r.kind.channelType))
@@ -256,6 +356,21 @@ func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.Update
 		return
 	}
 	id := sm.base().ID.ValueString()
+	if r.kind.convertible != nil {
+		var currentType types.String
+		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root("type"), &currentType)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		// Convert in a request of its own so the other changes are applied
+		// to a channel of the new type.
+		if currentType.ValueString() != convertibleChannelTypes.name(int64(r.kind.channelType)).ValueString() {
+			if _, err := r.client.ModifyChannel(ctx, id, discord.Payload{"type": r.kind.channelType}); err != nil {
+				apiError(&resp.Diagnostics, "convert channel to "+r.kind.typeName, err)
+				return
+			}
+		}
+	}
 	diff := diffPayload(desired, current)
 	// The model only holds the managed bits, so read the channel to learn the
 	// rest.
@@ -267,7 +382,15 @@ func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.Update
 		}
 		diff["flags"] = f.merge(ch.Flags)
 	}
-	ch, err := r.client.ModifyChannel(ctx, id, diff)
+	var ch *discord.Channel
+	var err error
+	// Arguments that are never sent, such as initial_permission_overwrites,
+	// can change alone; reading refreshes the computed attributes instead.
+	if len(diff) == 0 {
+		ch, err = r.client.GetChannel(ctx, id)
+	} else {
+		ch, err = r.client.ModifyChannel(ctx, id, diff)
+	}
 	if err != nil {
 		apiError(&resp.Diagnostics, "update "+r.kind.typeName, err)
 		return
@@ -287,6 +410,62 @@ func (r *channelResource[T, PT]) Delete(ctx context.Context, req resource.Delete
 	if err := r.client.DeleteChannel(ctx, m.base().ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete "+r.kind.typeName, err)
 	}
+}
+
+// MoveState lets a moved block change the resource type between kinds that
+// Discord converts in place. Attributes the kinds share are copied; the
+// refresh that follows fills in the rest, and the plan then shows the "type"
+// change that Update sends.
+func (r *channelResource[T, PT]) MoveState(ctx context.Context) []resource.StateMover {
+	c := r.kind.convertible
+	if c == nil {
+		return nil
+	}
+	var source resource.SchemaResponse
+	c.resource().Schema(ctx, resource.SchemaRequest{}, &source)
+	return []resource.StateMover{{
+		SourceSchema: &source.Schema,
+		StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
+			if req.SourceTypeName != "discord_"+c.typeName {
+				return
+			}
+			if req.SourceState == nil {
+				resp.Diagnostics.AddError("Unable to move channel state",
+					"The discord_"+c.typeName+" state does not match the provider's schema for it.")
+				return
+			}
+			var target resource.SchemaResponse
+			r.Schema(ctx, resource.SchemaRequest{}, &target)
+			raw, err := copySharedAttributes(req.SourceState.Raw, target.Schema.Type().TerraformType(ctx))
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to move channel state", err.Error())
+				return
+			}
+			resp.TargetState = tfsdk.State{Schema: target.Schema, Raw: raw}
+		},
+	}}
+}
+
+// copySharedAttributes builds an object of the target type from the source
+// object's attributes with the same name and type, leaving the others null.
+func copySharedAttributes(source tftypes.Value, target tftypes.Type) (tftypes.Value, error) {
+	var attrs map[string]tftypes.Value
+	if err := source.As(&attrs); err != nil {
+		return tftypes.Value{}, err
+	}
+	obj, ok := target.(tftypes.Object)
+	if !ok {
+		return tftypes.Value{}, fmt.Errorf("target type %s is not an object", target)
+	}
+	vals := make(map[string]tftypes.Value, len(obj.AttributeTypes))
+	for name, t := range obj.AttributeTypes {
+		if v, ok := attrs[name]; ok && v.Type().Equal(t) {
+			vals[name] = v
+		} else {
+			vals[name] = tftypes.NewValue(t, nil)
+		}
+	}
+	return tftypes.NewValue(obj, vals), nil
 }
 
 func (r *channelResource[T, PT]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
