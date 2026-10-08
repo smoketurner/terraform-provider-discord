@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/list"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -26,6 +27,7 @@ var (
 	_ provider.ProviderWithFunctions          = &discordProvider{}
 	_ provider.ProviderWithEphemeralResources = &discordProvider{}
 	_ provider.ProviderWithActions            = &discordProvider{}
+	_ provider.ProviderWithListResources      = &discordProvider{}
 )
 
 type discordProvider struct {
@@ -116,6 +118,7 @@ func (p *discordProvider) Configure(ctx context.Context, req provider.ConfigureR
 	resp.DataSourceData = client
 	resp.EphemeralResourceData = client
 	resp.ActionData = client
+	resp.ListResourceData = client
 }
 
 func (p *discordProvider) Resources(_ context.Context) []func() resource.Resource {
@@ -170,6 +173,20 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newRoleDataSource,
 		newChannelDataSource,
 		newMemberDataSource,
+		newChannelsDataSource,
+		newRolesDataSource,
+		newMembersDataSource,
+		newEmojisDataSource,
+		newStickersDataSource,
+		newSoundboardSoundsDataSource,
+		newWebhooksDataSource,
+		newInvitesDataSource,
+		newBansDataSource,
+		newScheduledEventsDataSource,
+		newAutoModerationRulesDataSource,
+		newThreadsDataSource,
+		newIntegrationsDataSource,
+		newServerTemplatesDataSource,
 		newAuditLogDataSource,
 		newDefaultSoundboardSoundsDataSource,
 		newEntitlementsDataSource,
@@ -204,6 +221,34 @@ func (p *discordProvider) Functions(_ context.Context) []func() function.Functio
 	return []func() function.Function{
 		newPermissionsFunction,
 		newColorFunction,
+	}
+}
+
+func (p *discordProvider) ListResources(_ context.Context) []func() list.ListResource {
+	return []func() list.ListResource{
+		newRoleListResource,
+		newCategoryChannelListResource,
+		newTextChannelListResource,
+		newAnnouncementChannelListResource,
+		newVoiceChannelListResource,
+		newStageChannelListResource,
+		newForumChannelListResource,
+		newMediaChannelListResource,
+		newChannelPermissionListResource,
+		newChannelFollowerListResource,
+		newMemberListResource,
+		newBanListResource,
+		newWebhookListResource,
+		newInviteListResource,
+		newThreadListResource,
+		newEmojiListResource,
+		newStickerListResource,
+		newSoundboardSoundListResource,
+		newAutoModerationRuleListResource,
+		newScheduledEventListResource,
+		newApplicationCommandListResource,
+		newServerTemplateListResource,
+		newApplicationEmojiListResource,
 	}
 }
 

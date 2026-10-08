@@ -304,10 +304,11 @@ func (c *Client) RemoveInviteTargetUsers(ctx context.Context, code string, userI
 	return c.do(ctx, http.MethodPost, "/invites/"+url.PathEscape(code)+"/target-users/bulk-delete", Payload{"user_ids": userIDs}, nil)
 }
 
-// CreateMessage posts a message to a channel.
-func (c *Client) CreateMessage(ctx context.Context, channelID string, p Payload) (*Message, error) {
+// CreateMessage posts a message to a channel. body is a Payload, or a
+// *Multipart to upload attachments.
+func (c *Client) CreateMessage(ctx context.Context, channelID string, body any) (*Message, error) {
 	var m Message
-	return &m, c.do(ctx, http.MethodPost, "/channels/"+channelID+"/messages", p, &m)
+	return &m, c.do(ctx, http.MethodPost, "/channels/"+channelID+"/messages", body, &m)
 }
 
 // GetMessage fetches a message.
@@ -316,10 +317,11 @@ func (c *Client) GetMessage(ctx context.Context, channelID, messageID string) (*
 	return &m, c.do(ctx, http.MethodGet, "/channels/"+channelID+"/messages/"+messageID, nil, &m)
 }
 
-// EditMessage updates a message.
-func (c *Client) EditMessage(ctx context.Context, channelID, messageID string, p Payload) (*Message, error) {
+// EditMessage updates a message. body is a Payload, or a *Multipart to
+// upload attachments.
+func (c *Client) EditMessage(ctx context.Context, channelID, messageID string, body any) (*Message, error) {
 	var m Message
-	return &m, c.do(ctx, http.MethodPatch, "/channels/"+channelID+"/messages/"+messageID, p, &m)
+	return &m, c.do(ctx, http.MethodPatch, "/channels/"+channelID+"/messages/"+messageID, body, &m)
 }
 
 // DeleteMessage deletes a message.

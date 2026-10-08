@@ -55,6 +55,12 @@ var modelSchemas = map[string]struct {
 	"EmbedField":        {reflect.TypeFor[discord.EmbedField](), []string{"MessageEmbedFieldResponse", "RichEmbedField"}},
 	"Embed":             {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
 	"Message":           {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
+	"Attachment":        {reflect.TypeFor[discord.Attachment](), []string{"MessageAttachmentResponse"}},
+	"StickerItem":       {reflect.TypeFor[discord.StickerItem](), []string{"MessageStickerItemResponse"}},
+	"Poll":              {reflect.TypeFor[discord.Poll](), []string{"PollResponse"}},
+	"PollMedia":         {reflect.TypeFor[discord.PollMedia](), []string{"PollMediaResponse"}},
+	"PollAnswer":        {reflect.TypeFor[discord.PollAnswer](), []string{"PollAnswerResponse"}},
+	"PollEmoji":         {reflect.TypeFor[discord.PollEmoji](), []string{"MessageReactionEmojiResponse"}},
 	"Emoji":             {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
 	"EntityMetadata":    {reflect.TypeFor[discord.EntityMetadata](), []string{"EntityMetadataExternalResponse", "EntityMetadataExternal"}},
 	"NWeekday":          {reflect.TypeFor[discord.NWeekday](), []string{"ByNWeekdayResponse", "ByNWeekday"}},
@@ -71,6 +77,10 @@ var modelSchemas = map[string]struct {
 	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
 	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
 	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
+	"Integration": {reflect.TypeFor[discord.Integration](), []string{
+		"DiscordIntegrationResponse", "ExternalConnectionIntegrationResponse", "GuildSubscriptionIntegrationResponse",
+	}},
+	"IntegrationAccount": {reflect.TypeFor[discord.IntegrationAccount](), []string{"AccountResponse"}},
 
 	"FollowedChannel":      {reflect.TypeFor[discord.FollowedChannel](), []string{"ChannelFollowerResponse"}},
 	"FollowerWebhook":      {reflect.TypeFor[discord.FollowerWebhook](), []string{"ChannelFollowerWebhookResponse"}},

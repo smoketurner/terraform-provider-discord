@@ -27,8 +27,8 @@ type operations struct {
 	templates     map[string]*discord.GuildTemplate
 	inviteTargets map[string][]string
 	crossposted   map[string]bool
-	// polls maps a poll message to whether the poll has ended.
-	polls       map[string]bool
+	// endedPolls holds the IDs of poll messages whose poll has ended.
+	endedPolls  map[string]bool
 	voiceStatus map[string]string
 	prunes      []PruneRequest
 	// bodies holds the body of every request, in the order of requests.
@@ -47,7 +47,7 @@ func (s *Server) handleOperations(mux *http.ServeMux) {
 		templates:     map[string]*discord.GuildTemplate{},
 		inviteTargets: map[string][]string{},
 		crossposted:   map[string]bool{},
-		polls:         map[string]bool{},
+		endedPolls:    map[string]bool{},
 		voiceStatus:   map[string]string{},
 	}
 	mux.HandleFunc("POST /channels/{channel}/messages/{message}/crosspost", s.crosspostMessage)
@@ -190,13 +190,19 @@ func (s *Server) ChannelMessages(channelID string) []string {
 }
 
 // AddPoll posts a poll from the bot in a channel and returns the message ID.
-// The provider does not create polls, so tests add them here.
 func (s *Server) AddPoll(channelID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m := &discord.Message{ID: s.newSnowflake(), ChannelID: channelID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{}}
+	expiry := s.now().Add(24 * time.Hour).UTC().Format(time.RFC3339Nano)
+	m := &discord.Message{
+		ID: s.newSnowflake(), ChannelID: channelID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true},
+		Embeds: []discord.Embed{}, Attachments: []discord.Attachment{}, Timestamp: s.now().UTC().Format(time.RFC3339Nano),
+		Poll: &discord.Poll{
+			Question: discord.PollMedia{Text: "poll"}, Expiry: &expiry, LayoutType: 1,
+			Answers: []discord.PollAnswer{{AnswerID: 1, PollMedia: discord.PollMedia{Text: "yes"}}},
+		},
+	}
 	s.messages[m.ID] = m
-	s.ops.polls[m.ID] = false
 	return m.ID
 }
 
@@ -204,7 +210,7 @@ func (s *Server) AddPoll(channelID string) string {
 func (s *Server) PollEnded(messageID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.ops.polls[messageID]
+	return s.ops.endedPolls[messageID]
 }
 
 func (s *Server) endPoll(w http.ResponseWriter, r *http.Request) {
@@ -217,14 +223,13 @@ func (s *Server) endPoll(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	ended, isPoll := s.ops.polls[m.ID]
 	switch {
-	case !isPoll:
+	case m.Poll == nil:
 		writeError(w, http.StatusBadRequest, 520006, "Cannot expire a non-poll message")
-	case ended:
+	case s.ops.endedPolls[m.ID]:
 		writeError(w, http.StatusBadRequest, 520001, "Poll has already ended")
 	default:
-		s.ops.polls[m.ID] = true
+		s.ops.endedPolls[m.ID] = true
 		writeJSON(w, http.StatusOK, m)
 	}
 }

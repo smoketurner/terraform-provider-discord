@@ -51,13 +51,20 @@ func (ri resourceIdentity) ImportState(ctx context.Context, req resource.ImportS
 	}
 }
 
-// importParts returns the import ID parts from the string ID, or from the
-// identity when importing by identity.
-func (ri resourceIdentity) importParts(ctx context.Context, req resource.ImportStateRequest, diags *diag.Diagnostics) []string {
+// identityNames returns the names of the identity attributes, in import ID
+// order.
+func (ri resourceIdentity) identityNames() []string {
 	names := make([]string, len(ri.attrs))
 	for i, a := range ri.attrs {
 		names[i] = a.name
 	}
+	return names
+}
+
+// importParts returns the import ID parts from the string ID, or from the
+// identity when importing by identity.
+func (ri resourceIdentity) importParts(ctx context.Context, req resource.ImportStateRequest, diags *diag.Diagnostics) []string {
+	names := ri.identityNames()
 	if req.ID != "" {
 		parts, err := splitID(req.ID, len(names), strings.Join(names, "/"))
 		if err != nil {
