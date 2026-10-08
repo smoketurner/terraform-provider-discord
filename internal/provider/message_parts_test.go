@@ -1,0 +1,92 @@
+package provider
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
+)
+
+func TestComponentsValue(t *testing.T) {
+	returned := []json.RawMessage{json.RawMessage(
+		`{"type":17,"id":1,"components":[{"type":13,"id":2,"file":{"url":"https://cdn.discordapp.com/a/guide.pdf?ex=1","proxy_url":"x"}}]}`)}
+	tests := []struct {
+		name, prior string
+		keep        bool
+	}{
+		{"fields Discord adds", `[{"type":17,"components":[{"type":13,"file":{"url":"attachment://guide.pdf"}}]}]`, true},
+		{"changed value", `[{"type":17,"components":[{"type":13,"file":{"url":"https://example.com/guide.pdf"}}]}]`, false},
+		{"missing component", `[{"type":17,"components":[]}]`, false},
+		{"type changed", `[{"type":1,"components":[{"type":13,"file":{"url":"attachment://guide.pdf"}}]}]`, false},
+		{"object replaced by value", `[{"type":17,"components":[{"type":13,"file":"guide.pdf"}]}]`, false},
+		{"attachment reference to an object", `[{"type":17,"components":[{"type":13,"file":"attachment://guide.pdf"}]}]`, false},
+		{"invalid prior", `not json`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := componentsValue(types.StringValue(tt.prior), returned)
+			if kept := got.ValueString() == tt.prior; kept != tt.keep {
+				t.Errorf("kept prior = %v, want %v (got %s)", kept, tt.keep, got.ValueString())
+			}
+		})
+	}
+	if got := componentsValue(types.StringValue(`[]`), nil); !got.IsNull() {
+		t.Errorf("no components returned: got %s, want null", got)
+	}
+	if got := componentsValue(types.StringNull(), returned); !strings.Contains(got.ValueString(), `"id":1`) {
+		t.Errorf("imported components = %s, want Discord's copy", got)
+	}
+}
+
+func TestValidateComponents(t *testing.T) {
+	tests := []struct {
+		name, components string
+		v2               bool
+		err              string
+	}{
+		{"action rows", `[{"type":1,"components":[{"type":2}]}]`, false, ""},
+		{"empty", `[]`, false, "at least one component"},
+		{"not an array", `{"type":1}`, false, "JSON array"},
+		{"type not an integer", `[{"type":"1"}]`, false, `no integer "type"`},
+		{"type fraction", `[{"type":1.5}]`, false, `no integer "type"`},
+		{"V2 at the limit", `[{"type":17,"components":[` + strings.Repeat(`{"type":10},`, 37) + `{"type":9,"accessory":{"type":11}}]}]`, true, ""},
+		{"V2 over the limit", `[{"type":17,"components":[` + strings.Repeat(`{"type":10},`, 38) + `{"type":9,"accessory":{"type":11}}]}]`, true, "got 41"},
+		{"V2 layout without the flag", `[{"type":10}]`, false, "only action rows"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateComponents(tt.components, tt.v2)
+			switch {
+			case tt.err == "" && err != nil:
+				t.Errorf("unexpected error: %v", err)
+			case tt.err != "" && (err == nil || !strings.Contains(err.Error(), tt.err)):
+				t.Errorf("error = %v, want %q", err, tt.err)
+			}
+		})
+	}
+}
+
+func TestPollDuration(t *testing.T) {
+	expiry := "2025-01-03T00:30:00Z"
+	bad := "soon"
+	tests := []struct {
+		name, posted string
+		expiry       *string
+		want         types.Int64
+	}{
+		{"rounded hours", "2025-01-01T00:00:00Z", &expiry, types.Int64Value(49)},
+		{"no expiry", "2025-01-01T00:00:00Z", nil, types.Int64Null()},
+		{"invalid expiry", "2025-01-01T00:00:00Z", &bad, types.Int64Null()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &discord.Message{Timestamp: tt.posted, Poll: &discord.Poll{Expiry: tt.expiry}}
+			if got := pollDuration(msg); !got.Equal(tt.want) {
+				t.Errorf("pollDuration = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}

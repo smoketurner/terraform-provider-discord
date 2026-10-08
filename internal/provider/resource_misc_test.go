@@ -238,7 +238,7 @@ resource "discord_message" "test" {
 resource "discord_message" "test" {
   channel_id = discord_text_channel.test.id
 }`),
-				ExpectError: regexp.MustCompile(`At least one attribute out of`),
+				ExpectError: regexp.MustCompile(`At least one of these attributes`),
 			},
 			{
 				Config: env.config(channel + `

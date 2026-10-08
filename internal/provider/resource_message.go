@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/resourcevalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -27,6 +29,10 @@ var (
 	_ resource.ResourceWithConfigure   = &messageResource{}
 	_ resource.ResourceWithImportState = &messageResource{}
 	_ resource.ResourceWithIdentity    = &messageResource{}
+	_ resource.ResourceWithModifyPlan  = &messageResource{}
+
+	_ resource.ResourceWithConfigValidators = &messageResource{}
+	_ resource.ResourceWithValidateConfig   = &messageResource{}
 )
 
 type messageResource struct {
@@ -34,15 +40,24 @@ type messageResource struct {
 	client *discord.Client
 }
 
+// messageModel is discord_message. discord_webhook_message and the starter
+// message of discord_thread reuse its content, embeds and allowed mentions.
 type messageModel struct {
-	ID              types.String `tfsdk:"id"`
-	ChannelID       types.String `tfsdk:"channel_id"`
-	Content         types.String `tfsdk:"content"`
-	Embeds          types.List   `tfsdk:"embeds"`
-	Pinned          types.Bool   `tfsdk:"pinned"`
-	AllowedMentions types.Set    `tfsdk:"allowed_mentions"`
-	AuthorID        types.String `tfsdk:"author_id"`
-	AuditLogReason  types.String `tfsdk:"audit_log_reason"`
+	ID                    types.String `tfsdk:"id"`
+	ChannelID             types.String `tfsdk:"channel_id"`
+	Content               types.String `tfsdk:"content"`
+	Embeds                types.List   `tfsdk:"embeds"`
+	Attachments           types.List   `tfsdk:"attachments"`
+	Components            types.String `tfsdk:"components"`
+	ComponentsV2          types.Bool   `tfsdk:"components_v2"`
+	StickerIDs            types.List   `tfsdk:"sticker_ids"`
+	Poll                  types.Object `tfsdk:"poll"`
+	SuppressEmbeds        types.Bool   `tfsdk:"suppress_embeds"`
+	SuppressNotifications types.Bool   `tfsdk:"suppress_notifications"`
+	Pinned                types.Bool   `tfsdk:"pinned"`
+	AllowedMentions       types.Set    `tfsdk:"allowed_mentions"`
+	AuthorID              types.String `tfsdk:"author_id"`
+	AuditLogReason        types.String `tfsdk:"audit_log_reason"`
 }
 
 type embedModel struct {
@@ -110,14 +125,42 @@ func (r *messageResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"content": schema.StringAttribute{
-				MarkdownDescription: "Message text (up to 2000 characters). At least one of `content` or `embeds` is required.",
-				Optional:            true,
-				Validators: []validator.String{
-					stringvalidator.LengthBetween(1, 2000),
-					stringvalidator.AtLeastOneOf(path.MatchRoot("embeds")),
-				},
+				MarkdownDescription: "Message text (up to 2000 characters). At least one of `content`, `embeds`, " +
+					"`attachments`, `components`, `sticker_ids` or `poll` is required.",
+				Optional:   true,
+				Validators: []validator.String{stringvalidator.LengthBetween(1, 2000)},
 			},
-			"embeds": embedsAttribute(),
+			"embeds":      embedsAttribute(),
+			"attachments": attachmentsAttribute(),
+			"components":  componentsAttribute(),
+			"components_v2": schema.BoolAttribute{
+				MarkdownDescription: "Whether the message uses Components V2 (the `IS_COMPONENTS_V2` flag), which lays " +
+					"the message out with `components` only: `content`, `embeds`, `sticker_ids` and `poll` cannot be " +
+					"set, and attachments show only where a component references them. Turning it on edits the " +
+					"message; Discord cannot turn it off, so turning it off posts a new message. Defaults to `false`.",
+				Optional:      true,
+				Computed:      true,
+				Default:       booldefault.StaticBool(false),
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplaceIf(componentsV2TurnedOff, componentsV2ReplaceDesc, componentsV2ReplaceDesc)},
+			},
+			"sticker_ids": stickerIDsAttribute(),
+			"poll":        pollAttribute(),
+			"suppress_embeds": schema.BoolAttribute{
+				MarkdownDescription: "Whether link previews are hidden (the `SUPPRESS_EMBEDS` flag). Hides `embeds` " +
+					"too, so it cannot be set with them. Defaults to `false`.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(false),
+			},
+			"suppress_notifications": schema.BoolAttribute{
+				MarkdownDescription: "Whether posting the message sends no push or desktop notifications (the " +
+					"`SUPPRESS_NOTIFICATIONS` flag, like `@silent`). Discord sets it only when posting, so changing it " +
+					"posts a new message. Defaults to `false`.",
+				Optional:      true,
+				Computed:      true,
+				Default:       booldefault.StaticBool(false),
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.RequiresReplace()},
+			},
 			"pinned": schema.BoolAttribute{
 				MarkdownDescription: "Whether the message is pinned. Requires the Pin Messages permission. Defaults to `false`.",
 				Optional:            true,
@@ -219,6 +262,90 @@ func allowedMentionsAttribute() schema.SetAttribute {
 	}
 }
 
+const componentsV2ReplaceDesc = "Discord cannot turn Components V2 off, so turning it off posts a new message."
+
+func componentsV2TurnedOff(_ context.Context, req planmodifier.BoolRequest, resp *boolplanmodifier.RequiresReplaceIfFuncResponse) {
+	resp.RequiresReplace = req.StateValue.ValueBool() && !req.PlanValue.IsUnknown() && !req.PlanValue.ValueBool()
+}
+
+func (r *messageResource) ConfigValidators(context.Context) []resource.ConfigValidator {
+	return []resource.ConfigValidator{
+		resourcevalidator.AtLeastOneOf(
+			path.MatchRoot("content"), path.MatchRoot("embeds"), path.MatchRoot("attachments"),
+			path.MatchRoot("components"), path.MatchRoot("sticker_ids"), path.MatchRoot("poll"),
+		),
+	}
+}
+
+// ValidateConfig checks the fields a Components V2 message cannot have and the
+// component limits, which depend on the flag.
+func (r *messageResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var m messageModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if m.SuppressEmbeds.ValueBool() && !m.Embeds.IsNull() {
+		resp.Diagnostics.AddAttributeError(path.Root("suppress_embeds"), "Invalid suppress_embeds",
+			"suppress_embeds hides every embed of the message, so it cannot be set with embeds.")
+	}
+	if m.ComponentsV2.IsUnknown() {
+		return
+	}
+	v2 := m.ComponentsV2.ValueBool()
+	if v2 {
+		names := []string{"content", "embeds", "sticker_ids", "poll"}
+		for i, v := range []attr.Value{m.Content, m.Embeds, m.StickerIDs, m.Poll} {
+			if name := names[i]; !v.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root(name), "Invalid "+name,
+					name+" cannot be set with components_v2: a Components V2 message can contain only components and attachments.")
+			}
+		}
+		if m.Components.IsNull() {
+			resp.Diagnostics.AddAttributeError(path.Root("components"), "Missing components", "components_v2 requires components.")
+		}
+	}
+	if !m.Components.IsNull() && !m.Components.IsUnknown() {
+		if err := validateComponents(m.Components.ValueString(), v2); err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("components"), "Invalid components", err.Error()+".")
+		}
+	}
+}
+
+// ModifyPlan keeps attachments whose file is unchanged, and replaces a
+// message with a poll when anything else changes, as Discord cannot edit it.
+func (r *messageResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+		return
+	}
+	var plan, state messageModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(planAttachments(ctx, &plan, &state)...)
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("attachments"), plan.Attachments)...)
+	if state.Poll.IsNull() || plan.Poll.IsNull() {
+		return
+	}
+	edits := []struct {
+		name        string
+		plan, state attr.Value
+	}{
+		{"content", plan.Content, state.Content},
+		{"embeds", plan.Embeds, state.Embeds},
+		{"attachments", plan.Attachments, state.Attachments},
+		{"components", plan.Components, state.Components},
+		{"suppress_embeds", plan.SuppressEmbeds, state.SuppressEmbeds},
+	}
+	for _, e := range edits {
+		if !e.plan.Equal(e.state) {
+			resp.RequiresReplace.Append(path.Root(e.name))
+		}
+	}
+}
+
 func (r *messageResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	r.client = clientFromResource(req, resp)
 }
@@ -286,6 +413,15 @@ func keepText(prior types.String, returned string) types.String {
 	return textValue(returned)
 }
 
+// keepAttachmentURL returns the prior attachment://<filename> reference when
+// Discord returns the uploaded file's URL in its place.
+func keepAttachmentURL(prior types.String, returned string) types.String {
+	if !prior.IsNull() && !prior.IsUnknown() && strings.HasPrefix(prior.ValueString(), "attachment://") && returned != "" {
+		return prior
+	}
+	return textValue(returned)
+}
+
 func (m *messageModel) apply(ctx context.Context, msg *discord.Message) diag.Diagnostics {
 	var diags diag.Diagnostics
 	m.ID = types.StringValue(msg.ID)
@@ -337,16 +473,16 @@ func (m *messageModel) apply(ctx context.Context, msg *discord.Message) diag.Dia
 			Fields:        types.ListNull(types.ObjectType{AttrTypes: embedFieldAttrTypes}),
 		}
 		if e.Footer != nil {
-			em.FooterText, em.FooterIconURL = keepText(p.FooterText, e.Footer.Text), textValue(e.Footer.IconURL)
+			em.FooterText, em.FooterIconURL = keepText(p.FooterText, e.Footer.Text), keepAttachmentURL(p.FooterIconURL, e.Footer.IconURL)
 		}
 		if e.Image != nil {
-			em.ImageURL = textValue(e.Image.URL)
+			em.ImageURL = keepAttachmentURL(p.ImageURL, e.Image.URL)
 		}
 		if e.Thumbnail != nil {
-			em.ThumbnailURL = textValue(e.Thumbnail.URL)
+			em.ThumbnailURL = keepAttachmentURL(p.ThumbnailURL, e.Thumbnail.URL)
 		}
 		if e.Author != nil {
-			em.AuthorName, em.AuthorURL, em.AuthorIconURL = keepText(p.AuthorName, e.Author.Name), textValue(e.Author.URL), textValue(e.Author.IconURL)
+			em.AuthorName, em.AuthorURL, em.AuthorIconURL = keepText(p.AuthorName, e.Author.Name), textValue(e.Author.URL), keepAttachmentURL(p.AuthorIconURL, e.Author.IconURL)
 		}
 		if len(e.Fields) > 0 {
 			fields := make([]embedFieldModel, 0, len(e.Fields))
@@ -384,18 +520,26 @@ func (r *messageResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
-	p, diags := plan.payload(ctx)
+	p, diags := plan.createPayload(ctx)
+	resp.Diagnostics.Append(diags...)
+	atts, files, diags := plan.attachmentRequests(ctx, true)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	msg, err := r.client.CreateMessage(ctx, plan.ChannelID.ValueString(), p)
+	var body any = p
+	if len(atts) > 0 {
+		p["attachments"] = atts
+		body = &discord.Multipart{Payload: p, Files: files}
+	}
+	msg, err := r.client.CreateMessage(ctx, plan.ChannelID.ValueString(), body)
 	if err != nil {
 		apiError(&resp.Diagnostics, "create message", err)
 		return
 	}
 	pinned := plan.Pinned.ValueBool()
 	resp.Diagnostics.Append(plan.apply(ctx, msg)...)
+	resp.Diagnostics.Append(plan.applyParts(ctx, msg)...)
 	if pinned {
 		if err := r.setPinned(ctx, &plan, true); err != nil {
 			// Roll back so the failed create leaves no untracked message.
@@ -427,6 +571,7 @@ func (r *messageResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 	resp.Diagnostics.Append(state.apply(ctx, msg)...)
+	resp.Diagnostics.Append(state.applyParts(ctx, msg)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -443,9 +588,13 @@ func (r *messageResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	plan.ID = state.ID
-	desired, diags := plan.payload(ctx)
+	desired, diags := plan.fullPayload(ctx)
 	resp.Diagnostics.Append(diags...)
-	current, diags := state.payload(ctx)
+	current, diags := state.fullPayload(ctx)
+	resp.Diagnostics.Append(diags...)
+	desiredAtts, files, diags := plan.attachmentRequests(ctx, true)
+	resp.Diagnostics.Append(diags...)
+	currentAtts, _, diags := state.attachmentRequests(ctx, false)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -456,15 +605,26 @@ func (r *messageResource) Update(ctx context.Context, req resource.UpdateRequest
 	// with its defaults and pings @everyone and roles.
 	_, contentChanged := body["content"]
 	_, embedsChanged := body["embeds"]
-	if contentChanged || embedsChanged {
+	_, componentsChanged := body["components"]
+	if contentChanged || embedsChanged || componentsChanged {
 		body["allowed_mentions"] = desired["allowed_mentions"]
 	}
-	msg, err := r.client.EditMessage(ctx, state.ChannelID.ValueString(), state.ID.ValueString(), body)
+	// The attachments array lists every file to keep; files left out are
+	// removed.
+	var edit any = body
+	if !jsonEqual(desiredAtts, currentAtts) {
+		body["attachments"] = desiredAtts
+		if len(files) > 0 {
+			edit = &discord.Multipart{Payload: body, Files: files}
+		}
+	}
+	msg, err := r.client.EditMessage(ctx, state.ChannelID.ValueString(), state.ID.ValueString(), edit)
 	if err != nil {
 		apiError(&resp.Diagnostics, "edit message", err)
 		return
 	}
 	resp.Diagnostics.Append(plan.apply(ctx, msg)...)
+	resp.Diagnostics.Append(plan.applyParts(ctx, msg)...)
 	if pinned != state.Pinned.ValueBool() {
 		if err := r.setPinned(ctx, &plan, pinned); err != nil {
 			apiError(&resp.Diagnostics, "change message pin", err)

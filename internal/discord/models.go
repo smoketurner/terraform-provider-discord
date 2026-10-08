@@ -316,19 +316,82 @@ type Embed struct {
 	Fields      []EmbedField `json:"fields,omitempty"`
 }
 
+// Message flags the provider manages.
+const (
+	MessageFlagSuppressEmbeds        = 1 << 2
+	MessageFlagSuppressNotifications = 1 << 12
+	MessageFlagIsComponentsV2        = 1 << 15
+)
+
+// AttachmentFlagIsSpoiler marks an attachment as a spoiler.
+const AttachmentFlagIsSpoiler = 1 << 3
+
 // Message is a channel message.
 type Message struct {
-	ID              string  `json:"id"`
-	ChannelID       string  `json:"channel_id"`
-	Type            int64   `json:"type"`
-	Author          *User   `json:"author"`
-	Content         string  `json:"content"`
-	Embeds          []Embed `json:"embeds"`
-	Pinned          bool    `json:"pinned"`
-	Timestamp       string  `json:"timestamp"`
-	EditedTimestamp *string `json:"edited_timestamp"`
-	Flags           int64   `json:"flags"`
-	WebhookID       *string `json:"webhook_id,omitempty"`
+	ID          string       `json:"id"`
+	ChannelID   string       `json:"channel_id"`
+	Type        int64        `json:"type"`
+	Author      *User        `json:"author"`
+	Content     string       `json:"content"`
+	Embeds      []Embed      `json:"embeds"`
+	Attachments []Attachment `json:"attachments"`
+	// Components are kept as JSON: the provider manages them as a JSON
+	// document rather than modeling every component type.
+	Components      []json.RawMessage `json:"components,omitempty"`
+	StickerItems    []StickerItem     `json:"sticker_items,omitempty"`
+	Poll            *Poll             `json:"poll,omitempty"`
+	Pinned          bool              `json:"pinned"`
+	Timestamp       string            `json:"timestamp"`
+	EditedTimestamp *string           `json:"edited_timestamp"`
+	Flags           int64             `json:"flags"`
+	WebhookID       *string           `json:"webhook_id,omitempty"`
+}
+
+// Attachment is a file attached to a message. URL is signed and expires, so
+// the provider never stores it.
+type Attachment struct {
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	Description string `json:"description,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	Size        int64  `json:"size"`
+	URL         string `json:"url"`
+	Flags       int64  `json:"flags,omitempty"`
+}
+
+// StickerItem is the partial sticker a message carries.
+type StickerItem struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	FormatType int64  `json:"format_type"`
+}
+
+// Poll is a poll attached to a message.
+type Poll struct {
+	Question         PollMedia    `json:"question"`
+	Answers          []PollAnswer `json:"answers"`
+	Expiry           *string      `json:"expiry"`
+	AllowMultiselect bool         `json:"allow_multiselect"`
+	LayoutType       int64        `json:"layout_type"`
+}
+
+// PollMedia is the text and emoji of a poll question or answer.
+type PollMedia struct {
+	Text  string     `json:"text"`
+	Emoji *PollEmoji `json:"emoji,omitempty"`
+}
+
+// PollAnswer is one answer of a poll.
+type PollAnswer struct {
+	AnswerID  int64     `json:"answer_id"`
+	PollMedia PollMedia `json:"poll_media"`
+}
+
+// PollEmoji is the emoji of a poll answer: a custom emoji ID or a Unicode
+// emoji name.
+type PollEmoji struct {
+	ID   *string `json:"id,omitempty"`
+	Name *string `json:"name,omitempty"`
 }
 
 // Emoji is a custom guild emoji.
