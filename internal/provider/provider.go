@@ -167,6 +167,11 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newStickerPackDataSource,
 		newStickerPacksDataSource,
 		newVoiceRegionsDataSource,
+		newUserDataSource,
+		newCurrentUserDataSource,
+		newCurrentApplicationDataSource,
+		newPermissionsDataSource,
+		newColorDataSource,
 	}
 }
 

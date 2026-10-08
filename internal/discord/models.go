@@ -183,6 +183,28 @@ type User struct {
 	GlobalName    *string `json:"global_name"`
 	Avatar        *string `json:"avatar"`
 	Bot           bool    `json:"bot"`
+	System        bool    `json:"system"`
+	Banner        *string `json:"banner"`
+	AccentColor   *int64  `json:"accent_color"`
+	PublicFlags   int64   `json:"public_flags"`
+}
+
+// Application is the app a bot token belongs to.
+type Application struct {
+	ID                      string   `json:"id"`
+	Name                    string   `json:"name"`
+	Icon                    *string  `json:"icon"`
+	Description             string   `json:"description"`
+	BotPublic               bool     `json:"bot_public"`
+	BotRequireCodeGrant     bool     `json:"bot_require_code_grant"`
+	Bot                     *User    `json:"bot,omitempty"`
+	Owner                   *User    `json:"owner,omitempty"`
+	GuildID                 string   `json:"guild_id,omitempty"`
+	VerifyKey               string   `json:"verify_key"`
+	Flags                   int64    `json:"flags"`
+	Tags                    []string `json:"tags,omitempty"`
+	ApproximateGuildCount   int64    `json:"approximate_guild_count"`
+	InteractionsEndpointURL *string  `json:"interactions_endpoint_url"`
 }
 
 // Member is a user's membership in a guild. CommunicationDisabledUntil is

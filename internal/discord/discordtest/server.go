@@ -52,6 +52,7 @@ type Server struct {
 	settings  map[string]*guildSettings
 	ro        *readOnlyState
 	money     *monetization
+	app       *discord.Application
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -162,6 +163,7 @@ func NewServer() *Server {
 	s.handleGuildSettings(mux)
 	s.handleReadOnly(mux)
 	s.handleMonetization(mux)
+	s.handleUsers(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s

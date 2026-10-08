@@ -147,11 +147,11 @@ operations:
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_message: {status: covered, by: [data.discord_message, discord_message, discord_thread]}
-  get_my_application: {status: planned, issue: 31}
+  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus]}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
-  get_my_user: {status: planned, issue: 42}
+  get_my_user: {status: covered, by: [data.discord_current_user]}
   get_openid_connect_userinfo: {status: out_of_scope, reason: "OpenID Connect for OAuth2 users"}
   get_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   get_public_keys: {status: out_of_scope, reason: "OAuth2 token signing keys"}
@@ -163,7 +163,7 @@ operations:
   get_sticker: {status: covered, by: [data.discord_sticker]}
   get_sticker_pack: {status: covered, by: [data.discord_sticker_pack]}
   get_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
-  get_user: {status: planned, issue: 42}
+  get_user: {status: covered, by: [data.discord_user]}
   get_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
   get_webhook: {status: covered, by: [discord_webhook]}
   get_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
