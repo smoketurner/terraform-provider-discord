@@ -43,6 +43,7 @@ type Server struct {
 	invites   map[string]*discord.Invite
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
+	automod   map[string]map[string]*discord.AutoModerationRule
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -69,6 +70,7 @@ func NewServer() *Server {
 		invites:   map[string]*discord.Invite{},
 		messages:  map[string]*discord.Message{},
 		emojis:    map[string]map[string]*discord.Emoji{},
+		automod:   map[string]map[string]*discord.AutoModerationRule{},
 		failNext:  map[string]int{},
 		botUserID: "100000000000000003",
 		hidden:    map[string]bool{},
@@ -131,6 +133,10 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/emojis", s.createEmoji)
 	mux.HandleFunc("PATCH /guilds/{guild}/emojis/{emoji}", s.modifyEmoji)
 	mux.HandleFunc("DELETE /guilds/{guild}/emojis/{emoji}", s.deleteEmoji)
+	mux.HandleFunc("GET /guilds/{guild}/auto-moderation/rules/{rule}", s.getAutomodRule)
+	mux.HandleFunc("POST /guilds/{guild}/auto-moderation/rules", s.createAutomodRule)
+	mux.HandleFunc("PATCH /guilds/{guild}/auto-moderation/rules/{rule}", s.modifyAutomodRule)
+	mux.HandleFunc("DELETE /guilds/{guild}/auto-moderation/rules/{rule}", s.deleteAutomodRule)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s

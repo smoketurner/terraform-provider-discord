@@ -43,6 +43,28 @@ var modelSchemas = map[string]struct {
 	"Embed":           {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
 	"Message":         {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
 	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
+	"AutoModerationRule": {reflect.TypeFor[discord.AutoModerationRule](), []string{
+		"KeywordRuleResponse", "MLSpamRuleResponse", "DefaultKeywordRuleResponse", "MentionSpamRuleResponse", "UserProfileRuleResponse",
+	}},
+	"AutoModerationAction": {reflect.TypeFor[discord.AutoModerationAction](), []string{
+		"BlockMessageActionResponse", "FlagToChannelActionResponse", "UserCommunicationDisabledActionResponse", "QuarantineUserActionResponse",
+	}},
+}
+
+// unionModelSchemas maps structs that hold the fields of several types,
+// such as the trigger metadata of every AutoMod trigger type, to those types'
+// schemas. Every JSON field must exist, with a compatible type, in at least
+// one of them.
+var unionModelSchemas = map[string]struct {
+	typ     reflect.Type
+	schemas []string
+}{
+	"AutoModerationTriggerMetadata": {reflect.TypeFor[discord.AutoModerationTriggerMetadata](), []string{
+		"KeywordTriggerMetadataResponse", "DefaultKeywordListTriggerMetadataResponse", "MentionSpamTriggerMetadataResponse", "UserProfileMetadataResponse",
+	}},
+	"AutoModerationActionMetadata": {reflect.TypeFor[discord.AutoModerationActionMetadata](), []string{
+		"BlockMessageActionMetadataResponse", "FlagToChannelActionMetadataResponse", "UserCommunicationDisabledActionMetadataResponse",
+	}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go
@@ -67,7 +89,9 @@ func TestModelsTableIsComplete(t *testing.T) {
 		}
 	}
 	slices.Sort(structs)
-	if want := slices.Sorted(maps.Keys(modelSchemas)); !slices.Equal(structs, want) {
+	want := slices.Sorted(maps.Keys(modelSchemas))
+	want = slices.Sorted(slices.Values(append(want, slices.Collect(maps.Keys(unionModelSchemas))...)))
+	if !slices.Equal(structs, want) {
 		t.Errorf("models.go structs %v do not match modelSchemas %v", structs, want)
 	}
 }
@@ -87,6 +111,24 @@ func TestModelsMatchSpec(t *testing.T) {
 			for _, err := range structMismatches(s, m.typ, sc) {
 				t.Errorf("discord.%s against %s: %s", name, schemaName, err)
 			}
+		}
+	}
+}
+
+// TestUnionModelsMatchSpec validates the union models against the merged
+// properties of their schemas.
+func TestUnionModelsMatchSpec(t *testing.T) {
+	s := pinnedSpec(t)
+	for name, m := range unionModelSchemas {
+		union := &Schema{}
+		for _, schemaName := range m.schemas {
+			if _, ok := s.Schema(schemaName); !ok {
+				t.Errorf("discord.%s: schema %s is not in the spec", name, schemaName)
+			}
+			union.OneOf = append(union.OneOf, &Schema{Ref: "#/components/schemas/" + schemaName})
+		}
+		for _, err := range structMismatches(s, m.typ, union) {
+			t.Errorf("discord.%s against %s: %s", name, strings.Join(m.schemas, " | "), err)
 		}
 	}
 }

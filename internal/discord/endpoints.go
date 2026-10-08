@@ -246,3 +246,26 @@ func (c *Client) ModifyEmoji(ctx context.Context, guildID, emojiID string, p Pay
 func (c *Client) DeleteEmoji(ctx context.Context, guildID, emojiID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/emojis/"+emojiID, nil, nil)
 }
+
+// GetAutoModerationRule fetches an AutoMod rule.
+func (c *Client) GetAutoModerationRule(ctx context.Context, guildID, ruleID string) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, &r)
+}
+
+// CreateAutoModerationRule creates an AutoMod rule.
+func (c *Client) CreateAutoModerationRule(ctx context.Context, guildID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/auto-moderation/rules", p, &r)
+}
+
+// ModifyAutoModerationRule updates an AutoMod rule.
+func (c *Client) ModifyAutoModerationRule(ctx context.Context, guildID, ruleID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, p, &r)
+}
+
+// DeleteAutoModerationRule deletes an AutoMod rule.
+func (c *Client) DeleteAutoModerationRule(ctx context.Context, guildID, ruleID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, nil)
+}

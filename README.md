@@ -47,7 +47,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel` |
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member_role`, `data.discord_member` |
-| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji` |
+| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `discord_auto_moderation_rule` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+) |
 
 ## Design notes

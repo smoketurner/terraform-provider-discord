@@ -118,6 +118,14 @@ resource "discord_emoji" "test" {
   name      = "tf_acc_identity"
   image     = "` + onePixelPNG + `"
 }
+resource "discord_auto_moderation_rule" "test" {
+  server_id        = local.server_id
+  name             = "tf-acc-identity"
+  event_type       = "message_send"
+  trigger_type     = "keyword"
+  trigger_metadata = { keyword_filter = ["tf-acc-identity"] }
+  actions          = [{ type = "block_message" }]
+}
 `
 	identities := map[string]map[string]string{
 		"discord_server_settings.test":      {"server_id": "server_id"},
@@ -136,6 +144,7 @@ resource "discord_emoji" "test" {
 		"discord_webhook.test":              {"webhook_id": "id"},
 		"discord_thread.test":               {"thread_id": "id"},
 		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
+		"discord_auto_moderation_rule.test": {"server_id": "server_id", "rule_id": "id"},
 	}
 	if env.userID != "" {
 		cfg += `
