@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
@@ -130,6 +131,18 @@ resource "discord_soundboard_sound" "test" {
   name      = "tf-acc-identity"
   sound     = "` + soundMP3 + `"
 }
+resource "discord_scheduled_event" "test" {
+  server_id            = local.server_id
+  name                 = "tf-acc-identity"
+  entity_type          = "external"
+  location             = "Online"
+  scheduled_start_time = "` + eventTime(24*time.Hour) + `"
+  scheduled_end_time   = "` + eventTime(25*time.Hour) + `"
+}
+resource "discord_stage_instance" "test" {
+  channel_id = discord_stage_channel.test.id
+  topic      = "tf-acc-identity"
+}
 `
 	identities := map[string]map[string]string{
 		"discord_server_settings.test":      {"server_id": "server_id"},
@@ -150,6 +163,8 @@ resource "discord_soundboard_sound" "test" {
 		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
 		"discord_sticker.test":              {"server_id": "server_id", "sticker_id": "id"},
 		"discord_soundboard_sound.test":     {"server_id": "server_id", "sound_id": "id"},
+		"discord_scheduled_event.test":      {"server_id": "server_id", "event_id": "id"},
+		"discord_stage_instance.test":       {"channel_id": "channel_id"},
 	}
 	if env.userID != "" {
 		cfg += `
@@ -172,6 +187,16 @@ resource "discord_member" "test" {
 		identities["discord_member_role.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id", "role_id": "role_id"}
 		identities["discord_member_roles.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 		identities["discord_member.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
+	}
+	// Banning removes the member, so only the fake has a user to spare.
+	if !env.live {
+		cfg += `
+resource "discord_ban" "test" {
+  server_id = local.server_id
+  user_id   = "` + env.fake.AddMember(env.serverID, "banned") + `"
+}
+`
+		identities["discord_ban.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 	}
 	// These disable the server's onboarding, welcome screen and widget on
 	// destroy, so live runs leave them out.

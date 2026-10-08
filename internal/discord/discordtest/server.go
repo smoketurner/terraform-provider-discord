@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,12 +42,15 @@ type Server struct {
 	channels map[string]*discord.Channel
 	threads  map[string]*discord.Thread
 	members  map[string]map[string]*discord.Member
+	bans     map[string]map[string]*discord.Ban
 	webhooks map[string]*discord.Webhook
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
 	emojis   map[string]map[string]*discord.Emoji
 	stickers map[string]map[string]*discord.Sticker
 	sounds   map[string]map[string]*discord.SoundboardSound
+	events   map[string]*discord.ScheduledEvent
+	stages   map[string]*discord.StageInstance
 	settings map[string]*guildSettings
 	// stickerFiles and soundData hold the uploaded files, which Discord
 	// never returns.
@@ -74,6 +78,7 @@ func NewServer() *Server {
 		channels:     map[string]*discord.Channel{},
 		threads:      map[string]*discord.Thread{},
 		members:      map[string]map[string]*discord.Member{},
+		bans:         map[string]map[string]*discord.Ban{GuildID: {}},
 		webhooks:     map[string]*discord.Webhook{},
 		invites:      map[string]*discord.Invite{},
 		messages:     map[string]*discord.Message{},
@@ -82,6 +87,8 @@ func NewServer() *Server {
 		sounds:       map[string]map[string]*discord.SoundboardSound{},
 		stickerFiles: map[string]Upload{},
 		soundData:    map[string]string{},
+		events:       map[string]*discord.ScheduledEvent{},
+		stages:       map[string]*discord.StageInstance{},
 		failNext:     map[string]int{},
 		botUserID:    "100000000000000003",
 		hidden:       map[string]bool{},
@@ -130,6 +137,9 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /guilds/{guild}/members/{user}", s.modifyMember)
 	mux.HandleFunc("PUT /guilds/{guild}/members/{user}/roles/{role}", s.addMemberRole)
 	mux.HandleFunc("DELETE /guilds/{guild}/members/{user}/roles/{role}", s.removeMemberRole)
+	mux.HandleFunc("GET /guilds/{guild}/bans/{user}", s.getBan)
+	mux.HandleFunc("PUT /guilds/{guild}/bans/{user}", s.createBan)
+	mux.HandleFunc("DELETE /guilds/{guild}/bans/{user}", s.removeBan)
 	mux.HandleFunc("POST /channels/{channel}/webhooks", s.createWebhook)
 	mux.HandleFunc("GET /webhooks/{webhook}", s.getWebhook)
 	mux.HandleFunc("PATCH /webhooks/{webhook}", s.modifyWebhook)
@@ -156,6 +166,14 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/soundboard-sounds", s.createSoundboardSound)
 	mux.HandleFunc("PATCH /guilds/{guild}/soundboard-sounds/{sound}", s.modifySoundboardSound)
 	mux.HandleFunc("DELETE /guilds/{guild}/soundboard-sounds/{sound}", s.deleteSoundboardSound)
+	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
+	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
+	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)
+	mux.HandleFunc("DELETE /guilds/{guild}/scheduled-events/{event}", s.deleteScheduledEvent)
+	mux.HandleFunc("GET /stage-instances/{channel}", s.getStageInstance)
+	mux.HandleFunc("POST /stage-instances", s.createStageInstance)
+	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
+	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
@@ -396,7 +414,24 @@ func (s *Server) getRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, role)
 }
 
-func applyRole(role *discord.Role, body map[string]json.RawMessage) {
+// applyRole applies a role body. Like Discord, it rejects a role icon or
+// emoji unless the guild has the ROLE_ICONS feature, and stores a new hash
+// for every uploaded icon.
+func (s *Server) applyRole(w http.ResponseWriter, g *discord.Guild, role *discord.Role, body map[string]json.RawMessage) bool {
+	var icon, emoji *string
+	set(body, "icon", &icon)
+	set(body, "unicode_emoji", &emoji)
+	if (icon != nil || emoji != nil) && !slices.Contains(g.Features, "ROLE_ICONS") {
+		writeError(w, http.StatusBadRequest, 50101, "This server needs more boosts to perform this action")
+		return false
+	}
+	if _, ok := body["icon"]; ok {
+		if icon != nil {
+			h := "roleicon" + s.newID()
+			icon = &h
+		}
+		role.Icon = icon
+	}
 	set(body, "name", &role.Name)
 	set(body, "permissions", &role.Permissions)
 	set(body, "color", &role.Color)
@@ -412,12 +447,14 @@ func applyRole(role *discord.Role, body map[string]json.RawMessage) {
 	set(body, "hoist", &role.Hoist)
 	set(body, "mentionable", &role.Mentionable)
 	set(body, "unicode_emoji", &role.UnicodeEmoji)
+	return true
 }
 
 func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.guild(w, r); !ok {
+	g, ok := s.guild(w, r)
+	if !ok {
 		return
 	}
 	body, err := decode(r)
@@ -427,7 +464,9 @@ func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	}
 	guildID := r.PathValue("guild")
 	role := &discord.Role{ID: s.newID(), Name: "new role", Permissions: s.roles[guildID][guildID].Permissions, Position: 1, Colors: &discord.RoleColors{}}
-	applyRole(role, body)
+	if !s.applyRole(w, g, role, body) {
+		return
+	}
 	for _, other := range s.roles[guildID] {
 		if other.ID != guildID {
 			other.Position++
@@ -450,8 +489,9 @@ func (s *Server) modifyRole(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	applyRole(role, body)
-	writeJSON(w, http.StatusOK, role)
+	if s.applyRole(w, s.guilds[r.PathValue("guild")], role, body) {
+		writeJSON(w, http.StatusOK, role)
+	}
 }
 
 func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
@@ -709,6 +749,7 @@ func (s *Server) deleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.channels, ch.ID)
+	delete(s.stages, ch.ID)
 	for _, t := range s.threads {
 		if t.ParentID != nil && *t.ParentID == ch.ID {
 			s.deleteThread(t.ID)
@@ -933,6 +974,83 @@ func (s *Server) RemoveMember(guildID, userID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.members[guildID], userID)
+}
+
+func (s *Server) getBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guild(w, r); !ok {
+		return
+	}
+	b, ok := s.bans[r.PathValue("guild")][r.PathValue("user")]
+	if !ok {
+		notFound(w, "Ban", 10026)
+		return
+	}
+	writeJSON(w, http.StatusOK, b)
+}
+
+// maxBanDeleteMessageSeconds is the most message history, 7 days, a ban can
+// delete.
+const maxBanDeleteMessageSeconds = 604800
+
+// createBan bans a user and, as Discord does, removes them from the guild.
+// The ban's reason is the decoded X-Audit-Log-Reason header. Discord refuses
+// to ban the guild owner.
+func (s *Server) createBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	var seconds int
+	set(body, "delete_message_seconds", &seconds)
+	if seconds < 0 || seconds > maxBanDeleteMessageSeconds {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: delete_message_seconds must be between 0 and 604800")
+		return
+	}
+	userID := r.PathValue("user")
+	if userID == g.OwnerID {
+		writeError(w, http.StatusForbidden, 50013, "Missing Permissions")
+		return
+	}
+	user := &discord.User{ID: userID, Username: "user" + userID, Discriminator: "0"}
+	if m, ok := s.members[g.ID][userID]; ok {
+		user = m.User
+	}
+	var reason *string
+	if h := r.Header.Get("X-Audit-Log-Reason"); h != "" {
+		decoded, err := url.PathUnescape(h)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, 50035, "Invalid X-Audit-Log-Reason header")
+			return
+		}
+		reason = &decoded
+	}
+	s.bans[g.ID][userID] = &discord.Ban{Reason: reason, User: user}
+	delete(s.members[g.ID], userID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) removeBan(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guild(w, r); !ok {
+		return
+	}
+	guildID, userID := r.PathValue("guild"), r.PathValue("user")
+	if _, ok := s.bans[guildID][userID]; !ok {
+		notFound(w, "Ban", 10026)
+		return
+	}
+	delete(s.bans[guildID], userID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // AddManagedRole creates a role managed by an integration, such as a bot's
