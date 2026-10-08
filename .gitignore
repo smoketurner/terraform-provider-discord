@@ -20,3 +20,4 @@ terraform.rc
 *.swp
 .DS_Store
 coverage.out
+.cache-key

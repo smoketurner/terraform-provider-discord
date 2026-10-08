@@ -1,0 +1,132 @@
+package provider
+
+import (
+	"context"
+	"slices"
+
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
+)
+
+var (
+	_ resource.ResourceWithConfigure   = &memberRoleResource{}
+	_ resource.ResourceWithImportState = &memberRoleResource{}
+)
+
+type memberRoleResource struct {
+	client *discord.Client
+}
+
+type memberRoleModel struct {
+	ID       types.String `tfsdk:"id"`
+	ServerID types.String `tfsdk:"server_id"`
+	UserID   types.String `tfsdk:"user_id"`
+	RoleID   types.String `tfsdk:"role_id"`
+}
+
+func newMemberRoleResource() resource.Resource { return &memberRoleResource{} }
+
+func (r *memberRoleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_member_role"
+}
+
+func (r *memberRoleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+	snowflake := func(desc string) schema.StringAttribute {
+		return schema.StringAttribute{
+			MarkdownDescription: desc,
+			Required:            true,
+			Validators:          []validator.String{snowflakeValidator()},
+			PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+		}
+	}
+	resp.Schema = schema.Schema{
+		MarkdownDescription: "Grants one role to a server member. Other roles the member has are left alone. If the role " +
+			"is removed outside Terraform it is granted again on the next apply.",
+		Attributes: map[string]schema.Attribute{
+			"id":        idAttribute("`server_id/user_id/role_id`."),
+			"server_id": serverIDAttribute(),
+			"user_id":   snowflake("ID of the member's user."),
+			"role_id":   snowflake("ID of the role to grant."),
+		},
+	}
+}
+
+func (r *memberRoleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+	r.client = clientFromResource(req, resp)
+}
+
+func (m *memberRoleModel) id() string {
+	return m.ServerID.ValueString() + "/" + m.UserID.ValueString() + "/" + m.RoleID.ValueString()
+}
+
+func (r *memberRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan memberRoleModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if err := r.client.AddMemberRole(ctx, plan.ServerID.ValueString(), plan.UserID.ValueString(), plan.RoleID.ValueString()); err != nil {
+		apiError(&resp.Diagnostics, "grant role", err)
+		return
+	}
+	plan.ID = types.StringValue(plan.id())
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
+
+func (r *memberRoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state memberRoleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	member, err := r.client.GetMember(ctx, state.ServerID.ValueString(), state.UserID.ValueString())
+	if discord.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	if err != nil {
+		apiError(&resp.Diagnostics, "read member", err)
+		return
+	}
+	if !slices.Contains(member.Roles, state.RoleID.ValueString()) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	state.ID = types.StringValue(state.id())
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+func (r *memberRoleResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics.AddError("Unexpected update", "All discord_member_role attributes force replacement.")
+}
+
+func (r *memberRoleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state memberRoleModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	err := r.client.RemoveMemberRole(ctx, state.ServerID.ValueString(), state.UserID.ValueString(), state.RoleID.ValueString())
+	if err != nil && !discord.IsNotFound(err) {
+		apiError(&resp.Diagnostics, "revoke role", err)
+	}
+}
+
+func (r *memberRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts, err := splitID(req.ID, 3, "server_id/user_id/role_id")
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("server_id"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("user_id"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("role_id"), parts[2])...)
+}

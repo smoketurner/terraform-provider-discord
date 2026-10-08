@@ -1,0 +1,44 @@
+name: Live acceptance tests
+
+# Runs the acceptance tests against a real Discord server. Configure the
+# "discord-live" environment with secrets DISCORD_TOKEN and DISCORD_SERVER_ID,
+# and optionally the variable DISCORD_TEST_USER_ID for member tests.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: discord-live
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+      - name: Run acceptance tests
+        env:
+          TF_ACC: "1"
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          DISCORD_SERVER_ID: ${{ secrets.DISCORD_SERVER_ID }}
+          DISCORD_TEST_USER_ID: ${{ vars.DISCORD_TEST_USER_ID }}
+        run: |
+          if [ -z "$DISCORD_TOKEN" ] || [ -z "$DISCORD_SERVER_ID" ]; then
+            echo "::warning::DISCORD_TOKEN and DISCORD_SERVER_ID are not configured; skipping live tests."
+            exit 0
+          fi
+          go test -v -timeout 55m -p 1 ./internal/provider/
