@@ -3,12 +3,12 @@
 page_title: "discord_channel_positions Resource - discord"
 subcategory: ""
 description: |-
-  Orders a set of channels atomically with a single API request. Channels that are not listed keep their place: the listed channels are rearranged among the positions they already occupy. List channels that share a parent category (or categories themselves) to control how they are displayed. Discord omits channels the bot cannot view from the server's channel list, so the provider fetches listed channels it does not see there individually; this fails unless the bot has the View Channel permission on them. Destroying this resource leaves the current order unchanged.
+  Orders a set of channels atomically with a single API request. Channels that are not listed keep their place: the listed channels are rearranged among the positions they already occupy. When listed channels share a position, the channels below them may be renumbered to separate them, without changing their order. List channels that share a parent category (or categories themselves) to control how they are displayed. Discord omits channels the bot cannot view from the server's channel list, so the provider fetches listed channels it does not see there individually; this fails unless the bot has the View Channel permission on them. Destroying this resource leaves the current order unchanged.
 ---
 
 # discord_channel_positions (Resource)
 
-Orders a set of channels atomically with a single API request. Channels that are not listed keep their place: the listed channels are rearranged among the positions they already occupy. List channels that share a parent category (or categories themselves) to control how they are displayed. Discord omits channels the bot cannot view from the server's channel list, so the provider fetches listed channels it does not see there individually; this fails unless the bot has the View Channel permission on them. Destroying this resource leaves the current order unchanged.
+Orders a set of channels atomically with a single API request. Channels that are not listed keep their place: the listed channels are rearranged among the positions they already occupy. When listed channels share a position, the channels below them may be renumbered to separate them, without changing their order. List channels that share a parent category (or categories themselves) to control how they are displayed. Discord omits channels the bot cannot view from the server's channel list, so the provider fetches listed channels it does not see there individually; this fails unless the bot has the View Channel permission on them. Destroying this resource leaves the current order unchanged.
 
 ## Example Usage
 

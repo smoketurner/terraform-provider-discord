@@ -3,12 +3,12 @@
 page_title: "discord_role_positions Resource - discord"
 subcategory: ""
 description: |-
-  Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. The bot can only move roles below its own highest role. Destroying this resource leaves the current order unchanged.
+  Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. When listed roles share a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only move roles below its own highest role. Destroying this resource leaves the current order unchanged.
 ---
 
 # discord_role_positions (Resource)
 
-Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. The bot can only move roles below its own highest role. Destroying this resource leaves the current order unchanged.
+Orders a set of server roles atomically with a single API request. Roles that are not listed keep their place: the listed roles are rearranged among the positions they already occupy. When listed roles share a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only move roles below its own highest role. Destroying this resource leaves the current order unchanged.
 
 ## Example Usage
 

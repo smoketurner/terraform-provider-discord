@@ -372,6 +372,8 @@ func (s *Server) modifyRolePositions(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	guildID := r.PathValue("guild")
+	// Positions are stored as sent, so a moved role can tie with one that
+	// was not moved; tied roles sort by ID, as Discord documents.
 	var updates []discord.PositionUpdate
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
