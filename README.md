@@ -42,13 +42,13 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 
 | Kind | Names |
 |------|-------|
-| Server | `discord_server_settings`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server` |
-| Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role` |
-| Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel` |
+| Server | `discord_server_settings`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_integrations`, `data.discord_server_templates` |
+| Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_roles` |
+| Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel`, `data.discord_channels` |
 | Permissions | `discord_channel_permission` |
-| Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member` |
-| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji` |
-| Events | `discord_scheduled_event`, `discord_stage_instance` |
+| Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member`, `data.discord_members`, `data.discord_bans` |
+| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `data.discord_webhooks`, `data.discord_invites`, `data.discord_threads`, `data.discord_emojis` |
+| Events | `discord_scheduled_event`, `discord_stage_instance`, `data.discord_scheduled_events` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+) |
 
 ## Design notes

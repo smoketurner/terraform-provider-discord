@@ -407,3 +407,33 @@ type PromptEmoji struct {
 	Name     *string `json:"name"`
 	Animated bool    `json:"animated"`
 }
+
+// Integration is a guild integration: a bot or OAuth2 application, a Twitch
+// or YouTube connection, or server subscriptions.
+type Integration struct {
+	ID      string             `json:"id"`
+	Name    string             `json:"name"`
+	Type    string             `json:"type"`
+	Enabled bool               `json:"enabled"`
+	Account IntegrationAccount `json:"account"`
+}
+
+// IntegrationAccount is the account an integration belongs to.
+type IntegrationAccount struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// GuildTemplate is a template that copies a guild's settings, roles and
+// channels into a new guild.
+type GuildTemplate struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	UsageCount    int64   `json:"usage_count"`
+	CreatorID     string  `json:"creator_id"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+	SourceGuildID string  `json:"source_guild_id"`
+	IsDirty       *bool   `json:"is_dirty"`
+}
