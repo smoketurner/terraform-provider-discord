@@ -134,19 +134,24 @@ const ArchivedThreadsPageSize = 100
 // channel, most recently archived first, following has_more with the archive
 // timestamp of the last thread of each page.
 func (c *Client) ListArchivedThreads(ctx context.Context, channelID string, private bool) ([]Thread, error) {
-	kind := "public"
-	if private {
-		kind = "private"
-	}
 	all := []Thread{}
-	query := url.Values{"limit": {strconv.Itoa(ArchivedThreadsPageSize)}}
+	before := ""
 	for {
 		var page struct {
 			Threads []Thread `json:"threads"`
 			HasMore bool     `json:"has_more"`
 		}
-		path := "/channels/" + channelID + "/threads/archived/" + kind + "?" + query.Encode()
-		if err := c.do(ctx, http.MethodGet, path, nil, &page); err != nil {
+		query := "?limit=" + strconv.Itoa(ArchivedThreadsPageSize)
+		if before != "" {
+			query += "&before=" + url.QueryEscape(before)
+		}
+		var err error
+		if private {
+			err = c.do(ctx, http.MethodGet, "/channels/"+channelID+"/threads/archived/private"+query, nil, &page)
+		} else {
+			err = c.do(ctx, http.MethodGet, "/channels/"+channelID+"/threads/archived/public"+query, nil, &page)
+		}
+		if err != nil {
 			return nil, err
 		}
 		all = append(all, page.Threads...)
@@ -157,6 +162,27 @@ func (c *Client) ListArchivedThreads(ctx context.Context, channelID string, priv
 		if last == nil || last.ArchiveTimestamp == nil {
 			return all, nil
 		}
-		query.Set("before", *last.ArchiveTimestamp)
+		before = *last.ArchiveTimestamp
 	}
+}
+
+// ListApplicationCommands lists the global commands of an application, or its
+// commands in a guild when guildID is set.
+func (c *Client) ListApplicationCommands(ctx context.Context, applicationID, guildID string) ([]ApplicationCommand, error) {
+	var commands []ApplicationCommand
+	if guildID == "" {
+		return commands, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/commands", nil, &commands)
+	}
+	return commands, c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/guilds/"+guildID+"/commands", nil, &commands)
+}
+
+// ListApplicationEmojis lists the emojis of an application.
+func (c *Client) ListApplicationEmojis(ctx context.Context, applicationID string) ([]Emoji, error) {
+	var resp struct {
+		Items []Emoji `json:"items"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/applications/"+applicationID+"/emojis", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Items, nil
 }

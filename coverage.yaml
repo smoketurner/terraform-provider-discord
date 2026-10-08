@@ -107,7 +107,7 @@ operations:
   execute_slack_compatible_webhook: {status: out_of_scope, reason: "Slack payload format for external services"}
   execute_webhook: {status: covered, by: [discord_webhook_message]}
   follow_channel: {status: covered, by: [discord_channel_follower]}
-  get_active_guild_threads: {status: covered, by: [data.discord_threads]}
+  get_active_guild_threads: {status: covered, by: [data.discord_threads, list.discord_thread]}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
   get_application: {status: pending_docs}
   get_application_command: {status: covered, by: [discord_application_command]}
@@ -136,7 +136,7 @@ operations:
   get_guild_sticker: {status: covered, by: [discord_sticker]}
   get_guild_template: {status: out_of_scope, reason: "looks up any server's template by code; discord_server_template reads its own from list_guild_templates"}
   get_guild_vanity_url: {status: covered, by: [data.discord_server_vanity_url]}
-  get_guild_webhooks: {status: covered, by: [data.discord_webhooks]}
+  get_guild_webhooks: {status: covered, by: [data.discord_webhooks, list.discord_channel_follower, list.discord_webhook]}
   get_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
   get_guild_widget: {status: covered, by: [data.discord_server_widget]}
   get_guild_widget_png: {status: out_of_scope, reason: "returns an image"}
@@ -147,7 +147,7 @@ operations:
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_message: {status: covered, by: [data.discord_message, discord_message, discord_thread]}
-  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus, discord_application_command, discord_application_emoji, discord_application_role_connection_metadata, discord_application_settings]}
+  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus, discord_application_command, discord_application_emoji, discord_application_role_connection_metadata, discord_application_settings, list.discord_application_command, list.discord_application_emoji]}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
@@ -176,27 +176,27 @@ operations:
   leave_guild: {status: out_of_scope, reason: "removes the bot from the server"}
   leave_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   leave_thread: {status: out_of_scope, reason: "leaving threads is runtime state"}
-  list_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
-  list_application_emojis: {status: planned, issue: 30}
-  list_auto_moderation_rules: {status: covered, by: [data.discord_auto_moderation_rules]}
-  list_channel_invites: {status: covered, by: [discord_invite]}
-  list_channel_webhooks: {status: covered, by: [data.discord_webhooks]}
+  list_application_commands: {status: covered, by: [list.discord_application_command]}
+  list_application_emojis: {status: covered, by: [list.discord_application_emoji]}
+  list_auto_moderation_rules: {status: covered, by: [data.discord_auto_moderation_rules, list.discord_auto_moderation_rule]}
+  list_channel_invites: {status: covered, by: [discord_invite, list.discord_invite]}
+  list_channel_webhooks: {status: covered, by: [data.discord_webhooks, list.discord_channel_follower, list.discord_webhook]}
   list_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
-  list_guild_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
+  list_guild_application_commands: {status: covered, by: [list.discord_application_command]}
   list_guild_audit_log_entries: {status: covered, by: [data.discord_audit_log]}
-  list_guild_bans: {status: covered, by: [data.discord_bans]}
-  list_guild_channels: {status: covered, by: [data.discord_channel, data.discord_channels, discord_channel_positions]}
-  list_guild_emojis: {status: covered, by: [data.discord_emojis]}
+  list_guild_bans: {status: covered, by: [data.discord_bans, list.discord_ban]}
+  list_guild_channels: {status: covered, by: [data.discord_channel, data.discord_channels, discord_channel_positions, list.discord_announcement_channel, list.discord_category_channel, list.discord_channel_permission, list.discord_forum_channel, list.discord_media_channel, list.discord_stage_channel, list.discord_text_channel, list.discord_voice_channel]}
+  list_guild_emojis: {status: covered, by: [data.discord_emojis, list.discord_emoji]}
   list_guild_integrations: {status: covered, by: [data.discord_integrations]}
-  list_guild_invites: {status: covered, by: [data.discord_invites]}
-  list_guild_members: {status: covered, by: [data.discord_members]}
-  list_guild_roles: {status: covered, by: [data.discord_role, data.discord_roles, discord_role_positions]}
+  list_guild_invites: {status: covered, by: [data.discord_invites, list.discord_invite]}
+  list_guild_members: {status: covered, by: [data.discord_members, list.discord_member]}
+  list_guild_roles: {status: covered, by: [data.discord_role, data.discord_roles, discord_role_positions, list.discord_role]}
   list_guild_scheduled_event_exception_users: {status: pending_docs}
   list_guild_scheduled_event_users: {status: out_of_scope, reason: "event subscribers are runtime state"}
-  list_guild_scheduled_events: {status: covered, by: [data.discord_scheduled_events]}
-  list_guild_soundboard_sounds: {status: covered, by: [data.discord_soundboard_sounds]}
-  list_guild_stickers: {status: covered, by: [data.discord_stickers]}
-  list_guild_templates: {status: covered, by: [data.discord_server_templates, discord_server_template]}
+  list_guild_scheduled_events: {status: covered, by: [data.discord_scheduled_events, list.discord_scheduled_event]}
+  list_guild_soundboard_sounds: {status: covered, by: [data.discord_soundboard_sounds, list.discord_soundboard_sound]}
+  list_guild_stickers: {status: covered, by: [data.discord_stickers, list.discord_sticker]}
+  list_guild_templates: {status: covered, by: [data.discord_server_templates, discord_server_template, list.discord_server_template]}
   list_guild_voice_regions: {status: covered, by: [data.discord_voice_regions]}
   list_message_reactions_by_emoji: {status: covered, by: [discord_message_reaction]}
   list_messages: {status: planned, issue: 82}

@@ -55,6 +55,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Applications | `discord_application_command` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
 | Actions | `discord_send_message`, `discord_crosspost_message`, `discord_end_poll`, `discord_bulk_delete_messages`, `discord_prune_members`, `discord_bulk_ban`, `discord_sync_server_template`, `discord_set_voice_channel_status` (Terraform 1.14+) |
+| List resources | `list.discord_role`, every channel type, `list.discord_channel_permission`, `list.discord_channel_follower`, `list.discord_member`, `list.discord_ban`, `list.discord_webhook`, `list.discord_invite`, `list.discord_thread`, `list.discord_emoji`, `list.discord_sticker`, `list.discord_soundboard_sound`, `list.discord_auto_moderation_rule`, `list.discord_scheduled_event`, `list.discord_application_command`, `list.discord_server_template`, `list.discord_application_emoji` for `terraform query` (Terraform 1.14+); see [Adopt an existing server](docs/guides/adopt-existing-server.md) |
 
 ## Design notes
 

@@ -141,7 +141,7 @@ func TestListArchivedThreadsPagination(t *testing.T) {
 	}
 	want := []string{
 		"/channels/9/threads/archived/private?limit=100",
-		"/channels/9/threads/archived/private?before=2026-02-01T00%3A00%3A00Z&limit=100",
+		"/channels/9/threads/archived/private?limit=100&before=2026-02-01T00%3A00%3A00Z",
 	}
 	if !slices.Equal(queries, want) {
 		t.Errorf("queries = %v, want %v", queries, want)

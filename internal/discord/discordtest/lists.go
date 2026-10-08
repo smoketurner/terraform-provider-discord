@@ -30,6 +30,9 @@ func (s *Server) handleLists(mux *http.ServeMux) {
 	mux.HandleFunc("GET /channels/{channel}/webhooks", s.listChannelWebhooks)
 	mux.HandleFunc("GET /channels/{channel}/threads/archived/public", s.listArchivedThreads(false))
 	mux.HandleFunc("GET /channels/{channel}/threads/archived/private", s.listArchivedThreads(true))
+	mux.HandleFunc("GET /applications/{app}/commands", s.listCommands)
+	mux.HandleFunc("GET /applications/{app}/guilds/{guild}/commands", s.listCommands)
+	mux.HandleFunc("GET /applications/{app}/emojis", s.listApplicationEmojis)
 }
 
 // userPage returns the items after the "after" user ID, in ascending order of
@@ -263,4 +266,23 @@ func (s *Server) listArchivedThreads(private bool) http.HandlerFunc {
 		hasMore := len(threads) > limit
 		writeJSON(w, http.StatusOK, map[string]any{"threads": threads[:min(limit, len(threads))], "members": []any{}, "has_more": hasMore})
 	}
+}
+
+func (s *Server) listCommands(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	guildID, ok := s.commandScope(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, sortedByID(s.commands, func(c *discord.ApplicationCommand) bool { return c.GuildID == guildID }))
+}
+
+func (s *Server) listApplicationEmojis(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.ownApplication(w, r) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": sortedByID(s.appEmojis, func(*discord.Emoji) bool { return true })})
 }
