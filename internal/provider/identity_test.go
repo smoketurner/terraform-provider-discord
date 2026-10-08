@@ -57,6 +57,9 @@ resource "discord_server_settings" "test" {
   server_id = local.server_id
   name      = "` + guild.Name + `"
 }
+resource "discord_server_incident_actions" "test" {
+  server_id = local.server_id
+}
 resource "discord_role_everyone" "test" {
   server_id   = local.server_id
   permissions = "` + everyone.Permissions + `"
@@ -142,26 +145,27 @@ resource "discord_stage_instance" "test" {
 }
 `
 	identities := map[string]map[string]string{
-		"discord_server_settings.test":      {"server_id": "server_id"},
-		"discord_role_everyone.test":        {"server_id": "server_id"},
-		"discord_role.test":                 {"server_id": "server_id", "role_id": "id"},
-		"discord_category_channel.test":     {"channel_id": "id"},
-		"discord_text_channel.test":         {"channel_id": "id"},
-		"discord_voice_channel.test":        {"channel_id": "id"},
-		"discord_announcement_channel.test": {"channel_id": "id"},
-		"discord_stage_channel.test":        {"channel_id": "id"},
-		"discord_forum_channel.test":        {"channel_id": "id"},
-		"discord_media_channel.test":        {"channel_id": "id"},
-		"discord_channel_permission.test":   {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
-		"discord_message.test":              {"channel_id": "channel_id", "message_id": "id"},
-		"discord_message_reaction.test":     {"channel_id": "channel_id", "message_id": "message_id", "emoji": "emoji"},
-		"discord_channel_follower.test":     {"webhook_id": "id"},
-		"discord_invite.test":               {"channel_id": "channel_id", "code": "id"},
-		"discord_webhook.test":              {"webhook_id": "id"},
-		"discord_thread.test":               {"thread_id": "id"},
-		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
-		"discord_scheduled_event.test":      {"server_id": "server_id", "event_id": "id"},
-		"discord_stage_instance.test":       {"channel_id": "channel_id"},
+		"discord_server_settings.test":         {"server_id": "server_id"},
+		"discord_server_incident_actions.test": {"server_id": "server_id"},
+		"discord_role_everyone.test":           {"server_id": "server_id"},
+		"discord_role.test":                    {"server_id": "server_id", "role_id": "id"},
+		"discord_category_channel.test":        {"channel_id": "id"},
+		"discord_text_channel.test":            {"channel_id": "id"},
+		"discord_voice_channel.test":           {"channel_id": "id"},
+		"discord_announcement_channel.test":    {"channel_id": "id"},
+		"discord_stage_channel.test":           {"channel_id": "id"},
+		"discord_forum_channel.test":           {"channel_id": "id"},
+		"discord_media_channel.test":           {"channel_id": "id"},
+		"discord_channel_permission.test":      {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
+		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
+		"discord_message_reaction.test":        {"channel_id": "channel_id", "message_id": "message_id", "emoji": "emoji"},
+		"discord_channel_follower.test":        {"webhook_id": "id"},
+		"discord_invite.test":                  {"channel_id": "channel_id", "code": "id"},
+		"discord_webhook.test":                 {"webhook_id": "id"},
+		"discord_thread.test":                  {"thread_id": "id"},
+		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
+		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
+		"discord_stage_instance.test":          {"channel_id": "channel_id"},
 	}
 	if env.userID != "" {
 		cfg += `
