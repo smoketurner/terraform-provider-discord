@@ -42,14 +42,15 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 
 | Kind | Names |
 |------|-------|
-| Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_integrations`, `data.discord_server_templates` |
-| Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_roles` |
+| Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_server_preview`, `data.discord_server_vanity_url`, `data.discord_server_widget`, `data.discord_voice_regions`, `data.discord_audit_log`, `data.discord_integrations`, `data.discord_server_templates` |
+| Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_role_member_counts`, `data.discord_roles` |
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel`, `data.discord_channels` |
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member`, `data.discord_members`, `data.discord_bans` |
 | Users and application | `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
-| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `data.discord_webhooks`, `data.discord_invites`, `data.discord_threads`, `data.discord_emojis` |
+| Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds`, `data.discord_webhooks`, `data.discord_invites`, `data.discord_threads`, `data.discord_emojis`, `data.discord_stickers`, `data.discord_soundboard_sounds` |
 | Events | `discord_scheduled_event`, `discord_stage_instance`, `data.discord_scheduled_events` |
+| Monetization | `data.discord_skus`, `data.discord_entitlements`, `data.discord_sku_subscriptions` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
 
 ## Design notes

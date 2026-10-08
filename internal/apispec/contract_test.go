@@ -66,6 +66,30 @@ var modelSchemas = map[string]struct {
 	}},
 	"IntegrationAccount": {reflect.TypeFor[discord.IntegrationAccount](), []string{"AccountResponse"}},
 	"GuildTemplate":      {reflect.TypeFor[discord.GuildTemplate](), []string{"GuildTemplateResponse"}},
+	"InviteGuild":        {reflect.TypeFor[discord.InviteGuild](), []string{"InviteGuildResponse"}},
+	"Sticker":            {reflect.TypeFor[discord.Sticker](), []string{"GuildStickerResponse"}},
+	"SoundboardSound":    {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
+	"VoiceRegion":        {reflect.TypeFor[discord.VoiceRegion](), []string{"VoiceRegionResponse"}},
+	"GuildPreview":       {reflect.TypeFor[discord.GuildPreview](), []string{"GuildPreviewResponse"}},
+	"VanityURL":          {reflect.TypeFor[discord.VanityURL](), []string{"VanityURLResponse"}},
+	"GuildWidget":        {reflect.TypeFor[discord.GuildWidget](), []string{"WidgetResponse"}},
+	"WidgetChannel":      {reflect.TypeFor[discord.WidgetChannel](), []string{"WidgetChannel"}},
+	"WidgetMember":       {reflect.TypeFor[discord.WidgetMember](), []string{"WidgetMember"}},
+	"MessagePin":         {reflect.TypeFor[discord.MessagePin](), []string{"PinnedMessageResponse"}},
+	"MessagePins":        {reflect.TypeFor[discord.MessagePins](), []string{"PinnedMessagesResponse"}},
+	"StandardSticker":    {reflect.TypeFor[discord.StandardSticker](), []string{"StandardStickerResponse"}},
+	// AnySticker embeds StandardSticker, which is checked on its own; only
+	// the guild sticker fields it adds are checked here.
+	"AnySticker":     {reflect.TypeFor[discord.AnySticker](), []string{"GuildStickerResponse"}},
+	"StickerPack":    {reflect.TypeFor[discord.StickerPack](), []string{"StickerPackResponse"}},
+	"StickerPacks":   {reflect.TypeFor[discord.StickerPacks](), []string{"StickerPackCollectionResponse"}},
+	"AuditLog":       {reflect.TypeFor[discord.AuditLog](), []string{"GuildAuditLogResponse"}},
+	"AuditLogEntry":  {reflect.TypeFor[discord.AuditLogEntry](), []string{"AuditLogEntryResponse"}},
+	"AuditLogChange": {reflect.TypeFor[discord.AuditLogChange](), []string{"AuditLogObjectChangeResponse"}},
+	// List SKUs is documented but missing from the spec.
+	"SKU":          {reflect.TypeFor[discord.SKU](), nil},
+	"Entitlement":  {reflect.TypeFor[discord.Entitlement](), []string{"EntitlementResponse"}},
+	"Subscription": {reflect.TypeFor[discord.Subscription](), []string{"SubscriptionResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go

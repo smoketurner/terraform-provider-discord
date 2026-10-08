@@ -10,9 +10,9 @@ import (
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
-// readOnlyState holds guild objects the provider only lists. Tests seed them
+// listState holds guild objects the provider only lists. Tests seed them
 // with the Add* helpers.
-type readOnlyState struct {
+type listState struct {
 	integrations map[string][]discord.Integration
 	templates    map[string][]discord.GuildTemplate
 }
@@ -179,11 +179,11 @@ func (s *Server) listActiveThreads(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AddIntegration(guildID, name, typ string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.readOnly.integrations == nil {
-		s.readOnly.integrations = map[string][]discord.Integration{}
+	if s.lists.integrations == nil {
+		s.lists.integrations = map[string][]discord.Integration{}
 	}
 	id := s.newID()
-	s.readOnly.integrations[guildID] = append(s.readOnly.integrations[guildID], discord.Integration{
+	s.lists.integrations[guildID] = append(s.lists.integrations[guildID], discord.Integration{
 		ID: id, Name: name, Type: typ, Enabled: true,
 		Account: discord.IntegrationAccount{ID: s.newID(), Name: name + " account"},
 	})
@@ -197,18 +197,18 @@ func (s *Server) listIntegrations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, append([]discord.Integration{}, s.readOnly.integrations[g.ID]...))
+	writeJSON(w, http.StatusOK, append([]discord.Integration{}, s.lists.integrations[g.ID]...))
 }
 
 // AddTemplate adds a template of a guild and returns its code.
 func (s *Server) AddTemplate(guildID, name string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.readOnly.templates == nil {
-		s.readOnly.templates = map[string][]discord.GuildTemplate{}
+	if s.lists.templates == nil {
+		s.lists.templates = map[string][]discord.GuildTemplate{}
 	}
 	code := "tpl" + s.newID()
-	s.readOnly.templates[guildID] = append(s.readOnly.templates[guildID], discord.GuildTemplate{
+	s.lists.templates[guildID] = append(s.lists.templates[guildID], discord.GuildTemplate{
 		Code: code, Name: name, CreatorID: UserID, SourceGuildID: guildID,
 		CreatedAt: "2024-01-01T00:00:00+00:00", UpdatedAt: "2024-01-02T00:00:00+00:00",
 	})
@@ -222,5 +222,5 @@ func (s *Server) listTemplates(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, append([]discord.GuildTemplate{}, s.readOnly.templates[g.ID]...))
+	writeJSON(w, http.StatusOK, append([]discord.GuildTemplate{}, s.lists.templates[g.ID]...))
 }

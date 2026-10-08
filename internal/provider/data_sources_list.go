@@ -54,14 +54,6 @@ func (d *listDataSource[M]) Read(ctx context.Context, req datasource.ReadRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-func computedList(desc string, attrs map[string]schema.Attribute) schema.ListNestedAttribute {
-	return schema.ListNestedAttribute{
-		MarkdownDescription: desc,
-		Computed:            true,
-		NestedObject:        schema.NestedAttributeObject{Attributes: attrs},
-	}
-}
-
 func computedStringSet(desc string) schema.SetAttribute {
 	return schema.SetAttribute{MarkdownDescription: desc, ElementType: types.StringType, Computed: true}
 }
@@ -160,11 +152,6 @@ func newChannelsDataSource() datasource.DataSource {
 			})
 		},
 	}
-}
-
-// compareSnowflakes orders IDs numerically: a longer snowflake is larger.
-func compareSnowflakes(a, b string) int {
-	return cmp.Or(cmp.Compare(len(a), len(b)), cmp.Compare(a, b))
 }
 
 // Roles.
