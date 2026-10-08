@@ -1,0 +1,13 @@
+{
+  "category": "1180000000000000012",
+  "channel_id": "1180000000000000002",
+  "id": "1180000000000000002",
+  "name": "general",
+  "nsfw": false,
+  "position": 3,
+  "rate_limit_per_user": 30,
+  "server_id": "1180000000000000001",
+  "sync_perms_with_category": true,
+  "topic": "",
+  "type": "forum"
+}

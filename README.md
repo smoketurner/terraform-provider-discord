@@ -36,7 +36,9 @@ resource "discord_role" "member" {
 }
 ```
 
-See the [documentation](docs/index.md) for bot setup and every resource, data source and function.
+See the [documentation](docs/index.md) for bot setup and every resource, data source and function. Coming from the
+archived Lucky3028/discord provider? [Migrate from Lucky3028/discord](docs/guides/migrate-from-lucky3028.md) moves its
+resources to this provider without recreating them (Terraform 1.8+).
 
 ## Resources, data sources and functions
 
@@ -49,9 +51,9 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member`, `data.discord_members`, `data.discord_bans` |
 | Users and application | `discord_bot_user`, `discord_bot_member`, `discord_application_settings`, `discord_application_role_connection_metadata`, `discord_application_emoji`, `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
 | Webhooks | `discord_webhook`, `discord_webhook_message`, `ephemeral.discord_webhook` (Terraform 1.10+), `data.discord_webhooks` |
-| Other | `discord_invite`, `discord_message`, `discord_message_reaction`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `discord_auto_moderation_rule`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds`, `data.discord_invites`, `data.discord_threads`, `data.discord_emojis`, `data.discord_stickers`, `data.discord_soundboard_sounds`, `data.discord_auto_moderation_rules` |
+| Other | `discord_invite`, `discord_message`, `discord_message_reaction`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `discord_auto_moderation_rule`, `data.discord_invite`, `data.discord_message`, `data.discord_messages`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds`, `data.discord_invites`, `data.discord_threads`, `data.discord_emojis`, `data.discord_stickers`, `data.discord_soundboard_sounds`, `data.discord_auto_moderation_rules` |
 | Events | `discord_scheduled_event`, `discord_stage_instance`, `data.discord_scheduled_events` |
-| Monetization | `data.discord_skus`, `data.discord_entitlements`, `data.discord_sku_subscriptions` |
+| Monetization | `discord_test_entitlement`, `data.discord_skus`, `data.discord_entitlement`, `data.discord_entitlements`, `data.discord_sku_subscription`, `data.discord_sku_subscriptions` |
 | Applications | `discord_application_command` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
 | Actions | `discord_send_message`, `discord_crosspost_message`, `discord_end_poll`, `discord_bulk_delete_messages`, `discord_prune_members`, `discord_bulk_ban`, `discord_sync_server_template`, `discord_set_voice_channel_status` (Terraform 1.14+) |

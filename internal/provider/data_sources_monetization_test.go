@@ -200,3 +200,104 @@ data "discord_sku_subscriptions" "` + name + `" {
 		},
 	})
 }
+
+func TestAccEntitlementDataSource(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	user := "100000000000000010"
+	sku := env.fake.AddSKU(discord.SKU{Type: 5, Name: "Premium", Slug: "premium"})
+	purchase := env.fake.AddEntitlement(discord.Entitlement{
+		UserID: &user, SKUID: sku, Type: 8, StartsAt: new("2024-08-27T19:48:44+00:00"), EndsAt: new("2024-09-27T19:48:44+00:00"),
+	})
+	gift := env.fake.AddEntitlement(discord.Entitlement{GuildID: new(env.serverID), SKUID: sku, Type: 3, Deleted: true, Consumed: new(true)})
+	lookup := func(name, attrs string) string {
+		return `
+data "discord_entitlement" "` + name + `" {
+` + attrs + `
+}`
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      env.config(lookup("bad", `id = "premium"`)),
+				ExpectError: regexp.MustCompile(`must be a Discord snowflake ID`),
+			},
+			{
+				Config: env.config(lookup("purchase", `id = "`+purchase+`"`) +
+					lookup("gift", `id = "`+gift+`"`+"\n  application_id = \""+discordtest.ApplicationID+`"`)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "application_id", discordtest.ApplicationID),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "sku_id", sku),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "user_id", user),
+					resource.TestCheckNoResourceAttr("data.discord_entitlement.purchase", "server_id"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "type", "application_subscription"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "deleted", "false"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "starts_at", "2024-08-27T19:48:44+00:00"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.purchase", "ends_at", "2024-09-27T19:48:44+00:00"),
+					resource.TestCheckNoResourceAttr("data.discord_entitlement.purchase", "consumed"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.gift", "server_id", env.serverID),
+					resource.TestCheckNoResourceAttr("data.discord_entitlement.gift", "user_id"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.gift", "type", "developer_gift"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.gift", "deleted", "true"),
+					resource.TestCheckResourceAttr("data.discord_entitlement.gift", "consumed", "true"),
+					resource.TestCheckNoResourceAttr("data.discord_entitlement.gift", "ends_at"),
+				),
+			},
+			{
+				Config:      env.config(lookup("missing", `id = "100000000000000099"`)),
+				ExpectError: regexp.MustCompile(`Unknown\s+Entitlement`),
+			},
+			{
+				Config:      env.config(lookup("other", `id = "`+purchase+`"`+"\n  application_id = \"999999999999999999\"")),
+				ExpectError: regexp.MustCompile(`Unknown\s+Application`),
+			},
+		},
+	})
+}
+
+func TestAccSKUSubscriptionDataSource(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	user := "100000000000000010"
+	sku := env.fake.AddSKU(discord.SKU{Type: 5, Name: "Premium", Slug: "premium"})
+	other := env.fake.AddSKU(discord.SKU{Type: 5, Name: "Other", Slug: "other"})
+	id := env.fake.AddSubscription(discord.Subscription{
+		UserID: user, SKUIDs: []string{sku}, EntitlementIDs: []string{"100000000000000030"}, RenewalSKUIDs: []string{sku},
+		Status: 2, CurrentPeriodStart: "2024-08-27T19:48:44+00:00", CurrentPeriodEnd: "2024-09-27T19:48:44+00:00",
+		CanceledAt: new("2024-09-01T00:00:00+00:00"),
+	})
+	lookup := func(name, skuID, subID string) string {
+		return `
+data "discord_sku_subscription" "` + name + `" {
+  sku_id = "` + skuID + `"
+  id     = "` + subID + `"
+}`
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      env.config(`data "discord_sku_subscription" "bad" { id = "` + id + `" }`),
+				ExpectError: regexp.MustCompile(`The argument "sku_id" is required`),
+			},
+			{
+				Config: env.config(lookup("test", sku, id)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "user_id", user),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "sku_ids.#", "1"),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "sku_ids.0", sku),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "entitlement_ids.0", "100000000000000030"),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "renewal_sku_ids.0", sku),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "status", "ending"),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "current_period_start", "2024-08-27T19:48:44+00:00"),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "current_period_end", "2024-09-27T19:48:44+00:00"),
+					resource.TestCheckResourceAttr("data.discord_sku_subscription.test", "canceled_at", "2024-09-01T00:00:00+00:00"),
+				),
+			},
+			{
+				// The subscription does not include this SKU.
+				Config:      env.config(lookup("other", other, id)),
+				ExpectError: regexp.MustCompile(`Unknown\s+Subscription`),
+			},
+		},
+	})
+}

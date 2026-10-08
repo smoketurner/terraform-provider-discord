@@ -192,6 +192,7 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /channels/{channel}/invites", s.createInvite)
 	mux.HandleFunc("GET /channels/{channel}/invites", s.listChannelInvites)
 	mux.HandleFunc("DELETE /invites/{code}", s.deleteInvite)
+	mux.HandleFunc("GET /channels/{channel}/messages", s.listMessages)
 	mux.HandleFunc("POST /channels/{channel}/messages", s.createMessage)
 	mux.HandleFunc("GET /channels/{channel}/messages/{message}", s.getMessage)
 	mux.HandleFunc("PATCH /channels/{channel}/messages/{message}", s.editMessage)
@@ -1738,6 +1739,65 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 	s.messages[m.ID] = m
 	s.referenced[m.ID] = referenced
 	writeJSON(w, http.StatusOK, m)
+}
+
+// listMessages returns a channel's messages newest first, like Discord: the
+// newest older than before, the oldest newer than after, or those around a
+// message (including it).
+func (s *Server) listMessages(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ch, ok := s.channel(w, r)
+	if !ok {
+		return
+	}
+	q := r.URL.Query()
+	set := 0
+	for _, k := range []string{"around", "before", "after"} {
+		if q.Has(k) {
+			set++
+		}
+	}
+	if set > 1 {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: around, before and after are mutually exclusive")
+		return
+	}
+	limit, ok := queryLimit(w, r, 50, 100)
+	if !ok {
+		return
+	}
+	var msgs []*discord.Message
+	for _, m := range s.messages {
+		if m.ChannelID == ch.ID {
+			msgs = append(msgs, m)
+		}
+	}
+	slices.SortFunc(msgs, func(a, b *discord.Message) int { return snowflakeCompare(a.ID, b.ID) })
+	var out []*discord.Message
+	switch {
+	case q.Has("around"):
+		i, _ := slices.BinarySearchFunc(msgs, q.Get("around"), func(m *discord.Message, id string) int { return snowflakeCompare(m.ID, id) })
+		start := max(0, min(i-limit/2, len(msgs)-limit))
+		out = msgs[start:min(start+limit, len(msgs))]
+	case q.Has("after"):
+		i, _ := slices.BinarySearchFunc(msgs, q.Get("after"), func(m *discord.Message, id string) int { return snowflakeCompare(m.ID, id) })
+		for i < len(msgs) && msgs[i].ID == q.Get("after") {
+			i++
+		}
+		out = msgs[i:min(i+limit, len(msgs))]
+	default:
+		end := len(msgs)
+		if q.Has("before") {
+			end, _ = slices.BinarySearchFunc(msgs, q.Get("before"), func(m *discord.Message, id string) int { return snowflakeCompare(m.ID, id) })
+		}
+		out = msgs[max(0, end-limit):end]
+	}
+	out = slices.Clone(out)
+	slices.Reverse(out)
+	if out == nil {
+		out = []*discord.Message{}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) getMessage(w http.ResponseWriter, r *http.Request) {

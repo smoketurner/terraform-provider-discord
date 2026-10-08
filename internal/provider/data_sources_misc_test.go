@@ -625,3 +625,91 @@ data "discord_audit_log" "` + name + `" {
 		},
 	})
 }
+
+// The fake is used to page through more messages than live tests should
+// post.
+func TestAccMessagesDataSource(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	ctx := context.Background()
+	ch, err := env.client.CreateChannel(ctx, env.serverID, discord.Payload{"name": "tf-acc-messages", "type": discord.ChannelTypeText})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for i := range 130 {
+		msg, err := env.client.CreateMessage(ctx, ch.ID, discord.Payload{"content": fmt.Sprintf("message %d", i)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, msg.ID)
+	}
+	lookup := func(name, attrs string) string {
+		return `
+data "discord_messages" "` + name + `" {
+  channel_id = "` + ch.ID + `"
+` + attrs + `
+}`
+	}
+	list := "GET /channels/" + ch.ID + "/messages"
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      env.config(lookup("conflict", `around = "`+ids[5]+`"`+"\n  before = \""+ids[9]+`"`)),
+				ExpectError: regexp.MustCompile(`Invalid Attribute Combination`),
+			},
+			{
+				Config:      env.config(lookup("around", `around = "`+ids[5]+`"`+"\n  limit = 101")),
+				ExpectError: regexp.MustCompile(`With around, limit must be at most 100`),
+			},
+			{
+				Config:      env.config(lookup("zero", "limit = 0")),
+				ExpectError: regexp.MustCompile(`limit value must be at least 1`),
+			},
+			{
+				Config:      env.config(`data "discord_messages" "missing" { channel_id = "100000000000000099" }`),
+				ExpectError: regexp.MustCompile(`Unknown\s+Channel`),
+			},
+			{
+				// The default limit of 50 returns the newest 50, newest first.
+				Config: env.config(lookup("recent", "") + lookup("all", "limit = 1000")),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.discord_messages.recent", "messages.#", "50"),
+					resource.TestCheckResourceAttr("data.discord_messages.recent", "messages.0.id", ids[129]),
+					resource.TestCheckResourceAttr("data.discord_messages.recent", "messages.0.content", "message 129"),
+					resource.TestCheckResourceAttr("data.discord_messages.recent", "messages.0.type", "0"),
+					resource.TestCheckResourceAttrSet("data.discord_messages.recent", "messages.0.author_id"),
+					resource.TestCheckResourceAttrSet("data.discord_messages.recent", "messages.0.timestamp"),
+					resource.TestCheckResourceAttr("data.discord_messages.recent", "messages.49.id", ids[80]),
+					resource.TestCheckResourceAttr("data.discord_messages.all", "messages.#", "130"),
+					resource.TestCheckResourceAttr("data.discord_messages.all", "messages.0.id", ids[129]),
+					resource.TestCheckResourceAttr("data.discord_messages.all", "messages.129.id", ids[0]),
+					// One request for the newest 50, two for all 130.
+					env.countRequests(list, 3),
+				),
+			},
+			{
+				Config: env.config(lookup("before", `before = "`+ids[10]+`"`) +
+					lookup("after", `after = "`+ids[119]+`"`+"\n  limit = 5") +
+					lookup("oldest", `after = "0"`+"\n  limit = 120") +
+					lookup("around", `around = "`+ids[50]+`"`+"\n  limit = 5") +
+					lookup("empty", `after = "`+ids[129]+`"`)),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.discord_messages.before", "messages.#", "10"),
+					resource.TestCheckResourceAttr("data.discord_messages.before", "messages.0.id", ids[9]),
+					resource.TestCheckResourceAttr("data.discord_messages.after", "messages.#", "5"),
+					resource.TestCheckResourceAttr("data.discord_messages.after", "messages.0.id", ids[124]),
+					resource.TestCheckResourceAttr("data.discord_messages.after", "messages.4.id", ids[120]),
+					resource.TestCheckResourceAttr("data.discord_messages.oldest", "messages.#", "120"),
+					resource.TestCheckResourceAttr("data.discord_messages.oldest", "messages.0.id", ids[119]),
+					resource.TestCheckResourceAttr("data.discord_messages.oldest", "messages.119.id", ids[0]),
+					resource.TestCheckResourceAttr("data.discord_messages.around", "messages.#", "5"),
+					resource.TestCheckResourceAttr("data.discord_messages.around", "messages.0.id", ids[52]),
+					resource.TestCheckResourceAttr("data.discord_messages.around", "messages.2.id", ids[50]),
+					resource.TestCheckResourceAttr("data.discord_messages.around", "messages.4.id", ids[48]),
+					resource.TestCheckResourceAttr("data.discord_messages.empty", "messages.#", "0"),
+				),
+			},
+		},
+	})
+}

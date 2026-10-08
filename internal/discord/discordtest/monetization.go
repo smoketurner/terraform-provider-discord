@@ -1,6 +1,7 @@
 package discordtest
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strings"
@@ -20,7 +21,11 @@ type monetization struct {
 func (s *Server) handleMonetization(mux *http.ServeMux) {
 	mux.HandleFunc("GET /applications/{app}/skus", s.listSKUs)
 	mux.HandleFunc("GET /applications/{app}/entitlements", s.listEntitlements)
+	mux.HandleFunc("POST /applications/{app}/entitlements", s.createTestEntitlement)
+	mux.HandleFunc("GET /applications/{app}/entitlements/{entitlement}", s.getEntitlement)
+	mux.HandleFunc("DELETE /applications/{app}/entitlements/{entitlement}", s.deleteTestEntitlement)
 	mux.HandleFunc("GET /skus/{sku}/subscriptions", s.listSKUSubscriptions)
+	mux.HandleFunc("GET /skus/{sku}/subscriptions/{subscription}", s.getSKUSubscription)
 }
 
 func (s *Server) monetization() *monetization {
@@ -157,4 +162,107 @@ func (s *Server) listSKUSubscriptions(w http.ResponseWriter, r *http.Request) {
 	if out, ok := page(w, r, matches, func(sub discord.Subscription) string { return sub.ID }, 50); ok {
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// Entitlement types the fake creates.
+const entitlementTypeTestModePurchase = 4
+
+// Entitlement owner types of Create Test Entitlement.
+const (
+	entitlementOwnerGuild = 1
+	entitlementOwnerUser  = 2
+)
+
+func (s *Server) createTestEntitlement(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.knownApplication(w, r) {
+		return
+	}
+	var body struct {
+		SKUID     string `json:"sku_id"`
+		OwnerID   string `json:"owner_id"`
+		OwnerType int    `json:"owner_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	m := s.monetization()
+	if !slices.ContainsFunc(m.skus, func(sku discord.SKU) bool { return sku.ID == body.SKUID }) {
+		notFound(w, "SKU", 10027)
+		return
+	}
+	e := discord.Entitlement{
+		ID: s.newID(), SKUID: body.SKUID, ApplicationID: ApplicationID, Type: entitlementTypeTestModePurchase,
+		Consumed: new(bool),
+	}
+	switch body.OwnerType {
+	case entitlementOwnerGuild:
+		if _, ok := s.guilds[body.OwnerID]; !ok {
+			notFound(w, "Guild", 10004)
+			return
+		}
+		e.GuildID = &body.OwnerID
+	case entitlementOwnerUser:
+		e.UserID = &body.OwnerID
+	default:
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: owner_type")
+		return
+	}
+	m.entitlements = append(m.entitlements, e)
+	writeJSON(w, http.StatusOK, e)
+}
+
+// entitlement returns the entitlement in the request path, deleted ones
+// included.
+func (s *Server) entitlement(w http.ResponseWriter, r *http.Request) (*discord.Entitlement, bool) {
+	if !s.knownApplication(w, r) {
+		return nil, false
+	}
+	m := s.monetization()
+	for i := range m.entitlements {
+		if m.entitlements[i].ID == r.PathValue("entitlement") {
+			return &m.entitlements[i], true
+		}
+	}
+	notFound(w, "Entitlement", 10029)
+	return nil, false
+}
+
+func (s *Server) getEntitlement(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.entitlement(w, r); ok {
+		writeJSON(w, http.StatusOK, e)
+	}
+}
+
+// deleteTestEntitlement marks the entitlement deleted; Discord keeps deleted
+// entitlements, and lists them when asked.
+func (s *Server) deleteTestEntitlement(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.entitlement(w, r)
+	if !ok {
+		return
+	}
+	if e.Deleted {
+		notFound(w, "Entitlement", 10029)
+		return
+	}
+	e.Deleted = true
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) getSKUSubscription(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sub := range s.monetization().subscriptions {
+		if sub.ID == r.PathValue("subscription") && slices.Contains(sub.SKUIDs, r.PathValue("sku")) {
+			writeJSON(w, http.StatusOK, sub)
+			return
+		}
+	}
+	notFound(w, "Subscription", 0)
 }

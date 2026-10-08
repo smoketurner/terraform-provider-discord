@@ -42,7 +42,7 @@ operations:
   create_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   create_channel_invite: {status: covered, by: [discord_invite]}
   create_dm: {status: out_of_scope, reason: "DMs are not server configuration"}
-  create_entitlement: {status: planned, issue: 82}
+  create_entitlement: {status: covered, by: [discord_test_entitlement]}
   create_guild_application_command: {status: covered, by: [discord_application_command]}
   create_guild_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
   create_guild_emoji: {status: covered, by: [discord_emoji]}
@@ -73,7 +73,7 @@ operations:
   delete_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   delete_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   delete_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
-  delete_entitlement: {status: planned, issue: 82}
+  delete_entitlement: {status: covered, by: [discord_test_entitlement]}
   delete_group_dm_user: {status: out_of_scope, reason: "group DMs are not server configuration"}
   delete_guild_application_command: {status: covered, by: [discord_application_command]}
   delete_guild_emoji: {status: covered, by: [discord_emoji]}
@@ -118,7 +118,7 @@ operations:
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  get_entitlement: {status: planned, issue: 82}
+  get_entitlement: {status: covered, by: [data.discord_entitlement, discord_test_entitlement]}
   get_entitlements: {status: covered, by: [data.discord_entitlements]}
   get_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_guild: {status: covered, by: [data.discord_server, discord_server_settings]}
@@ -147,7 +147,7 @@ operations:
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_message: {status: covered, by: [data.discord_message, discord_message, discord_thread]}
-  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus, discord_application_command, discord_application_emoji, discord_application_role_connection_metadata, discord_application_settings, list.discord_application_command, list.discord_application_emoji]}
+  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlement, data.discord_entitlements, data.discord_skus, discord_application_command, discord_application_emoji, discord_application_role_connection_metadata, discord_application_settings, discord_test_entitlement, list.discord_application_command, list.discord_application_emoji]}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
@@ -156,7 +156,7 @@ operations:
   get_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   get_public_keys: {status: out_of_scope, reason: "OAuth2 token signing keys"}
   get_self_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
-  get_sku_subscription: {status: planned, issue: 82}
+  get_sku_subscription: {status: covered, by: [data.discord_sku_subscription]}
   get_sku_subscriptions: {status: covered, by: [data.discord_sku_subscriptions]}
   get_soundboard_default_sounds: {status: covered, by: [data.discord_default_soundboard_sounds]}
   get_stage_instance: {status: covered, by: [discord_stage_instance]}
@@ -199,7 +199,7 @@ operations:
   list_guild_templates: {status: covered, by: [data.discord_server_templates, discord_server_template, list.discord_server_template]}
   list_guild_voice_regions: {status: covered, by: [data.discord_voice_regions]}
   list_message_reactions_by_emoji: {status: covered, by: [discord_message_reaction]}
-  list_messages: {status: planned, issue: 82}
+  list_messages: {status: covered, by: [data.discord_messages]}
   list_my_connections: {status: out_of_scope, reason: "third-party account connections of an OAuth2 user"}
   list_my_guilds: {status: out_of_scope, reason: "configurations name their servers explicitly"}
   list_my_private_archived_threads: {status: out_of_scope, reason: "thread membership is runtime state"}

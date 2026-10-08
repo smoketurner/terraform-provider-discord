@@ -1,0 +1,45 @@
+{
+  "author": "1180000000000000006",
+  "channel_id": "1180000000000000002",
+  "content": "Welcome!",
+  "edited_timestamp": "",
+  "embed": [
+    {
+      "author": [],
+      "color": 3447003,
+      "description": "Be nice",
+      "fields": [
+        {
+          "inline": false,
+          "name": "1",
+          "value": "No spam"
+        }
+      ],
+      "footer": [],
+      "image": [],
+      "provider": [],
+      "thumbnail": [],
+      "timestamp": "",
+      "title": "Rules",
+      "url": "",
+      "video": []
+    }
+  ],
+  "file": [
+    {
+      "content_type": "application/pdf",
+      "filename": "rules.pdf",
+      "id": "1180000000000000015",
+      "proxy_url": "https://media.discordapp.net/attachments/1180000000000000002/1180000000000000015/rules.pdf",
+      "size": 2048,
+      "source": "files/rules.pdf",
+      "url": "https://cdn.discordapp.com/attachments/1180000000000000002/1180000000000000015/rules.pdf"
+    }
+  ],
+  "id": "1180000000000000007",
+  "pinned": true,
+  "server_id": "1180000000000000001",
+  "timestamp": "2024-05-01T12:00:00Z",
+  "tts": false,
+  "type": 0
+}

@@ -161,9 +161,10 @@ func (m *categoryChannelModel) apply(_ context.Context, ch *discord.Channel) dia
 
 func newCategoryChannelResource() resource.Resource {
 	return newChannelResource[categoryChannelModel](channelKind{
-		typeName:    "category_channel",
-		channelType: discord.ChannelTypeCategory,
-		description: "Manages a category that groups other channels.",
+		typeName:      "category_channel",
+		lucky3028Type: "discord_category_channel",
+		channelType:   discord.ChannelTypeCategory,
+		description:   "Manages a category that groups other channels.",
 	})
 }
 
@@ -228,9 +229,10 @@ func (m *textChannelModel) apply(_ context.Context, ch *discord.Channel) diag.Di
 
 func newTextChannelResource() resource.Resource {
 	return newChannelResource[textChannelModel](channelKind{
-		typeName:    "text_channel",
-		channelType: discord.ChannelTypeText,
-		description: "Manages a text channel.",
+		typeName:      "text_channel",
+		lucky3028Type: "discord_text_channel",
+		channelType:   discord.ChannelTypeText,
+		description:   "Manages a text channel.",
 		convertible: &channelConversion{
 			typeName: "announcement_channel", channelType: discord.ChannelTypeAnnouncement, resource: newAnnouncementChannelResource,
 		},
@@ -278,8 +280,9 @@ func (m *announcementChannelModel) apply(_ context.Context, ch *discord.Channel)
 
 func newAnnouncementChannelResource() resource.Resource {
 	return newChannelResource[announcementChannelModel](channelKind{
-		typeName:    "announcement_channel",
-		channelType: discord.ChannelTypeAnnouncement,
+		typeName:      "announcement_channel",
+		lucky3028Type: "discord_news_channel",
+		channelType:   discord.ChannelTypeAnnouncement,
 		description: "Manages an announcement (news) channel whose messages other servers can follow. " +
 			"Requires the server to have Community enabled; otherwise Discord rejects the channel type.",
 		convertible: &channelConversion{
@@ -346,9 +349,10 @@ func videoQualityName(v int64) types.String {
 
 func newVoiceChannelResource() resource.Resource {
 	return newChannelResource[voiceChannelModel](channelKind{
-		typeName:    "voice_channel",
-		channelType: discord.ChannelTypeVoice,
-		description: "Manages a voice channel.",
+		typeName:      "voice_channel",
+		lucky3028Type: "discord_voice_channel",
+		channelType:   discord.ChannelTypeVoice,
+		description:   "Manages a voice channel.",
 		attributes: map[string]schema.Attribute{
 			"category_id":         categoryIDAttribute(),
 			"bitrate":             bitrateAttribute(384000, "The maximum depends on the server's boost level (96000 to 384000)."),
@@ -691,10 +695,11 @@ func newForumChannelResource() resource.Resource {
 		Validators:          []validator.String{forumLayouts.validator()},
 	}
 	return newChannelResource[forumChannelModel](channelKind{
-		typeName:    "forum_channel",
-		channelType: discord.ChannelTypeForum,
-		description: "Manages a forum channel, where members create posts (threads) that can be tagged.",
-		attributes:  attrs,
+		typeName:      "forum_channel",
+		lucky3028Type: "discord_forum_channel",
+		channelType:   discord.ChannelTypeForum,
+		description:   "Manages a forum channel, where members create posts (threads) that can be tagged.",
+		attributes:    attrs,
 	})
 }
 
