@@ -234,7 +234,7 @@ operations:
   update_guild: {status: covered, by: [discord_server_settings]}
   update_guild_application_command: {status: planned, issue: 7}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
-  update_guild_incident_actions: {status: planned, issue: 39}
+  update_guild_incident_actions: {status: covered, by: [discord_server_incident_actions]}
   update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}
   update_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   update_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
