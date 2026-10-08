@@ -406,11 +406,7 @@ func (m *forumChannelModel) payload(ctx context.Context) (discord.Payload, diag.
 	}
 	forumLayouts.put(p, "default_forum_layout", m.DefaultForumLayout)
 	if !m.RequireTag.IsUnknown() {
-		var flags int64
-		if m.RequireTag.ValueBool() {
-			flags = discord.ChannelFlagRequireTag
-		}
-		p["flags"] = flags
+		p["flags"] = channelFlags{}.with(discord.ChannelFlagRequireTag, m.RequireTag.ValueBool())
 	}
 
 	if !m.AvailableTags.IsUnknown() {

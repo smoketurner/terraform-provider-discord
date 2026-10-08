@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
 // Discord normalizes text channel names; the configured spelling must not
@@ -165,5 +168,60 @@ resource "discord_stage_channel" "test" {
 }`),
 			ExpectError: regexp.MustCompile(`value must be between 8000 and 64000`),
 		}},
+	})
+}
+
+// Changing require_tag must keep channel flags set outside Terraform.
+func TestAccForumChannelKeepsUnmanagedFlags(t *testing.T) {
+	env := newTestEnv(t)
+	// Discord may refuse arbitrary flags on a live forum channel.
+	env.requireFake()
+	const spoiler = 1 << 21 // IS_SPOILER_CHANNEL
+	var id string
+	cfg := func(requireTag bool) string {
+		return env.config(fmt.Sprintf(`
+resource "discord_forum_channel" "test" {
+  server_id   = local.server_id
+  name        = "tf-acc-flags"
+  require_tag = %t
+}`, requireTag))
+	}
+	wantFlags := func(want int64) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			ch, err := env.client.GetChannel(context.Background(), id)
+			if err != nil {
+				return err
+			}
+			if ch.Flags != want {
+				return fmt.Errorf("flags = %d, want %d", ch.Flags, want)
+			}
+			return nil
+		}
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: cfg(true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_forum_channel.test", "id", &id),
+					wantFlags(discord.ChannelFlagRequireTag),
+				),
+			},
+			{
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyChannel(ctx, id, discord.Payload{"flags": discord.ChannelFlagRequireTag | spoiler})
+					return err
+				}),
+				Config: cfg(false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("discord_forum_channel.test", "require_tag", "false"),
+					wantFlags(spoiler),
+				),
+			},
+			{
+				Config: cfg(true),
+				Check:  wantFlags(discord.ChannelFlagRequireTag | spoiler),
+			},
+		},
 	})
 }
