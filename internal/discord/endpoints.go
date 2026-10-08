@@ -22,6 +22,13 @@ func (c *Client) ModifyGuild(ctx context.Context, guildID string, p Payload) (*G
 	return &g, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID, p, &g)
 }
 
+// ModifyGuildIncidentActions sets or lifts a guild's incident actions. A nil
+// timestamp lifts the action.
+func (c *Client) ModifyGuildIncidentActions(ctx context.Context, guildID string, p Payload) (*IncidentsData, error) {
+	var d IncidentsData
+	return &d, c.do(ctx, http.MethodPut, "/guilds/"+guildID+"/incident-actions", p, &d)
+}
+
 // ListRoles lists the roles of a guild.
 func (c *Client) ListRoles(ctx context.Context, guildID string) ([]Role, error) {
 	var roles []Role
