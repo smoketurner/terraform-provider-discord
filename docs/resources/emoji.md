@@ -41,6 +41,7 @@ resource "discord_emoji" "wave" {
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `image` (String) Image as a data URI (PNG, JPEG, GIF or WebP, at most 256 KiB), e.g. `"data:image/png;base64,${filebase64("emoji.png")}"`. Changing it uploads a new emoji. Stored in state; prefer `image_wo` on Terraform 1.11 or later. Exactly one of `image` and `image_wo` is required.
 - `image_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Image as a data URI (PNG, JPEG, GIF or WebP, at most 256 KiB). Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `image_wo_version`. Conflicts with `image`.
 - `image_wo_version` (Number) Version of `image_wo`. Changing it uploads `image_wo` as a new emoji.

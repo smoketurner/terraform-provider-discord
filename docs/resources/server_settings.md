@@ -37,6 +37,7 @@ resource "discord_server_settings" "main" {
 
 - `afk_channel_id` (String) Voice channel inactive members are moved to. Omit to leave unmanaged.
 - `afk_timeout` (Number) Seconds of inactivity before a member is moved to the AFK channel: `60`, `300`, `900`, `1800` or `3600`.
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `default_message_notifications` (String) Default notification setting: `all_messages`, `only_mentions`.
 - `description` (String) Server description. Requires Community.
 - `explicit_content_filter` (String) Explicit media content filter: `disabled`, `members_without_roles`, `all_members`.

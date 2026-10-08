@@ -40,6 +40,7 @@ resource "discord_message" "rules" {
 ### Optional
 
 - `allowed_mentions` (Set of String) Mention types that notify people: any of `roles`, `users` and `everyone`. Defaults to none, so posting or editing the message never pings anyone.
+- `audit_log_reason` (String) Reason recorded in the server's audit log for pinning, unpinning and deleting the message (Discord records no reason for posting or editing it), overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `content` (String) Message text (up to 2000 characters). At least one of `content` or `embeds` is required.
 - `embeds` (Attributes List) Rich embeds (at most 10, 6000 characters in total). (see [below for nested schema](#nestedatt--embeds))
 - `pinned` (Boolean) Whether the message is pinned. Requires the Pin Messages permission. Defaults to `false`.

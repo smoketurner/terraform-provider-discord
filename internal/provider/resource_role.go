@@ -39,6 +39,7 @@ type roleModel struct {
 	UnicodeEmoji   types.String `tfsdk:"unicode_emoji"`
 	Position       types.Int64  `tfsdk:"position"`
 	Managed        types.Bool   `tfsdk:"managed"`
+	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
 func newRoleResource() resource.Resource { return &roleResource{} }
@@ -52,8 +53,9 @@ func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 		MarkdownDescription: "Manages a server role. Role ordering is managed separately with `discord_role_positions` " +
 			"so that several roles can be reordered atomically.",
 		Attributes: map[string]schema.Attribute{
-			"id":        idAttribute("Role ID."),
-			"server_id": serverIDAttribute(),
+			"audit_log_reason": auditLogReasonAttribute(),
+			"id":               idAttribute("Role ID."),
+			"server_id":        serverIDAttribute(),
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Role name.",
 				Required:            true,
@@ -161,6 +163,7 @@ func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	p := plan.payload()
 	if plan.UnicodeEmoji.IsNull() {
 		delete(p, "unicode_emoji")
@@ -194,12 +197,16 @@ func (r *roleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 }
 
 func (r *roleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	if updateAuditLogReasonOnly(ctx, req, resp) {
+		return
+	}
 	var plan, state roleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
 	role, err := r.client.ModifyRole(ctx, state.ServerID.ValueString(), state.ID.ValueString(), diffPayload(plan.payload(), state.payload()))
 	if err != nil {
 		apiError(&resp.Diagnostics, "update role", err)
@@ -215,6 +222,7 @@ func (r *roleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	ctx = withAuditLogReason(ctx, state.AuditLogReason)
 	err := r.client.DeleteRole(ctx, state.ServerID.ValueString(), state.ID.ValueString())
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete role", err)

@@ -34,6 +34,9 @@ terraform {
 # The token can also be supplied with the DISCORD_TOKEN environment variable.
 provider "discord" {
   token = var.discord_token
+
+  # Optional: recorded in the server's audit log for changes the provider makes.
+  audit_log_reason = "Managed by Terraform"
 }
 
 variable "discord_token" {
@@ -71,5 +74,6 @@ and any field validation errors returned by the API.
 
 ### Optional
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for every change the provider makes through an endpoint that accepts one, for example `Managed by Terraform`. Up to 512 characters. Resources with an `audit_log_reason` argument can override it. Can also be set with the `DISCORD_AUDIT_LOG_REASON` environment variable.
 - `base_url` (String) Discord REST API base URL. Defaults to `https://discord.com/api/v10`. Can also be set with the `DISCORD_BASE_URL` environment variable. Intended for testing.
 - `token` (String, Sensitive) Discord bot token. May be given with or without the `Bot ` prefix. Can also be set with the `DISCORD_TOKEN` environment variable.

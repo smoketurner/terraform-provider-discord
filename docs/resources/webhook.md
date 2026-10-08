@@ -46,6 +46,7 @@ output "deploy_webhook_url" {
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
+- `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
 - `avatar` (String) Default avatar as a data URI, e.g. `"data:image/png;base64,${filebase64("avatar.png")}"`. Stored in state; prefer `avatar_wo` on Terraform 1.11 or later.
 - `avatar_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Default avatar as a data URI. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `avatar_wo_version`. Conflicts with `avatar`.
 - `avatar_wo_version` (Number) Version of `avatar_wo`. Setting or changing it uploads `avatar_wo`; removing it removes the avatar unless `avatar` is set.
