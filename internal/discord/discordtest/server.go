@@ -51,6 +51,7 @@ type Server struct {
 	events    map[string]*discord.ScheduledEvent
 	stages    map[string]*discord.StageInstance
 	settings  map[string]*guildSettings
+	app       *discord.Application
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -160,6 +161,7 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
+	s.handleUsers(mux)
 	s.handleOperations(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
