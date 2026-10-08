@@ -149,6 +149,11 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newRoleDataSource,
 		newChannelDataSource,
 		newMemberDataSource,
+		newUserDataSource,
+		newCurrentUserDataSource,
+		newCurrentApplicationDataSource,
+		newPermissionsDataSource,
+		newColorDataSource,
 	}
 }
 
