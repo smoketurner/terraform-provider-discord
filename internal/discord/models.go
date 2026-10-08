@@ -1,5 +1,7 @@
 package discord
 
+import "encoding/json"
+
 // Channel types managed by the provider.
 const (
 	ChannelTypeText         = 0
@@ -235,20 +237,42 @@ type Webhook struct {
 
 // InviteChannel is the partial channel included in an invite.
 type InviteChannel struct {
-	ID string `json:"id"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	Type int    `json:"type"`
 }
 
-// Invite is a channel invite with its metadata, as returned by the Get
-// Channel Invites and Create Channel Invite endpoints.
+// InviteGuild is the partial guild included in an invite.
+type InviteGuild struct {
+	ID                       string   `json:"id"`
+	Name                     string   `json:"name"`
+	Description              *string  `json:"description"`
+	Icon                     *string  `json:"icon"`
+	Features                 []string `json:"features"`
+	VanityURLCode            *string  `json:"vanity_url_code"`
+	PremiumSubscriptionCount int64    `json:"premium_subscription_count"`
+}
+
+// Invite is an invite. The metadata (max age, uses, creation time) is only
+// returned by the Get Channel Invites and Create Channel Invite endpoints,
+// and the approximate counts only by Get Invite.
 type Invite struct {
-	Code      string         `json:"code"`
-	Channel   *InviteChannel `json:"channel"`
-	MaxAge    int64          `json:"max_age"`
-	MaxUses   int64          `json:"max_uses"`
-	Uses      int64          `json:"uses"`
-	Temporary bool           `json:"temporary"`
-	CreatedAt string         `json:"created_at"`
-	ExpiresAt *string        `json:"expires_at"`
+	Type                     int64          `json:"type"`
+	Code                     string         `json:"code"`
+	Guild                    *InviteGuild   `json:"guild,omitempty"`
+	Channel                  *InviteChannel `json:"channel"`
+	Inviter                  *User          `json:"inviter,omitempty"`
+	TargetType               int64          `json:"target_type,omitempty"`
+	TargetUser               *User          `json:"target_user,omitempty"`
+	ApproximateMemberCount   *int64         `json:"approximate_member_count,omitempty"`
+	ApproximatePresenceCount *int64         `json:"approximate_presence_count,omitempty"`
+	Flags                    int64          `json:"flags,omitempty"`
+	MaxAge                   int64          `json:"max_age"`
+	MaxUses                  int64          `json:"max_uses"`
+	Uses                     int64          `json:"uses"`
+	Temporary                bool           `json:"temporary"`
+	CreatedAt                string         `json:"created_at"`
+	ExpiresAt                *string        `json:"expires_at"`
 }
 
 // EmbedFooter is the footer of an embed.
@@ -294,12 +318,17 @@ type Embed struct {
 
 // Message is a channel message.
 type Message struct {
-	ID        string  `json:"id"`
-	ChannelID string  `json:"channel_id"`
-	Author    *User   `json:"author"`
-	Content   string  `json:"content"`
-	Embeds    []Embed `json:"embeds"`
-	Pinned    bool    `json:"pinned"`
+	ID              string  `json:"id"`
+	ChannelID       string  `json:"channel_id"`
+	Type            int64   `json:"type"`
+	Author          *User   `json:"author"`
+	Content         string  `json:"content"`
+	Embeds          []Embed `json:"embeds"`
+	Pinned          bool    `json:"pinned"`
+	Timestamp       string  `json:"timestamp"`
+	EditedTimestamp *string `json:"edited_timestamp"`
+	Flags           int64   `json:"flags"`
+	WebhookID       *string `json:"webhook_id,omitempty"`
 }
 
 // Emoji is a custom guild emoji.
@@ -381,6 +410,28 @@ type StageInstance struct {
 	GuildScheduledEventID *string `json:"guild_scheduled_event_id"`
 }
 
+// Sticker is a custom guild sticker.
+type Sticker struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Tags        string  `json:"tags"`
+	FormatType  int     `json:"format_type"`
+	Available   bool    `json:"available"`
+	GuildID     string  `json:"guild_id"`
+}
+
+// SoundboardSound is a guild soundboard sound.
+type SoundboardSound struct {
+	SoundID   string  `json:"sound_id"`
+	Name      string  `json:"name"`
+	Volume    float64 `json:"volume"`
+	EmojiID   *string `json:"emoji_id"`
+	EmojiName *string `json:"emoji_name"`
+	Available bool    `json:"available"`
+	GuildID   string  `json:"guild_id"`
+}
+
 // WidgetSettings are a guild's widget settings.
 type WidgetSettings struct {
 	Enabled   bool    `json:"enabled"`
@@ -439,4 +490,175 @@ type PromptEmoji struct {
 	ID       *string `json:"id"`
 	Name     *string `json:"name"`
 	Animated bool    `json:"animated"`
+}
+
+// VoiceRegion is a voice server region a voice or stage channel can use.
+type VoiceRegion struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Optimal    bool   `json:"optimal"`
+	Deprecated bool   `json:"deprecated"`
+	Custom     bool   `json:"custom"`
+}
+
+// GuildPreview is the public preview of a guild. Discoverable guilds can be
+// previewed by bots that are not members.
+type GuildPreview struct {
+	ID                       string    `json:"id"`
+	Name                     string    `json:"name"`
+	Icon                     *string   `json:"icon"`
+	Splash                   *string   `json:"splash"`
+	DiscoverySplash          *string   `json:"discovery_splash"`
+	Emojis                   []Emoji   `json:"emojis"`
+	Features                 []string  `json:"features"`
+	ApproximateMemberCount   int64     `json:"approximate_member_count"`
+	ApproximatePresenceCount int64     `json:"approximate_presence_count"`
+	Description              *string   `json:"description"`
+	Stickers                 []Sticker `json:"stickers"`
+}
+
+// VanityURL is a guild's vanity invite. Code is null when none is set.
+type VanityURL struct {
+	Code *string `json:"code"`
+	Uses int64   `json:"uses"`
+}
+
+// GuildWidget is the public widget data of a guild with its widget enabled.
+type GuildWidget struct {
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	InstantInvite *string         `json:"instant_invite"`
+	Channels      []WidgetChannel `json:"channels"`
+	Members       []WidgetMember  `json:"members"`
+	PresenceCount int64           `json:"presence_count"`
+}
+
+// WidgetChannel is a voice or stage channel listed in a guild widget.
+type WidgetChannel struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Position int64  `json:"position"`
+}
+
+// WidgetMember is an online member listed in a guild widget. Discord
+// anonymizes the ID.
+type WidgetMember struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Status    string `json:"status"`
+	AvatarURL string `json:"avatar_url"`
+}
+
+// MessagePin is a pinned message and when it was pinned.
+type MessagePin struct {
+	PinnedAt string  `json:"pinned_at"`
+	Message  Message `json:"message"`
+}
+
+// MessagePins is a page of a channel's pins, most recently pinned first.
+type MessagePins struct {
+	Items   []MessagePin `json:"items"`
+	HasMore bool         `json:"has_more"`
+}
+
+// StandardSticker is a sticker from a standard sticker pack.
+type StandardSticker struct {
+	ID          string  `json:"id"`
+	PackID      string  `json:"pack_id,omitempty"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Tags        string  `json:"tags"`
+	Type        int64   `json:"type"`
+	FormatType  int64   `json:"format_type"`
+	SortValue   int64   `json:"sort_value,omitempty"`
+}
+
+// AnySticker is a standard or guild sticker, as Get Sticker returns either.
+// The fields only guild stickers have are nil for standard stickers, and
+// PackID and SortValue are zero for guild stickers.
+type AnySticker struct {
+	StandardSticker
+
+	Available *bool   `json:"available,omitempty"`
+	GuildID   *string `json:"guild_id,omitempty"`
+}
+
+// StickerPack is a pack of standard stickers.
+type StickerPack struct {
+	ID             string            `json:"id"`
+	Stickers       []StandardSticker `json:"stickers"`
+	Name           string            `json:"name"`
+	SKUID          string            `json:"sku_id"`
+	CoverStickerID *string           `json:"cover_sticker_id,omitempty"`
+	Description    string            `json:"description"`
+	BannerAssetID  *string           `json:"banner_asset_id,omitempty"`
+}
+
+// StickerPacks is the response of List Sticker Packs.
+type StickerPacks struct {
+	StickerPacks []StickerPack `json:"sticker_packs"`
+}
+
+// AuditLog is a page of a guild's audit log. Only the entries are decoded,
+// not the objects they reference.
+type AuditLog struct {
+	AuditLogEntries []AuditLogEntry `json:"audit_log_entries"`
+}
+
+// AuditLogEntry is one administrative action in a guild's audit log. Option
+// values are documented as strings but kept raw, so that a value of another
+// type does not fail the whole page.
+type AuditLogEntry struct {
+	ID         string                     `json:"id"`
+	TargetID   *string                    `json:"target_id"`
+	Changes    []AuditLogChange           `json:"changes,omitempty"`
+	UserID     *string                    `json:"user_id"`
+	ActionType int64                      `json:"action_type"`
+	Options    map[string]json.RawMessage `json:"options,omitempty"`
+	Reason     *string                    `json:"reason,omitempty"`
+}
+
+// AuditLogChange is a change to one key of an entry's target. The values have
+// the type of the changed field; a missing value means null.
+type AuditLogChange struct {
+	Key      string          `json:"key"`
+	NewValue json.RawMessage `json:"new_value,omitempty"`
+	OldValue json.RawMessage `json:"old_value,omitempty"`
+}
+
+// SKU is a premium offering of an application.
+type SKU struct {
+	ID            string `json:"id"`
+	Type          int64  `json:"type"`
+	ApplicationID string `json:"application_id"`
+	Name          string `json:"name"`
+	Slug          string `json:"slug"`
+	Flags         int64  `json:"flags"`
+}
+
+// Entitlement grants a user or guild access to an SKU.
+type Entitlement struct {
+	ID            string  `json:"id"`
+	SKUID         string  `json:"sku_id"`
+	ApplicationID string  `json:"application_id"`
+	UserID        *string `json:"user_id,omitempty"`
+	GuildID       *string `json:"guild_id,omitempty"`
+	Type          int64   `json:"type"`
+	Deleted       bool    `json:"deleted"`
+	StartsAt      *string `json:"starts_at"`
+	EndsAt        *string `json:"ends_at"`
+	Consumed      *bool   `json:"consumed,omitempty"`
+}
+
+// Subscription is a user's recurring payment for one or more SKUs.
+type Subscription struct {
+	ID                 string   `json:"id"`
+	UserID             string   `json:"user_id"`
+	SKUIDs             []string `json:"sku_ids"`
+	EntitlementIDs     []string `json:"entitlement_ids"`
+	RenewalSKUIDs      []string `json:"renewal_sku_ids"`
+	CurrentPeriodStart string   `json:"current_period_start"`
+	CurrentPeriodEnd   string   `json:"current_period_end"`
+	Status             int64    `json:"status"`
+	CanceledAt         *string  `json:"canceled_at"`
 }

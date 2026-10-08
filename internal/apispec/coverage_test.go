@@ -57,6 +57,12 @@ func TestManifestMapsEveryOperation(t *testing.T) {
 	}
 }
 
+// notInSpec lists documented endpoints the client calls that the spec lacks.
+var notInSpec = map[string]bool{
+	// List SKUs: https://docs.discord.com/developers/resources/sku#list-skus
+	"GET /applications/{}/skus": true,
+}
+
 // TestClientCallsAreCovered checks that the operations the client calls are
 // exactly the operations the manifest marks covered.
 func TestClientCallsAreCovered(t *testing.T) {
@@ -69,6 +75,9 @@ func TestClientCallsAreCovered(t *testing.T) {
 
 	called := map[string]bool{}
 	for _, c := range calls {
+		if notInSpec[c.Method+" "+c.Path] {
+			continue
+		}
 		op, ok := s.Match(c.Method, c.Path)
 		if !ok {
 			t.Errorf("%s: %s calls %s %s, which is not in the spec", c.Pos, c.Func, c.Method, c.Path)
