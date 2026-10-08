@@ -58,7 +58,9 @@ func newTestEnv(t *testing.T) *testEnv {
 
 func (e *testEnv) run(tc resource.TestCase) {
 	e.t.Helper()
-	tc.ProtoV6ProviderFactories = protoV6ProviderFactories
+	if tc.ProtoV6ProviderFactories == nil {
+		tc.ProtoV6ProviderFactories = protoV6ProviderFactories
+	}
 	if e.live {
 		resource.Test(e.t, tc)
 		return

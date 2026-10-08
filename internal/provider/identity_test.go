@@ -115,8 +115,13 @@ resource "discord_thread" "test" {
   name       = "tf-acc-identity"
 }
 resource "discord_webhook" "test" {
-  channel_id = discord_text_channel.test.id
-  name       = "tf-acc-identity"
+  channel_id    = discord_text_channel.test.id
+  name          = "tf-acc-identity"
+  store_secrets = false
+}
+resource "discord_webhook_message" "test" {
+  webhook_id = discord_webhook.test.id
+  content    = "Identity"
 }
 resource "discord_emoji" "test" {
   server_id = local.server_id
@@ -168,6 +173,7 @@ resource "discord_application_command" "test" {
 		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
 		"discord_invite.test":                  {"channel_id": "channel_id", "code": "id"},
 		"discord_webhook.test":                 {"webhook_id": "id"},
+		"discord_webhook_message.test":         {"webhook_id": "webhook_id", "channel_id": "channel_id", "message_id": "id"},
 		"discord_thread.test":                  {"thread_id": "id"},
 		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
 		"discord_sticker.test":                 {"server_id": "server_id", "sticker_id": "id"},

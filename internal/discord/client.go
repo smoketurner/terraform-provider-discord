@@ -150,6 +150,15 @@ var (
 	majorParameter = regexp.MustCompile(`^/(?:(channels|guilds)/\d+|(webhooks)/\d+(?:/[^/]+)?)`)
 )
 
+// webhookToken matches a webhook ID and the token segment that follows it.
+var webhookToken = regexp.MustCompile(`^(/webhooks/\d+)/[^/?]+`)
+
+// redactPath replaces the webhook token in a request path so that errors
+// never reveal it.
+func redactPath(path string) string {
+	return webhookToken.ReplaceAllString(path, "$1/:token")
+}
+
 // parseRoute splits a request into its route, the method and path with IDs
 // replaced by placeholders, and its major parameter, the top-level resource
 // in the path (empty when there is none). Requests share a rate limit when
@@ -280,7 +289,7 @@ func (c *Client) wait(ctx context.Context, b *bucket) error {
 // do performs a request to an endpoint that does not accept an audit log
 // reason.
 func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
-	return c.request(ctx, method, path, "", body, out)
+	return c.request(ctx, method, path, true, "", body, out)
 }
 
 // doAudited performs a request to an endpoint whose documentation says it
@@ -290,23 +299,33 @@ func (c *Client) doAudited(ctx context.Context, method, path string, body, out a
 	if r, ok := ctx.Value(auditLogReasonKey{}).(string); ok {
 		reason = r
 	}
-	return c.request(ctx, method, path, reason, body, out)
+	return c.request(ctx, method, path, true, reason, body, out)
+}
+
+// doWebhook performs a request to an endpoint authenticated by the webhook
+// token in its path. These endpoints need no authentication, so the bot token
+// is not sent.
+func (c *Client) doWebhook(ctx context.Context, method, path string, body, out any) error {
+	return c.request(ctx, method, path, false, "", body, out)
 }
 
 // request performs a request, honoring Discord rate limits and retrying on
 // 429 and transient gateway errors. A nil body sends no payload, a *Multipart
 // is sent as multipart/form-data and anything else as JSON; out may be nil.
-// A non-empty reason is sent in the X-Audit-Log-Reason header.
-func (c *Client) request(ctx context.Context, method, path, reason string, body, out any) error {
+// auth sends the bot token, and a non-empty reason is sent in the
+// X-Audit-Log-Reason header.
+func (c *Client) request(ctx context.Context, method, path string, auth bool, reason string, body, out any) error {
 	payload, contentType, err := encodeBody(body)
 	if err != nil {
 		return err
 	}
 	if len(payload) > MaxRequestSize {
-		return fmt.Errorf("%s %s: request body is %d bytes, %w", method, path, len(payload), ErrRequestTooLarge)
+		return fmt.Errorf("%s %s: request body is %d bytes, %w", method, redactPath(path), len(payload), ErrRequestTooLarge)
 	}
 	header := http.Header{}
-	header.Set("Authorization", "Bot "+c.token)
+	if auth {
+		header.Set("Authorization", "Bot "+c.token)
+	}
 	header.Set("User-Agent", c.userAgent)
 	if contentType != "" {
 		header.Set("Content-Type", contentType)
@@ -336,7 +355,7 @@ func (c *Client) request(ctx context.Context, method, path, reason string, body,
 			}
 			continue
 		case status >= 300:
-			apiErr := &APIError{Status: status, Method: method, Path: path}
+			apiErr := &APIError{Status: status, Method: method, Path: redactPath(path)}
 			_ = json.Unmarshal(respBody, apiErr)
 			return apiErr
 		}
@@ -345,7 +364,7 @@ func (c *Client) request(ctx context.Context, method, path, reason string, body,
 			return nil
 		}
 		if err := json.Unmarshal(respBody, out); err != nil {
-			return fmt.Errorf("decoding response from %s %s: %w", method, path, err)
+			return fmt.Errorf("decoding response from %s %s: %w", method, redactPath(path), err)
 		}
 		return nil
 	}
@@ -380,7 +399,12 @@ func (c *Client) send(ctx context.Context, method, path string, header http.Head
 	req.Header = header.Clone()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s %s: %w", method, path, err)
+		// The *url.Error from Do repeats the full URL, webhook token included.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
+		return nil, fmt.Errorf("%s %s: %w", method, redactPath(path), err)
 	}
 	return resp, nil
 }
