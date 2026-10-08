@@ -71,6 +71,12 @@ type Server struct {
 	// also refused by GET /channels/{id}.
 	hidden map[string]bool
 	denied map[string]bool
+	// follows maps Channel Follower webhook IDs to the announcement channel
+	// each follows.
+	follows map[string]string
+	// reactions maps message IDs to emoji to the sorted IDs of the users who
+	// reacted.
+	reactions map[string]map[string][]string
 	// clockSkew is added to the wall clock, so tests can let incident
 	// actions expire without waiting.
 	clockSkew time.Duration
@@ -102,6 +108,8 @@ func NewServer() *Server {
 		botUserID:    "100000000000000003",
 		hidden:       map[string]bool{},
 		denied:       map[string]bool{},
+		follows:      map[string]string{},
+		reactions:    map[string]map[string][]string{},
 	}
 	s.guilds[GuildID] = &discord.Guild{
 		ID:                GuildID,
@@ -189,6 +197,8 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
+	s.handleReactions(mux)
+	s.handleFollowers(mux)
 	s.handleReadOnly(mux)
 	s.handleMonetization(mux)
 	s.handleUsers(mux)
@@ -1254,7 +1264,7 @@ func (s *Server) getWebhook(w http.ResponseWriter, r *http.Request) {
 		notFound(w, "Webhook", 10015)
 		return
 	}
-	writeJSON(w, http.StatusOK, wh)
+	writeJSON(w, http.StatusOK, s.webhookResponse(wh))
 }
 
 func (s *Server) modifyWebhook(w http.ResponseWriter, r *http.Request) {
@@ -1279,7 +1289,7 @@ func (s *Server) modifyWebhook(w http.ResponseWriter, r *http.Request) {
 	*wh = updated
 	set(body, "channel_id", &wh.ChannelID)
 	s.setAvatar(wh, body)
-	writeJSON(w, http.StatusOK, wh)
+	writeJSON(w, http.StatusOK, s.webhookResponse(wh))
 }
 
 func (s *Server) deleteWebhook(w http.ResponseWriter, r *http.Request) {
@@ -1290,6 +1300,7 @@ func (s *Server) deleteWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.webhooks, r.PathValue("webhook"))
+	delete(s.follows, r.PathValue("webhook"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1633,6 +1644,7 @@ func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.messages, m.ID)
+	delete(s.reactions, m.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1642,6 +1654,7 @@ func (s *Server) DeleteMessage(messageID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.messages, messageID)
+	delete(s.reactions, messageID)
 }
 
 func (s *Server) pinMessage(pinned bool) http.HandlerFunc {
