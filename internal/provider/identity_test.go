@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
@@ -127,6 +128,18 @@ resource "discord_emoji" "test" {
   name      = "tf_acc_identity"
   image     = "` + onePixelPNG + `"
 }
+resource "discord_scheduled_event" "test" {
+  server_id            = local.server_id
+  name                 = "tf-acc-identity"
+  entity_type          = "external"
+  location             = "Online"
+  scheduled_start_time = "` + eventTime(24*time.Hour) + `"
+  scheduled_end_time   = "` + eventTime(25*time.Hour) + `"
+}
+resource "discord_stage_instance" "test" {
+  channel_id = discord_stage_channel.test.id
+  topic      = "tf-acc-identity"
+}
 `
 	identities := map[string]map[string]string{
 		"discord_server_settings.test":      {"server_id": "server_id"},
@@ -147,6 +160,8 @@ resource "discord_emoji" "test" {
 		"discord_webhook.test":              {"webhook_id": "id"},
 		"discord_thread.test":               {"thread_id": "id"},
 		"discord_emoji.test":                {"server_id": "server_id", "emoji_id": "id"},
+		"discord_scheduled_event.test":      {"server_id": "server_id", "event_id": "id"},
+		"discord_stage_instance.test":       {"channel_id": "channel_id"},
 	}
 	if env.userID != "" {
 		cfg += `
