@@ -29,6 +29,7 @@ import (
 var (
 	_ resource.ResourceWithConfigure      = &threadResource{}
 	_ resource.ResourceWithImportState    = &threadResource{}
+	_ resource.ResourceWithIdentity       = &threadResource{}
 	_ resource.ResourceWithValidateConfig = &threadResource{}
 )
 
@@ -39,6 +40,7 @@ var threadTypes = map[int]string{
 }
 
 type threadResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -81,7 +83,11 @@ func (m threadMessageModel) asMessage() *messageModel {
 	return &messageModel{Content: m.Content, Embeds: m.Embeds, AllowedMentions: m.AllowedMentions}
 }
 
-func newThreadResource() resource.Resource { return &threadResource{} }
+func newThreadResource() resource.Resource {
+	return &threadResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		{name: "thread_id", description: "ID of the thread.", state: []string{"id"}},
+	}}}
+}
 
 func (r *threadResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_thread"
@@ -336,6 +342,7 @@ func (m *threadModel) apply(ctx context.Context, t *discord.Thread, diags *diag.
 }
 
 func (r *threadResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan threadModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -426,6 +433,7 @@ func (r *threadResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (r *threadResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state threadModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -502,6 +510,7 @@ func (m *threadModel) threadChanges(ctx context.Context, t *discord.Thread, diag
 }
 
 func (r *threadResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -591,8 +600,4 @@ func (r *threadResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete thread", err)
 	}
-}
-
-func (r *threadResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
