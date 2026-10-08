@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/compare"
@@ -221,6 +222,73 @@ resource "discord_forum_channel" "test" {
 			{
 				Config: cfg(true),
 				Check:  wantFlags(discord.ChannelFlagRequireTag | spoiler),
+			},
+		},
+	})
+}
+
+// Reordering tied roles must not leave a listed role sharing a position with
+// an unlisted one, which would move the unlisted role in the display order.
+func TestAccRolePositionsKeepUnlistedOrder(t *testing.T) {
+	env := newTestEnv(t)
+	// Discord does not let a client create tied role positions.
+	env.requireFake()
+	// depends_on creates the roles in order so the unlisted role has the
+	// lowest snowflake and sorts first among tied roles.
+	roles := `
+resource "discord_role" "unlisted" {
+  server_id = local.server_id
+  name      = "tf-acc-unlisted"
+}
+resource "discord_role" "a" {
+  server_id  = local.server_id
+  name       = "tf-acc-a"
+  depends_on = [discord_role.unlisted]
+}
+resource "discord_role" "b" {
+  server_id  = local.server_id
+  name       = "tf-acc-b"
+  depends_on = [discord_role.a]
+}
+`
+	var unlisted, a, b string
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(roles),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_role.unlisted", "id", &unlisted),
+					captureAttr("discord_role.a", "id", &a),
+					captureAttr("discord_role.b", "id", &b),
+				),
+			},
+			{
+				// From the bottom: a and b tied, then the unlisted role.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					return c.ModifyRolePositions(ctx, env.serverID, []discord.PositionUpdate{
+						{ID: a, Position: 1}, {ID: b, Position: 1}, {ID: unlisted, Position: 2},
+					})
+				}),
+				Config: env.config(roles + `
+resource "discord_role_positions" "test" {
+  server_id = local.server_id
+  role_ids  = [discord_role.a.id, discord_role.b.id]
+}`),
+				Check: func(*terraform.State) error {
+					roles, err := env.client.ListRoles(context.Background(), env.serverID)
+					if err != nil {
+						return err
+					}
+					var current []discord.Positioned
+					for _, r := range roles {
+						current = append(current, discord.Positioned{ID: r.ID, Position: r.Position})
+					}
+					got := discord.OrderOf(current, []string{a, b, unlisted})
+					if want := []string{b, a, unlisted}; !slices.Equal(got, want) {
+						return fmt.Errorf("role order from the bottom = %v, want %v", got, want)
+					}
+					return nil
+				},
 			},
 		},
 	})

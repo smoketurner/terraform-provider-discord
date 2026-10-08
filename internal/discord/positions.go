@@ -30,35 +30,50 @@ func compareSnowflakes(a, b string) int {
 }
 
 // Reorder computes the position updates that arrange the desired IDs in the
-// given ascending order. The desired items reuse the position slots they
-// already occupy, so items not listed keep their place. Slots are made
-// strictly increasing to break ties. IDs missing from current are ignored.
+// given ascending order. The desired items reuse the display slots they
+// already occupy, so items not listed keep their place relative to every
+// other item. IDs missing from current are ignored.
+//
+// Tied slots are bumped to make the listed order strict. A bumped item must
+// not share a position with an item that is not moved, because Discord then
+// shifts the unmoved item, so the following items are bumped along with it,
+// listed or not, until the positions no longer collide.
 func Reorder(current []Positioned, desired []string) []PositionUpdate {
-	byID := make(map[string]Positioned, len(current))
+	was := make(map[string]int64, len(current))
 	for _, p := range current {
-		byID[p.ID] = p
+		was[p.ID] = p.Position
 	}
-	var occupied []Positioned
+	listed := make(map[string]bool, len(desired))
 	var order []string
 	for _, id := range desired {
-		if p, ok := byID[id]; ok {
-			occupied = append(occupied, p)
+		if _, ok := was[id]; ok && !listed[id] {
+			listed[id] = true
 			order = append(order, id)
 		}
 	}
-	SortByPosition(occupied)
+	slots := slices.Clone(current)
+	SortByPosition(slots)
 
 	var updates []PositionUpdate
-	var prev int64
-	for i, id := range order {
-		slot := occupied[i].Position
-		if i > 0 && slot <= prev {
-			slot = prev + 1
+	var prev Positioned
+	var prevMoved bool
+	for i, slot := range slots {
+		item := slot
+		if listed[slot.ID] {
+			item.ID, order = order[0], order[1:]
 		}
-		prev = slot
-		if byID[id].Position != slot {
-			updates = append(updates, PositionUpdate{ID: id, Position: slot})
+		// Equal positions are only kept between unmoved items already
+		// displayed in this order.
+		tieKept := item.Position == prev.Position && !prevMoved &&
+			was[item.ID] == item.Position && compareSnowflakes(prev.ID, item.ID) < 0
+		if i > 0 && item.Position <= prev.Position && !tieKept {
+			item.Position = prev.Position + 1
 		}
+		moved := was[item.ID] != item.Position
+		if moved {
+			updates = append(updates, PositionUpdate(item))
+		}
+		prev, prevMoved = item, moved
 	}
 	return updates
 }
