@@ -16,6 +16,12 @@
 - Add or update acceptance tests in `internal/provider`. Cover drift, meaning changes made outside Terraform, and
   import. If the change relies on Discord behavior the fake does not model yet, extend the fake in
   `internal/discord/discordtest`.
+- Uploaded files such as images and sounds get two arguments: `<name>`, stored in state, for Terraform before 1.11,
+  and a write-only `<name>_wo` paired with `<name>_wo_version`, which sends the value when it is set or changed. Use
+  the helpers in `internal/provider/write_only.go`. Read `<name>_wo` from the configuration, add `RequiresReplace` to
+  the version when Discord cannot update the file in place, and expose the hash Discord returns as a computed
+  `<name>_hash` so changes made outside Terraform upload the configured file again. Write-only tests skip Terraform
+  before 1.11 with `tfversion.SkipBelow`.
 - After changing a schema or an example, run `make generate` and commit the updated `docs/`.
 
 ## Tests

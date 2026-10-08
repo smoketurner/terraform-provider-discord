@@ -40,6 +40,8 @@ type serverSettingsModel struct {
 	Name                        types.String `tfsdk:"name"`
 	Description                 types.String `tfsdk:"description"`
 	Icon                        types.String `tfsdk:"icon"`
+	IconWO                      types.String `tfsdk:"icon_wo"`
+	IconWOVersion               types.Int64  `tfsdk:"icon_wo_version"`
 	IconHash                    types.String `tfsdk:"icon_hash"`
 	VerificationLevel           types.String `tfsdk:"verification_level"`
 	DefaultMessageNotifications types.String `tfsdk:"default_message_notifications"`
@@ -96,13 +98,17 @@ func (r *serverSettingsResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"description": optionalComputedString("Server description. Requires Community."),
 			"icon": schema.StringAttribute{
 				MarkdownDescription: "Server icon as a data URI, e.g. `\"data:image/png;base64,${filebase64(\"icon.png\")}\"`. " +
-					"Discord only returns a hash of the icon, so changes made outside Terraform are detected through `icon_hash` only. " +
-					"Removing the attribute leaves the current icon in place.",
-				Optional: true,
+					"Stored in state; prefer `icon_wo` on Terraform 1.11 or later. Removing the attribute leaves the current icon in place.",
+				Optional:   true,
+				Validators: []validator.String{stringvalidator.ConflictsWith(path.MatchRoot("icon_wo"))},
 			},
+			"icon_wo": writeOnlyImage("Server icon as a data URI.", "icon"),
+			"icon_wo_version": writeOnlyVersion("icon",
+				"Setting or changing it uploads `icon_wo`; removing it leaves the current icon in place."),
 			"icon_hash": schema.StringAttribute{
-				MarkdownDescription: "Hash of the current icon.",
-				Computed:            true,
+				MarkdownDescription: "Hash of the current icon. Discord only returns this hash, so a change made outside " +
+					"Terraform makes the next plan upload the configured icon again.",
+				Computed: true,
 			},
 			"verification_level": optionalComputedString("Verification level members must meet: "+verificationLevels.doc()+".",
 				verificationLevels.validator()),
@@ -211,7 +217,14 @@ func (r *serverSettingsResource) Create(ctx context.Context, req resource.Create
 	}
 	var current serverSettingsModel
 	current.apply(ctx, g, &resp.Diagnostics)
-	if p := diffPayload(plan.payload(), current.payload()); len(p) > 0 {
+	p := diffPayload(plan.payload(), current.payload())
+	if !plan.IconWOVersion.IsNull() {
+		putKnownString(p, "icon", writeOnlyString(ctx, req.Config, "icon_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if len(p) > 0 {
 		if g, err = r.client.ModifyGuild(ctx, plan.ServerID.ValueString(), p); err != nil {
 			apiError(&resp.Diagnostics, "update server", err)
 			return
@@ -236,6 +249,7 @@ func (r *serverSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 		apiError(&resp.Diagnostics, "read server", err)
 		return
 	}
+	clearImageOnDrift(state.IconHash, g.Icon, &state.Icon, &state.IconWOVersion)
 	state.apply(ctx, g, &resp.Diagnostics)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -247,7 +261,14 @@ func (r *serverSettingsResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	g, err := r.client.ModifyGuild(ctx, state.ServerID.ValueString(), diffPayload(plan.payload(), state.payload()))
+	p := diffPayload(plan.payload(), state.payload())
+	if writeOnlyChanged(plan.IconWOVersion, state.IconWOVersion) {
+		putKnownString(p, "icon", writeOnlyString(ctx, req.Config, "icon_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	g, err := r.client.ModifyGuild(ctx, state.ServerID.ValueString(), p)
 	if err != nil {
 		apiError(&resp.Diagnostics, "update server", err)
 		return

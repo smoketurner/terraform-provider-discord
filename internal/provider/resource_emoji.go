@@ -6,10 +6,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -28,13 +30,15 @@ type emojiResource struct {
 }
 
 type emojiModel struct {
-	ID       types.String `tfsdk:"id"`
-	ServerID types.String `tfsdk:"server_id"`
-	Name     types.String `tfsdk:"name"`
-	Image    types.String `tfsdk:"image"`
-	Roles    types.Set    `tfsdk:"roles"`
-	Animated types.Bool   `tfsdk:"animated"`
-	Managed  types.Bool   `tfsdk:"managed"`
+	ID             types.String `tfsdk:"id"`
+	ServerID       types.String `tfsdk:"server_id"`
+	Name           types.String `tfsdk:"name"`
+	Image          types.String `tfsdk:"image"`
+	ImageWO        types.String `tfsdk:"image_wo"`
+	ImageWOVersion types.Int64  `tfsdk:"image_wo_version"`
+	Roles          types.Set    `tfsdk:"roles"`
+	Animated       types.Bool   `tfsdk:"animated"`
+	Managed        types.Bool   `tfsdk:"managed"`
 }
 
 func newEmojiResource() resource.Resource { return &emojiResource{} }
@@ -58,17 +62,28 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			},
 			"image": schema.StringAttribute{
 				MarkdownDescription: "Image as a data URI (PNG, JPEG, GIF or WebP, at most 256 KiB), e.g. " +
-					"`\"data:image/png;base64,${filebase64(\"emoji.png\")}\"`. Changing it uploads a new emoji.",
-				Required:   true,
-				Validators: []validator.String{dataURIValidator()},
+					"`\"data:image/png;base64,${filebase64(\"emoji.png\")}\"`. Changing it uploads a new emoji. " +
+					"Stored in state; prefer `image_wo` on Terraform 1.11 or later. Exactly one of `image` and `image_wo` is required.",
+				Optional: true,
+				Validators: []validator.String{
+					dataURIValidator(),
+					stringvalidator.ExactlyOneOf(path.MatchRoot("image_wo")),
+				},
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIf(
 					func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-						// Imported emojis have no image in state; adopting the configured one needs no new upload.
-						resp.RequiresReplace = !req.StateValue.IsNull()
+						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
 					},
 					"Changing the image uploads a new emoji.", "Changing the image uploads a new emoji.",
 				)},
 			},
+			"image_wo": writeOnlyImage("Image as a data URI (PNG, JPEG, GIF or WebP, at most 256 KiB).", "image"),
+			"image_wo_version": writeOnlyVersion("image", "Changing it uploads `image_wo` as a new emoji.",
+				int64planmodifier.RequiresReplaceIf(
+					func(_ context.Context, req planmodifier.Int64Request, resp *int64planmodifier.RequiresReplaceIfFuncResponse) {
+						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
+					},
+					"Changing the image version uploads a new emoji.", "Changing the image version uploads a new emoji.",
+				)),
 			"roles": schema.SetAttribute{
 				MarkdownDescription: "Role IDs allowed to use the emoji. Omit to allow everyone.",
 				ElementType:         types.StringType,
@@ -89,6 +104,14 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 
 func (r *emojiResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	r.client = clientFromResource(req, resp)
+}
+
+// replacesImage reports whether an image change needs a new emoji, as Discord
+// cannot change the image of an existing one. Imported emojis have no image in
+// state, and switching between image and image_wo keeps the same image, so
+// adopting a configured image needs no new upload.
+func replacesImage(state, plan attr.Value) bool {
+	return !state.IsNull() && !plan.IsNull()
 }
 
 func (m *emojiModel) roles(ctx context.Context, diags *diag.Diagnostics) []string {
@@ -118,11 +141,15 @@ func (r *emojiResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 	roles := plan.roles(ctx, &resp.Diagnostics)
+	image := plan.Image
+	if image.IsNull() {
+		image = writeOnlyString(ctx, req.Config, "image_wo", &resp.Diagnostics)
+	}
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	e, err := r.client.CreateEmoji(ctx, plan.ServerID.ValueString(), discord.Payload{
-		"name": plan.Name.ValueString(), "image": plan.Image.ValueString(), "roles": roles,
+		"name": plan.Name.ValueString(), "image": image.ValueString(), "roles": roles,
 	})
 	if err != nil {
 		apiError(&resp.Diagnostics, "create emoji", err)

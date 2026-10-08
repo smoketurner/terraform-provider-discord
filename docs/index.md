@@ -50,6 +50,9 @@ variable "discord_token" {
   the Discord client, the next plan shows it being created again instead of failing.
 * **Only changed fields are sent.** Updates send just the attributes that changed, so settings Terraform does not
   manage are left alone.
+* **Uploaded images stay out of state on Terraform 1.11+.** Emoji images, server icons and webhook avatars have
+  write-only variants (`image_wo`, `icon_wo`, `avatar_wo`). Terraform never stores them, so change the matching
+  `*_wo_version` to upload a new file. The original arguments still work on older Terraform versions.
 * **Ordering is atomic.** Use `discord_role_positions` and `discord_channel_positions` to order several roles or
   channels in a single API request. Moving them one resource at a time produces inconsistent results.
 * **Community features.** Announcement and stage channels, and the server rules, public updates and safety alert
