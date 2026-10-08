@@ -28,9 +28,11 @@ var (
 var (
 	_ resource.ResourceWithConfigure   = &serverSettingsResource{}
 	_ resource.ResourceWithImportState = &serverSettingsResource{}
+	_ resource.ResourceWithIdentity    = &serverSettingsResource{}
 )
 
 type serverSettingsResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -60,7 +62,9 @@ type serverSettingsModel struct {
 	AuditLogReason              types.String `tfsdk:"audit_log_reason"`
 }
 
-func newServerSettingsResource() resource.Resource { return &serverSettingsResource{} }
+func newServerSettingsResource() resource.Resource {
+	return &serverSettingsResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{serverIdentity("server_id", "id")}}}
+}
 
 func (r *serverSettingsResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_server_settings"
@@ -207,6 +211,7 @@ func (m *serverSettingsModel) apply(ctx context.Context, g *discord.Guild, diags
 }
 
 func (r *serverSettingsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan serverSettingsModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -238,6 +243,7 @@ func (r *serverSettingsResource) Create(ctx context.Context, req resource.Create
 }
 
 func (r *serverSettingsResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state serverSettingsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -258,6 +264,7 @@ func (r *serverSettingsResource) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *serverSettingsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -285,9 +292,4 @@ func (r *serverSettingsResource) Update(ctx context.Context, req resource.Update
 }
 
 func (r *serverSettingsResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
-}
-
-func (r *serverSettingsResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("server_id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
