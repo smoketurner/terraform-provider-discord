@@ -44,7 +44,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 |------|-------|
 | Server | `discord_server_settings`, `data.discord_server` |
 | Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role` |
-| Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_channel_positions`, `data.discord_channel` |
+| Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `data.discord_channel` |
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member_role`, `data.discord_member` |
 | Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_emoji` |
