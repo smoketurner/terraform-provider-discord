@@ -102,11 +102,28 @@ var modelSchemas = map[string]struct {
 		"ApplicationCommandOptionStringChoiceResponse", "ApplicationCommandOptionIntegerChoiceResponse",
 		"ApplicationCommandOptionNumberChoiceResponse",
 	}},
+	"AutoModerationRule": {reflect.TypeFor[discord.AutoModerationRule](), []string{
+		"KeywordRuleResponse", "MLSpamRuleResponse", "DefaultKeywordRuleResponse", "MentionSpamRuleResponse", "UserProfileRuleResponse",
+	}},
+	"AutoModerationAction": {reflect.TypeFor[discord.AutoModerationAction](), []string{
+		"BlockMessageActionResponse", "FlagToChannelActionResponse", "UserCommunicationDisabledActionResponse", "QuarantineUserActionResponse",
+	}},
+	"AutoModerationTriggerMetadata": {reflect.TypeFor[discord.AutoModerationTriggerMetadata](), []string{
+		"KeywordTriggerMetadataResponse", "DefaultKeywordListTriggerMetadataResponse", "MentionSpamTriggerMetadataResponse", "UserProfileMetadataResponse",
+	}},
+	"AutoModerationActionMetadata": {reflect.TypeFor[discord.AutoModerationActionMetadata](), []string{
+		"BlockMessageActionMetadataResponse", "FlagToChannelActionMetadataResponse", "UserCommunicationDisabledActionMetadataResponse",
+	}},
 }
 
-// modelUnions lists the structs that model a union: each JSON field must
-// exist in at least one of the schemas listed, rather than in all of them.
-var modelUnions = map[string]bool{"ApplicationCommandOption": true}
+// modelUnions lists the structs that model a union, such as the trigger
+// metadata of every AutoMod trigger type: each JSON field must exist in at
+// least one of the schemas listed, rather than in all of them.
+var modelUnions = map[string]bool{
+	"ApplicationCommandOption":      true,
+	"AutoModerationTriggerMetadata": true,
+	"AutoModerationActionMetadata":  true,
+}
 
 // TestModelsTableIsComplete fails when a struct is added to models.go
 // without an entry in modelSchemas.
@@ -130,7 +147,8 @@ func TestModelsTableIsComplete(t *testing.T) {
 		}
 	}
 	slices.Sort(structs)
-	if want := slices.Sorted(maps.Keys(modelSchemas)); !slices.Equal(structs, want) {
+	want := slices.Sorted(maps.Keys(modelSchemas))
+	if !slices.Equal(structs, want) {
 		t.Errorf("models.go structs %v do not match modelSchemas %v", structs, want)
 	}
 }

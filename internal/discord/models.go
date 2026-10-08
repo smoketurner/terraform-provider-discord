@@ -365,6 +365,46 @@ type Emoji struct {
 	Animated bool     `json:"animated"`
 }
 
+// AutoModerationRule is a server AutoMod rule.
+type AutoModerationRule struct {
+	ID              string                        `json:"id"`
+	GuildID         string                        `json:"guild_id"`
+	Name            string                        `json:"name"`
+	CreatorID       string                        `json:"creator_id"`
+	EventType       int64                         `json:"event_type"`
+	TriggerType     int64                         `json:"trigger_type"`
+	TriggerMetadata AutoModerationTriggerMetadata `json:"trigger_metadata"`
+	Actions         []AutoModerationAction        `json:"actions"`
+	Enabled         bool                          `json:"enabled"`
+	ExemptRoles     []string                      `json:"exempt_roles"`
+	ExemptChannels  []string                      `json:"exempt_channels"`
+}
+
+// AutoModerationTriggerMetadata holds the fields of every trigger type;
+// Discord returns only those of the rule's type.
+type AutoModerationTriggerMetadata struct {
+	KeywordFilter                []string `json:"keyword_filter,omitempty"`
+	RegexPatterns                []string `json:"regex_patterns,omitempty"`
+	Presets                      []int64  `json:"presets,omitempty"`
+	AllowList                    []string `json:"allow_list,omitempty"`
+	MentionTotalLimit            *int64   `json:"mention_total_limit,omitempty"`
+	MentionRaidProtectionEnabled *bool    `json:"mention_raid_protection_enabled,omitempty"`
+}
+
+// AutoModerationAction is an action a rule takes when it triggers.
+type AutoModerationAction struct {
+	Type     int64                         `json:"type"`
+	Metadata *AutoModerationActionMetadata `json:"metadata,omitempty"`
+}
+
+// AutoModerationActionMetadata holds the fields of every action type;
+// Discord returns only those of the action's type.
+type AutoModerationActionMetadata struct {
+	ChannelID       string  `json:"channel_id,omitempty"`
+	DurationSeconds *int64  `json:"duration_seconds,omitempty"`
+	CustomMessage   *string `json:"custom_message,omitempty"`
+}
+
 // Scheduled event entity types.
 const (
 	ScheduledEventEntityStageInstance = 1

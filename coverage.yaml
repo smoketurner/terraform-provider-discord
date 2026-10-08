@@ -39,7 +39,7 @@ operations:
   count_guild_scheduled_event_users: {status: pending_docs}
   create_application_command: {status: covered, by: [discord_application_command]}
   create_application_emoji: {status: planned, issue: 30}
-  create_auto_moderation_rule: {status: planned, issue: 6}
+  create_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   create_channel_invite: {status: covered, by: [discord_invite]}
   create_dm: {status: out_of_scope, reason: "DMs are not server configuration"}
   create_entitlement: {status: planned, issue: 82}
@@ -70,7 +70,7 @@ operations:
   delete_application_command: {status: covered, by: [discord_application_command]}
   delete_application_emoji: {status: planned, issue: 30}
   delete_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  delete_auto_moderation_rule: {status: planned, issue: 6}
+  delete_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   delete_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   delete_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
   delete_entitlement: {status: planned, issue: 82}
@@ -114,7 +114,7 @@ operations:
   get_application_emoji: {status: planned, issue: 30}
   get_application_role_connections_metadata: {status: planned, issue: 8}
   get_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  get_auto_moderation_rule: {status: planned, issue: 6}
+  get_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
@@ -229,7 +229,7 @@ operations:
   update_application_emoji: {status: planned, issue: 30}
   update_application_role_connections_metadata: {status: planned, issue: 8}
   update_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
-  update_auto_moderation_rule: {status: planned, issue: 6}
+  update_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   update_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   update_guild: {status: covered, by: [discord_server_settings]}
   update_guild_application_command: {status: covered, by: [discord_application_command]}

@@ -148,6 +148,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newEmojiResource,
 		newStickerResource,
 		newSoundboardSoundResource,
+		newAutoModerationRuleResource,
 		newScheduledEventResource,
 		newStageInstanceResource,
 		newApplicationCommandResource,

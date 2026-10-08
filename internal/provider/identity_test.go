@@ -148,6 +148,14 @@ resource "discord_soundboard_sound" "test" {
   name      = "tf-acc-identity"
   sound     = "` + soundMP3 + `"
 }
+resource "discord_auto_moderation_rule" "test" {
+  server_id        = local.server_id
+  name             = "tf-acc-identity"
+  event_type       = "message_send"
+  trigger_type     = "keyword"
+  trigger_metadata = { keyword_filter = ["tf-acc-identity"] }
+  actions          = [{ type = "block_message" }]
+}
 resource "discord_scheduled_event" "test" {
   server_id            = local.server_id
   name                 = "tf-acc-identity"
@@ -189,6 +197,7 @@ resource "discord_application_command" "test" {
 		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
 		"discord_sticker.test":                 {"server_id": "server_id", "sticker_id": "id"},
 		"discord_soundboard_sound.test":        {"server_id": "server_id", "sound_id": "id"},
+		"discord_auto_moderation_rule.test":    {"server_id": "server_id", "rule_id": "id"},
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
 		"discord_application_command.test":     {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},

@@ -48,6 +48,7 @@ type Server struct {
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
 	emojis   map[string]map[string]*discord.Emoji
+	automod  map[string]map[string]*discord.AutoModerationRule
 	stickers map[string]map[string]*discord.Sticker
 	sounds   map[string]map[string]*discord.SoundboardSound
 	events   map[string]*discord.ScheduledEvent
@@ -98,6 +99,7 @@ func NewServer() *Server {
 		invites:      map[string]*discord.Invite{},
 		messages:     map[string]*discord.Message{},
 		emojis:       map[string]map[string]*discord.Emoji{},
+		automod:      map[string]map[string]*discord.AutoModerationRule{},
 		stickers:     map[string]map[string]*discord.Sticker{},
 		sounds:       map[string]map[string]*discord.SoundboardSound{},
 		stickerFiles: map[string]Upload{},
@@ -188,6 +190,10 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/soundboard-sounds", s.createSoundboardSound)
 	mux.HandleFunc("PATCH /guilds/{guild}/soundboard-sounds/{sound}", s.modifySoundboardSound)
 	mux.HandleFunc("DELETE /guilds/{guild}/soundboard-sounds/{sound}", s.deleteSoundboardSound)
+	mux.HandleFunc("GET /guilds/{guild}/auto-moderation/rules/{rule}", s.getAutomodRule)
+	mux.HandleFunc("POST /guilds/{guild}/auto-moderation/rules", s.createAutomodRule)
+	mux.HandleFunc("PATCH /guilds/{guild}/auto-moderation/rules/{rule}", s.modifyAutomodRule)
+	mux.HandleFunc("DELETE /guilds/{guild}/auto-moderation/rules/{rule}", s.deleteAutomodRule)
 	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
 	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
 	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)

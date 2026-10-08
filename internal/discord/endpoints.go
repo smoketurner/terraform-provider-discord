@@ -412,6 +412,29 @@ func (c *Client) DeleteSoundboardSound(ctx context.Context, guildID, soundID str
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, nil, nil)
 }
 
+// GetAutoModerationRule fetches an AutoMod rule.
+func (c *Client) GetAutoModerationRule(ctx context.Context, guildID, ruleID string) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, &r)
+}
+
+// CreateAutoModerationRule creates an AutoMod rule.
+func (c *Client) CreateAutoModerationRule(ctx context.Context, guildID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/auto-moderation/rules", p, &r)
+}
+
+// ModifyAutoModerationRule updates an AutoMod rule.
+func (c *Client) ModifyAutoModerationRule(ctx context.Context, guildID, ruleID string, p Payload) (*AutoModerationRule, error) {
+	var r AutoModerationRule
+	return &r, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, p, &r)
+}
+
+// DeleteAutoModerationRule deletes an AutoMod rule.
+func (c *Client) DeleteAutoModerationRule(ctx context.Context, guildID, ruleID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/auto-moderation/rules/"+ruleID, nil, nil)
+}
+
 // GetScheduledEvent fetches a guild scheduled event.
 func (c *Client) GetScheduledEvent(ctx context.Context, guildID, eventID string) (*ScheduledEvent, error) {
 	var e ScheduledEvent
