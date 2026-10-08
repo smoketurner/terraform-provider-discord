@@ -43,6 +43,11 @@ type Server struct {
 	edits     []map[string]json.RawMessage
 	failNext  map[string]int
 	botUserID string
+	// hidden channels are omitted from the guild channel list, as Discord
+	// does for channels the bot lacks VIEW_CHANNEL on. denied channels are
+	// also refused by GET /channels/{id}.
+	hidden map[string]bool
+	denied map[string]bool
 }
 
 // NewServer starts a fake Discord API seeded with one guild containing an
@@ -60,6 +65,8 @@ func NewServer() *Server {
 		emojis:    map[string]map[string]*discord.Emoji{},
 		failNext:  map[string]int{},
 		botUserID: "100000000000000003",
+		hidden:    map[string]bool{},
+		denied:    map[string]bool{},
 	}
 	s.guilds[GuildID] = &discord.Guild{
 		ID:                GuildID,
@@ -391,7 +398,7 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 	}
 	var out []*discord.Channel
 	for _, ch := range s.channels {
-		if ch.GuildID == r.PathValue("guild") {
+		if ch.GuildID == r.PathValue("guild") && !s.hidden[ch.ID] {
 			out = append(out, ch)
 		}
 	}
@@ -488,9 +495,30 @@ func (s *Server) channel(w http.ResponseWriter, r *http.Request) (*discord.Chann
 func (s *Server) getChannel(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.denied[r.PathValue("channel")] {
+		writeError(w, http.StatusForbidden, 50001, "Missing Access")
+		return
+	}
 	if ch, ok := s.channel(w, r); ok {
 		writeJSON(w, http.StatusOK, ch)
 	}
+}
+
+// HideChannel omits a channel from GET /guilds/{guild}/channels while GET
+// /channels/{id} still returns it, simulating a channel the bot cannot view.
+func (s *Server) HideChannel(channelID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hidden[channelID] = true
+}
+
+// DenyChannel hides a channel from the guild channel list and makes GET
+// /channels/{id} return 403 Missing Access.
+func (s *Server) DenyChannel(channelID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hidden[channelID] = true
+	s.denied[channelID] = true
 }
 
 func (s *Server) modifyChannel(w http.ResponseWriter, r *http.Request) {

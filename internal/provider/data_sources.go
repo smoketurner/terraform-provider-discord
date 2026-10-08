@@ -283,7 +283,9 @@ func (d *channelDataSource) Schema(_ context.Context, _ datasource.SchemaRequest
 	id, name := lookupAttrs("channel")
 	names := slices.Sorted(maps.Values(channelTypeNames))
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Looks up a server channel by ID or name. The bot must be able to view the channel.",
+		MarkdownDescription: "Looks up a server channel by ID or name. The bot needs the View Channel permission on " +
+			"the channel: Discord omits channels the bot cannot view from the server's channel list, so they cannot be " +
+			"found by name. Lookups by ID fall back to fetching the channel directly.",
 		Attributes: map[string]schema.Attribute{
 			"server_id": dsServerID(),
 			"id":        id,
@@ -326,6 +328,23 @@ func (d *channelDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		if (!m.ID.IsNull() && ch.ID == m.ID.ValueString()) || (!m.Name.IsNull() && strings.EqualFold(ch.Name, m.Name.ValueString())) {
 			matches = append(matches, ch)
 		}
+	}
+	if len(matches) == 0 && !m.ID.IsNull() {
+		ch, err := d.client.GetChannel(ctx, m.ID.ValueString())
+		switch {
+		case err == nil:
+			if ch.GuildID == m.ServerID.ValueString() && (m.Type.IsNull() || channelTypeName(ch.Type) == m.Type.ValueString()) {
+				matches = append(matches, *ch)
+			}
+		case !discord.IsNotFound(err):
+			apiError(&resp.Diagnostics, "read channel "+m.ID.ValueString()+" (the bot needs the View Channel permission on it)", err)
+			return
+		}
+	}
+	if len(matches) == 0 {
+		resp.Diagnostics.AddError("No channel found", "No channel matches the given criteria. Discord omits channels "+
+			"the bot cannot view from the server's channel list; check that the bot has the View Channel permission on it.")
+		return
 	}
 	ch, ok := single(matches, "channel", &resp.Diagnostics)
 	if !ok {
