@@ -476,6 +476,11 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 	case discord.ChannelTypeText, discord.ChannelTypeAnnouncement, discord.ChannelTypeForum, discord.ChannelTypeMedia:
 		ch.DefaultAutoArchiveDuration = 4320
 	}
+	// Create Guild Channel does not list nsfw for media channels; model it as
+	// ignored so only Modify Channel can set it.
+	if ch.Type == discord.ChannelTypeMedia {
+		delete(body, "nsfw")
+	}
 	if err := s.applyChannel(ch, body); err != nil {
 		writeError(w, http.StatusBadRequest, 50035, err.Error())
 		return

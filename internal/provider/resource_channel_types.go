@@ -349,10 +349,11 @@ func newStageChannelResource() resource.Resource {
 	})
 }
 
-// Forum.
+// Forum and media.
 
-type forumChannelModel struct {
-	channelBase
+// postChannelFields holds the attributes shared by forum and media channels,
+// whose messages are all posts (threads).
+type postChannelFields struct {
 	CategoryID                    types.String `tfsdk:"category_id"`
 	Topic                         types.String `tfsdk:"topic"`
 	NSFW                          types.Bool   `tfsdk:"nsfw"`
@@ -360,7 +361,6 @@ type forumChannelModel struct {
 	DefaultAutoArchiveDuration    types.Int64  `tfsdk:"default_auto_archive_duration"`
 	DefaultThreadRateLimitPerUser types.Int64  `tfsdk:"default_thread_rate_limit_per_user"`
 	DefaultSortOrder              types.String `tfsdk:"default_sort_order"`
-	DefaultForumLayout            types.String `tfsdk:"default_forum_layout"`
 	RequireTag                    types.Bool   `tfsdk:"require_tag"`
 	AvailableTags                 types.List   `tfsdk:"available_tags"`
 	DefaultReactionEmoji          types.Object `tfsdk:"default_reaction_emoji"`
@@ -387,31 +387,24 @@ var (
 	emojiRefAttrTypes = map[string]attr.Type{"emoji_id": types.StringType, "emoji_name": types.StringType}
 )
 
-func (m *forumChannelModel) base() *channelBase { return &m.channelBase }
-
-func (m *forumChannelModel) payload(ctx context.Context) (discord.Payload, diag.Diagnostics) {
+func (f *postChannelFields) payload(ctx context.Context, p discord.Payload) diag.Diagnostics {
 	var diags diag.Diagnostics
-	p := discord.Payload{}
-	m.channelBase.payload(p)
-	putString(p, "parent_id", m.CategoryID)
-	putString(p, "topic", m.Topic)
-	putBool(p, "nsfw", m.NSFW)
-	putInt(p, "rate_limit_per_user", m.RateLimitPerUser)
-	putKnownInt(p, "default_auto_archive_duration", m.DefaultAutoArchiveDuration)
-	putInt(p, "default_thread_rate_limit_per_user", m.DefaultThreadRateLimitPerUser)
-	if m.DefaultSortOrder.IsNull() {
+	putString(p, "parent_id", f.CategoryID)
+	putString(p, "topic", f.Topic)
+	putBool(p, "nsfw", f.NSFW)
+	putInt(p, "rate_limit_per_user", f.RateLimitPerUser)
+	putKnownInt(p, "default_auto_archive_duration", f.DefaultAutoArchiveDuration)
+	putInt(p, "default_thread_rate_limit_per_user", f.DefaultThreadRateLimitPerUser)
+	if f.DefaultSortOrder.IsNull() {
 		p["default_sort_order"] = nil
 	} else {
-		forumSortOrders.put(p, "default_sort_order", m.DefaultSortOrder)
+		forumSortOrders.put(p, "default_sort_order", f.DefaultSortOrder)
 	}
-	forumLayouts.put(p, "default_forum_layout", m.DefaultForumLayout)
-	if !m.RequireTag.IsUnknown() {
-		p["flags"] = channelFlags{}.with(discord.ChannelFlagRequireTag, m.RequireTag.ValueBool())
-	}
+	putFlag(p, discord.ChannelFlagRequireTag, f.RequireTag)
 
-	if !m.AvailableTags.IsUnknown() {
+	if !f.AvailableTags.IsUnknown() {
 		var tags []forumTagModel
-		diags.Append(m.AvailableTags.ElementsAs(ctx, &tags, false)...)
+		diags.Append(f.AvailableTags.ElementsAs(ctx, &tags, false)...)
 		out := make([]discord.ForumTag, 0, len(tags))
 		for _, t := range tags {
 			tag := discord.ForumTag{
@@ -428,29 +421,36 @@ func (m *forumChannelModel) payload(ctx context.Context) (discord.Payload, diag.
 		p["available_tags"] = out
 	}
 
-	if m.DefaultReactionEmoji.IsNull() {
+	if f.DefaultReactionEmoji.IsNull() {
 		p["default_reaction_emoji"] = nil
-	} else if !m.DefaultReactionEmoji.IsUnknown() {
+	} else if !f.DefaultReactionEmoji.IsUnknown() {
 		var e emojiRefModel
-		diags.Append(m.DefaultReactionEmoji.As(ctx, &e, basetypes.ObjectAsOptions{})...)
+		diags.Append(f.DefaultReactionEmoji.As(ctx, &e, basetypes.ObjectAsOptions{})...)
 		p["default_reaction_emoji"] = discord.DefaultReaction{EmojiID: e.EmojiID.ValueStringPointer(), EmojiName: e.EmojiName.ValueStringPointer()}
 	}
-	return p, diags
+	return diags
 }
 
-var _ planAdjuster[*forumChannelModel] = (*forumChannelModel)(nil)
+// putFlag adds bit to the payload's managed channel flags when v is known.
+func putFlag(p discord.Payload, bit int64, v types.Bool) {
+	if v.IsUnknown() {
+		return
+	}
+	f, _ := p["flags"].(channelFlags)
+	p["flags"] = f.with(bit, v.ValueBool())
+}
 
-// adjustPlan assigns each planned tag the ID of the existing tag with the same
+// adjustTags assigns each planned tag the ID of the existing tag with the same
 // name, or leaves it unknown for new tags. Without this, Terraform pairs tags
 // by list index, so reordering tags would rename them instead and move posts
 // to the wrong tag.
-func (m *forumChannelModel) adjustPlan(ctx context.Context, prior *forumChannelModel) diag.Diagnostics {
+func (f *postChannelFields) adjustTags(ctx context.Context, prior *postChannelFields) diag.Diagnostics {
 	var diags diag.Diagnostics
-	if m.AvailableTags.IsUnknown() || m.AvailableTags.IsNull() || prior.AvailableTags.IsNull() || prior.AvailableTags.IsUnknown() {
+	if f.AvailableTags.IsUnknown() || f.AvailableTags.IsNull() || prior.AvailableTags.IsNull() || prior.AvailableTags.IsUnknown() {
 		return diags
 	}
 	var planned, existing []forumTagModel
-	diags.Append(m.AvailableTags.ElementsAs(ctx, &planned, false)...)
+	diags.Append(f.AvailableTags.ElementsAs(ctx, &planned, false)...)
 	diags.Append(prior.AvailableTags.ElementsAs(ctx, &existing, false)...)
 	ids := map[string]types.String{}
 	for _, t := range existing {
@@ -465,26 +465,24 @@ func (m *forumChannelModel) adjustPlan(ctx context.Context, prior *forumChannelM
 	}
 	list, d := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: forumTagAttrTypes}, planned)
 	diags.Append(d...)
-	m.AvailableTags = list
+	f.AvailableTags = list
 	return diags
 }
 
-func (m *forumChannelModel) apply(ctx context.Context, ch *discord.Channel) diag.Diagnostics {
+func (f *postChannelFields) apply(ctx context.Context, ch *discord.Channel) diag.Diagnostics {
 	var diags diag.Diagnostics
-	m.channelBase.apply(ch)
-	m.CategoryID = stringPtrValue(ch.ParentID)
-	m.Topic = stringPtrValue(ch.Topic)
-	m.NSFW = types.BoolValue(ch.NSFW)
-	m.RateLimitPerUser = types.Int64Value(ch.RateLimitPerUser)
-	m.DefaultAutoArchiveDuration = types.Int64Value(ch.DefaultAutoArchiveDuration)
-	m.DefaultThreadRateLimitPerUser = types.Int64Value(ch.DefaultThreadRateLimitPerUser)
+	f.CategoryID = stringPtrValue(ch.ParentID)
+	f.Topic = stringPtrValue(ch.Topic)
+	f.NSFW = types.BoolValue(ch.NSFW)
+	f.RateLimitPerUser = types.Int64Value(ch.RateLimitPerUser)
+	f.DefaultAutoArchiveDuration = types.Int64Value(ch.DefaultAutoArchiveDuration)
+	f.DefaultThreadRateLimitPerUser = types.Int64Value(ch.DefaultThreadRateLimitPerUser)
 	if ch.DefaultSortOrder == nil {
-		m.DefaultSortOrder = types.StringNull()
+		f.DefaultSortOrder = types.StringNull()
 	} else {
-		m.DefaultSortOrder = forumSortOrders.name(*ch.DefaultSortOrder)
+		f.DefaultSortOrder = forumSortOrders.name(*ch.DefaultSortOrder)
 	}
-	m.DefaultForumLayout = forumLayouts.name(ch.DefaultForumLayout)
-	m.RequireTag = types.BoolValue(ch.Flags&discord.ChannelFlagRequireTag != 0)
+	f.RequireTag = types.BoolValue(ch.Flags&discord.ChannelFlagRequireTag != 0)
 
 	tags := make([]forumTagModel, 0, len(ch.AvailableTags))
 	for _, t := range ch.AvailableTags {
@@ -496,114 +494,212 @@ func (m *forumChannelModel) apply(ctx context.Context, ch *discord.Channel) diag
 			EmojiName: stringPtrValue(t.EmojiName),
 		})
 	}
-	if len(tags) == 0 && m.AvailableTags.IsNull() {
-		m.AvailableTags = types.ListNull(types.ObjectType{AttrTypes: forumTagAttrTypes})
+	if len(tags) == 0 && f.AvailableTags.IsNull() {
+		f.AvailableTags = types.ListNull(types.ObjectType{AttrTypes: forumTagAttrTypes})
 	} else {
 		list, d := types.ListValueFrom(ctx, types.ObjectType{AttrTypes: forumTagAttrTypes}, tags)
 		diags.Append(d...)
-		m.AvailableTags = list
+		f.AvailableTags = list
 	}
 
 	if r := ch.DefaultReactionEmoji; r != nil && (r.EmojiID != nil || r.EmojiName != nil) {
 		obj, d := types.ObjectValueFrom(ctx, emojiRefAttrTypes, emojiRefModel{EmojiID: stringPtrValue(r.EmojiID), EmojiName: stringPtrValue(r.EmojiName)})
 		diags.Append(d...)
-		m.DefaultReactionEmoji = obj
+		f.DefaultReactionEmoji = obj
 	} else {
-		m.DefaultReactionEmoji = types.ObjectNull(emojiRefAttrTypes)
+		f.DefaultReactionEmoji = types.ObjectNull(emojiRefAttrTypes)
 	}
 	return diags
 }
 
-func newForumChannelResource() resource.Resource {
-	return newChannelResource[forumChannelModel](channelKind{
-		typeName:    "forum_channel",
-		channelType: discord.ChannelTypeForum,
-		description: "Manages a forum channel, where members create posts (threads) that can be tagged.",
-		attributes: map[string]schema.Attribute{
-			"category_id":                   categoryIDAttribute(),
-			"topic":                         topicAttribute(4096, "Post guidelines shown in the forum (up to 4096 characters)."),
-			"nsfw":                          nsfwAttribute(),
-			"rate_limit_per_user":           slowmodeAttribute("Slowmode: seconds a member must wait between creating posts."),
-			"default_auto_archive_duration": autoArchiveAttribute(),
-			"default_thread_rate_limit_per_user": schema.Int64Attribute{
-				MarkdownDescription: "Slowmode applied to new posts, in seconds between `0` and `21600`. Defaults to `0`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             int64default.StaticInt64(0),
-				Validators:          []validator.Int64{int64validator.Between(0, 21600)},
-			},
-			"default_sort_order": schema.StringAttribute{
-				MarkdownDescription: "Default sort order for posts: " + forumSortOrders.doc() + ". Omit to let each member choose.",
-				Optional:            true,
-				Validators:          []validator.String{forumSortOrders.validator()},
-			},
-			"default_forum_layout": schema.StringAttribute{
-				MarkdownDescription: "Default layout: " + forumLayouts.doc() + ". Defaults to `not_set`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             stringdefault.StaticString("not_set"),
-				Validators:          []validator.String{forumLayouts.validator()},
-			},
-			"require_tag": schema.BoolAttribute{
-				MarkdownDescription: "Whether posts must have at least one tag. Defaults to `false`.",
-				Optional:            true,
-				Computed:            true,
-				Default:             booldefault.StaticBool(false),
-			},
-			"available_tags": schema.ListNestedAttribute{
-				MarkdownDescription: "Tags that can be applied to posts (at most 20). Tags are matched by name on update so existing tag IDs, and posts using them, are preserved.",
-				Optional:            true,
-				Validators:          []validator.List{listvalidator.SizeAtMost(20)},
-				NestedObject: schema.NestedAttributeObject{
-					Attributes: map[string]schema.Attribute{
-						"id": schema.StringAttribute{
-							MarkdownDescription: "Tag ID assigned by Discord.",
-							Computed:            true,
-						},
-						"name": schema.StringAttribute{
-							MarkdownDescription: "Tag name (up to 20 characters).",
-							Required:            true,
-							Validators:          []validator.String{stringvalidator.LengthBetween(1, 20)},
-						},
-						"moderated": schema.BoolAttribute{
-							MarkdownDescription: "Whether only members with the Manage Threads permission can apply the tag. Defaults to `false`.",
-							Optional:            true,
-							Computed:            true,
-							Default:             booldefault.StaticBool(false),
-						},
-						"emoji_id": schema.StringAttribute{
-							MarkdownDescription: "ID of a custom server emoji for the tag. Conflicts with `emoji_name`.",
-							Optional:            true,
-							Validators: []validator.String{
-								snowflakeValidator(),
-								stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("emoji_name")),
-							},
-						},
-						"emoji_name": schema.StringAttribute{
-							MarkdownDescription: "Unicode emoji for the tag.",
-							Optional:            true,
-						},
-					},
-				},
-			},
-			"default_reaction_emoji": schema.SingleNestedAttribute{
-				MarkdownDescription: "Emoji shown in the add-reaction button on posts.",
-				Optional:            true,
+// postChannelAttributes returns the schema attributes for postChannelFields.
+func postChannelAttributes(topic schema.StringAttribute) map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"category_id":                   categoryIDAttribute(),
+		"topic":                         topic,
+		"nsfw":                          nsfwAttribute(),
+		"rate_limit_per_user":           slowmodeAttribute("Slowmode: seconds a member must wait between creating posts."),
+		"default_auto_archive_duration": autoArchiveAttribute(),
+		"default_thread_rate_limit_per_user": schema.Int64Attribute{
+			MarkdownDescription: "Slowmode applied to new posts, in seconds between `0` and `21600`. Defaults to `0`.",
+			Optional:            true,
+			Computed:            true,
+			Default:             int64default.StaticInt64(0),
+			Validators:          []validator.Int64{int64validator.Between(0, 21600)},
+		},
+		"default_sort_order": schema.StringAttribute{
+			MarkdownDescription: "Default sort order for posts: " + forumSortOrders.doc() + ". Omit to let each member choose.",
+			Optional:            true,
+			Validators:          []validator.String{forumSortOrders.validator()},
+		},
+		"require_tag": schema.BoolAttribute{
+			MarkdownDescription: "Whether posts must have at least one tag. Defaults to `false`.",
+			Optional:            true,
+			Computed:            true,
+			Default:             booldefault.StaticBool(false),
+		},
+		"available_tags": schema.ListNestedAttribute{
+			MarkdownDescription: "Tags that can be applied to posts (at most 20). Tags are matched by name on update so existing tag IDs, and posts using them, are preserved.",
+			Optional:            true,
+			Validators:          []validator.List{listvalidator.SizeAtMost(20)},
+			NestedObject: schema.NestedAttributeObject{
 				Attributes: map[string]schema.Attribute{
+					"id": schema.StringAttribute{
+						MarkdownDescription: "Tag ID assigned by Discord.",
+						Computed:            true,
+					},
+					"name": schema.StringAttribute{
+						MarkdownDescription: "Tag name (up to 20 characters).",
+						Required:            true,
+						Validators:          []validator.String{stringvalidator.LengthBetween(1, 20)},
+					},
+					"moderated": schema.BoolAttribute{
+						MarkdownDescription: "Whether only members with the Manage Threads permission can apply the tag. Defaults to `false`.",
+						Optional:            true,
+						Computed:            true,
+						Default:             booldefault.StaticBool(false),
+					},
 					"emoji_id": schema.StringAttribute{
-						MarkdownDescription: "ID of a custom server emoji. Exactly one of `emoji_id` or `emoji_name` is required.",
+						MarkdownDescription: "ID of a custom server emoji for the tag. Conflicts with `emoji_name`.",
 						Optional:            true,
 						Validators: []validator.String{
 							snowflakeValidator(),
-							stringvalidator.ExactlyOneOf(path.MatchRelative().AtParent().AtName("emoji_name")),
+							stringvalidator.ConflictsWith(path.MatchRelative().AtParent().AtName("emoji_name")),
 						},
 					},
 					"emoji_name": schema.StringAttribute{
-						MarkdownDescription: "Unicode emoji.",
+						MarkdownDescription: "Unicode emoji for the tag.",
 						Optional:            true,
 					},
 				},
 			},
 		},
+		"default_reaction_emoji": schema.SingleNestedAttribute{
+			MarkdownDescription: "Emoji shown in the add-reaction button on posts.",
+			Optional:            true,
+			Attributes: map[string]schema.Attribute{
+				"emoji_id": schema.StringAttribute{
+					MarkdownDescription: "ID of a custom server emoji. Exactly one of `emoji_id` or `emoji_name` is required.",
+					Optional:            true,
+					Validators: []validator.String{
+						snowflakeValidator(),
+						stringvalidator.ExactlyOneOf(path.MatchRelative().AtParent().AtName("emoji_name")),
+					},
+				},
+				"emoji_name": schema.StringAttribute{
+					MarkdownDescription: "Unicode emoji.",
+					Optional:            true,
+				},
+			},
+		},
+	}
+}
+
+type forumChannelModel struct {
+	channelBase
+	postChannelFields
+	DefaultForumLayout types.String `tfsdk:"default_forum_layout"`
+}
+
+func (m *forumChannelModel) base() *channelBase { return &m.channelBase }
+
+func (m *forumChannelModel) payload(ctx context.Context) (discord.Payload, diag.Diagnostics) {
+	p := discord.Payload{}
+	m.channelBase.payload(p)
+	diags := m.postChannelFields.payload(ctx, p)
+	forumLayouts.put(p, "default_forum_layout", m.DefaultForumLayout)
+	return p, diags
+}
+
+var _ planAdjuster[*forumChannelModel] = (*forumChannelModel)(nil)
+
+func (m *forumChannelModel) adjustPlan(ctx context.Context, prior *forumChannelModel) diag.Diagnostics {
+	return m.adjustTags(ctx, &prior.postChannelFields)
+}
+
+func (m *forumChannelModel) apply(ctx context.Context, ch *discord.Channel) diag.Diagnostics {
+	m.channelBase.apply(ch)
+	diags := m.postChannelFields.apply(ctx, ch)
+	m.DefaultForumLayout = forumLayouts.name(ch.DefaultForumLayout)
+	return diags
+}
+
+func newForumChannelResource() resource.Resource {
+	attrs := postChannelAttributes(topicAttribute(4096, "Post guidelines shown in the forum (up to 4096 characters)."))
+	attrs["default_forum_layout"] = schema.StringAttribute{
+		MarkdownDescription: "Default layout: " + forumLayouts.doc() + ". Defaults to `not_set`.",
+		Optional:            true,
+		Computed:            true,
+		Default:             stringdefault.StaticString("not_set"),
+		Validators:          []validator.String{forumLayouts.validator()},
+	}
+	return newChannelResource[forumChannelModel](channelKind{
+		typeName:    "forum_channel",
+		channelType: discord.ChannelTypeForum,
+		description: "Manages a forum channel, where members create posts (threads) that can be tagged.",
+		attributes:  attrs,
+	})
+}
+
+type mediaChannelModel struct {
+	channelBase
+	postChannelFields
+	HideMediaDownloadOptions types.Bool `tfsdk:"hide_media_download_options"`
+}
+
+func (m *mediaChannelModel) base() *channelBase { return &m.channelBase }
+
+func (m *mediaChannelModel) payload(ctx context.Context) (discord.Payload, diag.Diagnostics) {
+	p := discord.Payload{}
+	m.channelBase.payload(p)
+	diags := m.postChannelFields.payload(ctx, p)
+	putFlag(p, discord.ChannelFlagHideMediaDownloadOptions, m.HideMediaDownloadOptions)
+	return p, diags
+}
+
+var (
+	_ planAdjuster[*mediaChannelModel] = (*mediaChannelModel)(nil)
+	_ createSplitter                   = (*mediaChannelModel)(nil)
+)
+
+func (m *mediaChannelModel) adjustPlan(ctx context.Context, prior *mediaChannelModel) diag.Diagnostics {
+	return m.adjustTags(ctx, &prior.postChannelFields)
+}
+
+// splitCreate moves nsfw to a follow-up modify: Create Guild Channel does not
+// list nsfw for media channels, but Modify Channel does.
+func (m *mediaChannelModel) splitCreate(p discord.Payload) discord.Payload {
+	nsfw, ok := p["nsfw"]
+	delete(p, "nsfw")
+	if ok && nsfw == true {
+		return discord.Payload{"nsfw": true}
+	}
+	return nil
+}
+
+func (m *mediaChannelModel) apply(ctx context.Context, ch *discord.Channel) diag.Diagnostics {
+	m.channelBase.apply(ch)
+	diags := m.postChannelFields.apply(ctx, ch)
+	m.HideMediaDownloadOptions = types.BoolValue(ch.Flags&discord.ChannelFlagHideMediaDownloadOptions != 0)
+	return diags
+}
+
+func newMediaChannelResource() resource.Resource {
+	// Create Guild Channel limits the topic to 1024 characters for every
+	// channel type, while Modify Channel allows 4096 for media channels. The
+	// lower limit keeps a topic valid for both.
+	attrs := postChannelAttributes(topicAttribute(1024, "Post guidelines shown in the channel (up to 1024 characters)."))
+	attrs["hide_media_download_options"] = schema.BoolAttribute{
+		MarkdownDescription: "Whether to hide the download options on embedded media. Defaults to `false`.",
+		Optional:            true,
+		Computed:            true,
+		Default:             booldefault.StaticBool(false),
+	}
+	return newChannelResource[mediaChannelModel](channelKind{
+		typeName:    "media_channel",
+		channelType: discord.ChannelTypeMedia,
+		description: "Manages a media channel, a forum-like channel for image and video posts. " +
+			"Discord documents media channels as still in active development, so their behavior may change.",
+		attributes: attrs,
 	})
 }

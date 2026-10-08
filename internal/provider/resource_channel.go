@@ -172,6 +172,10 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 	if f, ok := p["flags"].(channelFlags); ok {
 		p["flags"] = f.merge(0)
 	}
+	var followUp discord.Payload
+	if s, ok := any(m).(createSplitter); ok {
+		followUp = s.splitCreate(p)
+	}
 	p["type"] = r.kind.channelType
 	ch, err := r.client.CreateChannel(ctx, m.base().ServerID.ValueString(), p)
 	if err != nil {
@@ -180,6 +184,26 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 	}
 	resp.Diagnostics.Append(m.apply(ctx, ch)...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
+	if len(followUp) == 0 || resp.Diagnostics.HasError() {
+		return
+	}
+	// The channel exists, so the state set above keeps it tracked (and
+	// tainted) if the follow-up fails.
+	ch, err = r.client.ModifyChannel(ctx, ch.ID, followUp)
+	if err != nil {
+		apiError(&resp.Diagnostics, "update new "+r.kind.typeName, err)
+		return
+	}
+	resp.Diagnostics.Append(m.apply(ctx, ch)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
+}
+
+// createSplitter is implemented by channel models with fields that Discord
+// accepts on modify but not on create.
+type createSplitter interface {
+	// splitCreate removes those fields from the create payload and returns
+	// the ones to send in a follow-up modify, if any.
+	splitCreate(p discord.Payload) discord.Payload
 }
 
 func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {

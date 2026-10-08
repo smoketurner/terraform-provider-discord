@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/compare"
@@ -283,6 +284,164 @@ resource "discord_text_channel" "test" {
   default_auto_archive_duration = 30
 }`),
 				ExpectError: regexp.MustCompile(`value must be one of`),
+			},
+		},
+	})
+}
+
+func TestAccMediaChannel(t *testing.T) {
+	env := newTestEnv(t)
+	sameTagID := statecheck.CompareValue(compare.ValuesSame())
+	var channelID string
+	updated := env.config(`
+resource "discord_media_channel" "test" {
+  server_id          = local.server_id
+  name               = "tf-acc-media"
+  default_sort_order = "latest_activity"
+  available_tags = [
+    { name = "video" },
+    { name = "clip" },
+  ]
+}`)
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(`
+resource "discord_category_channel" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-media-category"
+}
+resource "discord_media_channel" "test" {
+  server_id                          = local.server_id
+  name                               = "tf-acc-media"
+  category_id                        = discord_category_channel.test.id
+  topic                              = "Share your builds"
+  nsfw                               = true
+  rate_limit_per_user                = 30
+  default_thread_rate_limit_per_user = 60
+  require_tag                        = true
+  hide_media_download_options        = true
+  default_sort_order                 = "creation_date"
+  default_reaction_emoji = {
+    emoji_name = "🔥"
+  }
+  available_tags = [
+    { name = "screenshot", emoji_name = "📸" },
+    { name = "video", moderated = true },
+  ]
+}`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_media_channel.test", "id", &channelID),
+					resource.TestCheckResourceAttrPair("discord_media_channel.test", "category_id", "discord_category_channel.test", "id"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "topic", "Share your builds"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "nsfw", "true"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "rate_limit_per_user", "30"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "default_thread_rate_limit_per_user", "60"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "require_tag", "true"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "hide_media_download_options", "true"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "default_sort_order", "creation_date"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "default_reaction_emoji.emoji_name", "🔥"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "available_tags.#", "2"),
+					resource.TestCheckResourceAttrSet("discord_media_channel.test", "default_auto_archive_duration"),
+					resource.TestCheckNoResourceAttr("discord_media_channel.test", "default_forum_layout"),
+					func(*terraform.State) error {
+						ch, err := env.client.GetChannel(context.Background(), channelID)
+						if err != nil {
+							return err
+						}
+						if ch.Type != discord.ChannelTypeMedia || !ch.NSFW {
+							return fmt.Errorf("type = %d, nsfw = %t; want %d, true", ch.Type, ch.NSFW, discord.ChannelTypeMedia)
+						}
+						return nil
+					},
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					sameTagID.AddStateValue("discord_media_channel.test", tfjsonpath.New("available_tags").AtSliceIndex(1).AtMapKey("id")),
+				},
+			},
+			importStep("discord_media_channel.test"),
+			{
+				// Removing optional attributes clears them, and reordering
+				// tags keeps existing tag IDs.
+				Config: updated,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction("discord_media_channel.test", plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("discord_media_channel.test", "category_id"),
+					resource.TestCheckNoResourceAttr("discord_media_channel.test", "topic"),
+					resource.TestCheckNoResourceAttr("discord_media_channel.test", "default_reaction_emoji"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "nsfw", "false"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "rate_limit_per_user", "0"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "require_tag", "false"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "hide_media_download_options", "false"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "default_sort_order", "latest_activity"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "available_tags.0.name", "video"),
+				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					sameTagID.AddStateValue("discord_media_channel.test", tfjsonpath.New("available_tags").AtSliceIndex(0).AtMapKey("id")),
+				},
+			},
+			{
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyChannel(ctx, channelID, discord.Payload{
+						"topic": "changed in Discord",
+						"flags": discord.ChannelFlagHideMediaDownloadOptions,
+					})
+					return err
+				}),
+				Config: updated,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction("discord_media_channel.test", plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("discord_media_channel.test", "topic"),
+					resource.TestCheckResourceAttr("discord_media_channel.test", "hide_media_download_options", "false"),
+				),
+			},
+			{
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					return c.DeleteChannel(ctx, channelID)
+				}),
+				Config: updated,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction("discord_media_channel.test", plancheck.ResourceActionCreate)},
+				},
+			},
+		},
+	})
+}
+
+func TestAccMediaChannelValidation(t *testing.T) {
+	env := newTestEnv(t)
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(fmt.Sprintf(`
+resource "discord_media_channel" "test" {
+  server_id = local.server_id
+  name      = "x"
+  topic     = %q
+}`, strings.Repeat("a", 1025))),
+				ExpectError: regexp.MustCompile(`string length must be between 1 and 1024`),
+			},
+			{
+				Config: env.config(`
+resource "discord_media_channel" "test" {
+  server_id            = local.server_id
+  name                 = "x"
+  default_forum_layout = "gallery_view"
+}`),
+				ExpectError: regexp.MustCompile(`An argument named "default_forum_layout" is not expected here`),
+			},
+			{
+				Config: env.config(`
+resource "discord_media_channel" "test" {
+  server_id      = local.server_id
+  name           = "x"
+  available_tags = [{ name = "a", emoji_id = "123", emoji_name = "x" }]
+}`),
+				ExpectError: regexp.MustCompile(`cannot be specified when`),
 			},
 		},
 	})
