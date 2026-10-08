@@ -162,6 +162,11 @@ func (p *discordProvider) DataSources(_ context.Context) []func() datasource.Dat
 		newThreadsDataSource,
 		newIntegrationsDataSource,
 		newServerTemplatesDataSource,
+		newUserDataSource,
+		newCurrentUserDataSource,
+		newCurrentApplicationDataSource,
+		newPermissionsDataSource,
+		newColorDataSource,
 	}
 }
 
