@@ -66,6 +66,9 @@ type Server struct {
 	// also refused by GET /channels/{id}.
 	hidden map[string]bool
 	denied map[string]bool
+	// clockSkew is added to the wall clock, so tests can let incident
+	// actions expire without waiting.
+	clockSkew time.Duration
 }
 
 // NewServer starts a fake Discord API seeded with one guild containing an
@@ -116,6 +119,7 @@ func NewServer() *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /guilds/{guild}", s.getGuild)
 	mux.HandleFunc("PATCH /guilds/{guild}", s.modifyGuild)
+	mux.HandleFunc("PUT /guilds/{guild}/incident-actions", s.modifyIncidentActions)
 	mux.HandleFunc("GET /guilds/{guild}/roles", s.listRoles)
 	mux.HandleFunc("POST /guilds/{guild}/roles", s.createRole)
 	mux.HandleFunc("PATCH /guilds/{guild}/roles", s.modifyRolePositions)
@@ -342,14 +346,48 @@ func (s *Server) getGuild(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if g, ok := s.guild(w, r); ok {
+		s.expireIncidentActions(g)
 		writeJSON(w, http.StatusOK, g)
 	}
+}
+
+// mutableGuildFeatures are the features Modify Guild can add or remove.
+var mutableGuildFeatures = []string{"COMMUNITY", "DISCOVERABLE", "INVITES_DISABLED", "RAID_ALERTS_DISABLED"}
+
+// setFeatures applies a features array. Discord grants the other features,
+// so the fake rejects a request that adds or removes one of them.
+func setFeatures(g *discord.Guild, features []string) string {
+	for _, f := range slices.Concat(g.Features, features) {
+		if !slices.Contains(mutableGuildFeatures, f) && slices.Contains(g.Features, f) != slices.Contains(features, f) {
+			return "feature " + f + " cannot be added or removed"
+		}
+	}
+	if slices.Contains(features, "COMMUNITY") && !slices.Contains(g.Features, "COMMUNITY") &&
+		(g.RulesChannelID == nil || g.PublicUpdatesChannelID == nil) {
+		return "COMMUNITY requires a rules channel and a public updates channel"
+	}
+	g.Features = features
+	return ""
+}
+
+// setImage stores a fake hash for an uploaded image, or clears it on null.
+func (s *Server) setImage(body map[string]json.RawMessage, key string, dst **string) {
+	if _, ok := body[key]; !ok {
+		return
+	}
+	var image *string
+	set(body, key, &image)
+	if image != nil {
+		h := key + s.newID()
+		image = &h
+	}
+	*dst = image
 }
 
 func (s *Server) modifyGuild(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	g, ok := s.guild(w, r)
+	cur, ok := s.guild(w, r)
 	if !ok {
 		return
 	}
@@ -358,15 +396,12 @@ func (s *Server) modifyGuild(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	if _, ok := body["icon"]; ok {
-		var icon *string
-		set(body, "icon", &icon)
-		if icon != nil {
-			h := "icon" + s.newID()
-			icon = &h
-		}
-		g.Icon = icon
-	}
+	// Changes go to a copy so that a rejected request changes nothing.
+	g := *cur
+	s.setImage(body, "icon", &g.Icon)
+	s.setImage(body, "banner", &g.Banner)
+	s.setImage(body, "splash", &g.Splash)
+	s.setImage(body, "discovery_splash", &g.DiscoverySplash)
 	set(body, "name", &g.Name)
 	set(body, "description", &g.Description)
 	set(body, "afk_channel_id", &g.AFKChannelID)
@@ -381,7 +416,85 @@ func (s *Server) modifyGuild(w http.ResponseWriter, r *http.Request) {
 	set(body, "safety_alerts_channel_id", &g.SafetyAlertsChannelID)
 	set(body, "preferred_locale", &g.PreferredLocale)
 	set(body, "premium_progress_bar_enabled", &g.PremiumProgressBarEnabled)
-	writeJSON(w, http.StatusOK, g)
+	if _, ok := body["features"]; ok {
+		var features []string
+		set(body, "features", &features)
+		if msg := setFeatures(&g, features); msg != "" {
+			writeError(w, http.StatusBadRequest, 50035, msg)
+			return
+		}
+	}
+	*cur = g
+	writeJSON(w, http.StatusOK, cur)
+}
+
+func (s *Server) now() time.Time {
+	return time.Now().Add(s.clockSkew)
+}
+
+// AdvanceClock moves the fake's clock forward, expiring incident actions.
+func (s *Server) AdvanceClock(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clockSkew += d
+}
+
+// expireIncidentActions clears the incident actions that have ended, as
+// Discord does.
+func (s *Server) expireIncidentActions(g *discord.Guild) {
+	if g.IncidentsData == nil {
+		return
+	}
+	for _, until := range []**string{&g.IncidentsData.InvitesDisabledUntil, &g.IncidentsData.DMsDisabledUntil} {
+		if *until == nil {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339Nano, **until); err == nil && !t.After(s.now()) {
+			*until = nil
+		}
+	}
+}
+
+func (s *Server) modifyIncidentActions(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	s.expireIncidentActions(g)
+	if g.IncidentsData == nil {
+		g.IncidentsData = &discord.IncidentsData{}
+	}
+	d := *g.IncidentsData
+	for key, until := range map[string]**string{"invites_disabled_until": &d.InvitesDisabledUntil, "dms_disabled_until": &d.DMsDisabledUntil} {
+		set(body, key, until)
+		if *until == nil {
+			continue
+		}
+		t, err := time.Parse(time.RFC3339Nano, **until)
+		if err != nil || !t.After(s.now()) || t.After(s.now().Add(24*time.Hour)) {
+			writeError(w, http.StatusBadRequest, 50035, key+" must be a timestamp within the next 24 hours")
+			return
+		}
+		// Discord returns timestamps in its own format.
+		formatted := t.UTC().Format("2006-01-02T15:04:05.000000+00:00")
+		*until = &formatted
+	}
+	g.IncidentsData = &d
+	writeJSON(w, http.StatusOK, g.IncidentsData)
+}
+
+// RemoveGuild deletes a guild, as when the bot is removed from it.
+func (s *Server) RemoveGuild(guildID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.guilds, guildID)
 }
 
 func (s *Server) sortedRoles(guildID string) []*discord.Role {
