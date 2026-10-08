@@ -180,6 +180,20 @@ func (c *Client) DeleteWebhook(ctx context.Context, webhookID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/webhooks/"+webhookID, nil, nil)
 }
 
+// FollowChannel follows an announcement channel into a target channel, which
+// creates a Channel Follower webhook there.
+func (c *Client) FollowChannel(ctx context.Context, channelID, targetChannelID string) (*FollowedChannel, error) {
+	var f FollowedChannel
+	return &f, c.doAudited(ctx, http.MethodPost, "/channels/"+channelID+"/followers", Payload{"webhook_channel_id": targetChannelID}, &f)
+}
+
+// GetFollowerWebhook fetches a webhook as a Channel Follower webhook. Callers
+// check Type, since the endpoint returns webhooks of every type.
+func (c *Client) GetFollowerWebhook(ctx context.Context, webhookID string) (*FollowerWebhook, error) {
+	var w FollowerWebhook
+	return &w, c.do(ctx, http.MethodGet, "/webhooks/"+webhookID, nil, &w)
+}
+
 // CreateInvite creates a channel invite.
 func (c *Client) CreateInvite(ctx context.Context, channelID string, p Payload) (*Invite, error) {
 	var i Invite
@@ -228,6 +242,43 @@ func (c *Client) PinMessage(ctx context.Context, channelID, messageID string) er
 // UnpinMessage unpins a message.
 func (c *Client) UnpinMessage(ctx context.Context, channelID, messageID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/channels/"+channelID+"/messages/pins/"+messageID, nil, nil)
+}
+
+// The reaction endpoints take the emoji as a unicode emoji or "name:id" for a
+// custom emoji, and reject it unless it is URL-encoded.
+
+// AddOwnReaction reacts to a message as the bot.
+func (c *Client) AddOwnReaction(ctx context.Context, channelID, messageID, emoji string) error {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "/@me"
+	return c.do(ctx, http.MethodPut, path, nil, nil)
+}
+
+// DeleteOwnReaction removes the bot's reaction from a message.
+func (c *Client) DeleteOwnReaction(ctx context.Context, channelID, messageID, emoji string) error {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "/@me"
+	return c.do(ctx, http.MethodDelete, path, nil, nil)
+}
+
+// MaxReactionsPage is the most users Discord returns per page of reactions,
+// which ListReactions requests.
+const MaxReactionsPage = 100
+
+// ListReactions returns one page of the users who reacted to a message with
+// an emoji, in user ID order, starting after the user ID after, or from the
+// first user when after is empty. Burst reactions are not included.
+func (c *Client) ListReactions(ctx context.Context, channelID, messageID, emoji, after string) ([]User, error) {
+	path := "/channels/" + channelID + "/messages/" + messageID + "/reactions/" + url.PathEscape(emoji) + "?limit=100"
+	if after != "" {
+		path += "&after=" + after
+	}
+	var users []User
+	return users, c.do(ctx, http.MethodGet, path, nil, &users)
+}
+
+// GetCurrentUser fetches the bot's own user.
+func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
+	var u User
+	return &u, c.do(ctx, http.MethodGet, "/users/@me", nil, &u)
 }
 
 // GetEmoji fetches a custom guild emoji.

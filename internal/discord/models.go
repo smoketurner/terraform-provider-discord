@@ -193,6 +193,31 @@ type Webhook struct {
 	Token     string  `json:"token"`
 }
 
+// FollowedChannel is returned when following an announcement channel.
+// WebhookID is the Channel Follower webhook created in the target channel.
+type FollowedChannel struct {
+	ChannelID string `json:"channel_id"`
+	WebhookID string `json:"webhook_id"`
+}
+
+// FollowerWebhook is a Channel Follower webhook, which posts an announcement
+// channel's messages into the channel that follows it. SourceChannel is
+// absent when the bot has lost access to the source server.
+type FollowerWebhook struct {
+	ID            string                `json:"id"`
+	Type          int                   `json:"type"`
+	GuildID       string                `json:"guild_id"`
+	ChannelID     string                `json:"channel_id"`
+	SourceChannel *WebhookSourceChannel `json:"source_channel"`
+}
+
+// WebhookSourceChannel is the announcement channel a Channel Follower
+// webhook follows.
+type WebhookSourceChannel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // InviteChannel is the partial channel included in an invite.
 type InviteChannel struct {
 	ID string `json:"id"`
