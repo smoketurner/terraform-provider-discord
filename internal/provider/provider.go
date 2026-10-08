@@ -133,6 +133,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newMemberResource,
 		newMemberRoleResource,
 		newMemberRolesResource,
+		newBanResource,
 		newWebhookResource,
 		newInviteResource,
 		newMessageResource,

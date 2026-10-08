@@ -174,6 +174,16 @@ resource "discord_member" "test" {
 		identities["discord_member_roles.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 		identities["discord_member.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 	}
+	// Banning removes the member, so only the fake has a user to spare.
+	if !env.live {
+		cfg += `
+resource "discord_ban" "test" {
+  server_id = local.server_id
+  user_id   = "` + env.fake.AddMember(env.serverID, "banned") + `"
+}
+`
+		identities["discord_ban.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
+	}
 	// These disable the server's onboarding, welcome screen and widget on
 	// destroy, so live runs leave them out.
 	if !env.live {
