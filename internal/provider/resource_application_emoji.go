@@ -8,9 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -56,7 +54,7 @@ func (r *applicationEmojiResource) Schema(_ context.Context, _ resource.SchemaRe
 			"2000 per application. Discord cannot change an emoji's image, so a new image uploads a new emoji.",
 		Attributes: map[string]schema.Attribute{
 			"id":             idAttribute("Emoji ID."),
-			"application_id": applicationIDAttribute(),
+			"application_id": resourceApplicationIDAttribute(),
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Emoji name (2-32 letters, digits or underscores), unique within the application.",
 				Required:            true,
@@ -73,19 +71,11 @@ func (r *applicationEmojiResource) Schema(_ context.Context, _ resource.SchemaRe
 					dataURIValidator(),
 					stringvalidator.ExactlyOneOf(path.MatchRoot("image_wo")),
 				},
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIf(
-					func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
-					}, replaceImage, replaceImage,
-				)},
+				PlanModifiers: []planmodifier.String{replaceOnUpload(replaceImage)},
 			},
 			"image_wo": writeOnlyImage("Image as a data URI (PNG, JPEG, GIF or WebP, 128x128, at most 256 KiB).", "image"),
 			"image_wo_version": writeOnlyVersion("image", "Changing it uploads `image_wo` as a new emoji.",
-				int64planmodifier.RequiresReplaceIf(
-					func(_ context.Context, req planmodifier.Int64Request, resp *int64planmodifier.RequiresReplaceIfFuncResponse) {
-						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
-					}, replaceImage, replaceImage,
-				)),
+				replaceOnUploadVersion(replaceImage)),
 			"animated": schema.BoolAttribute{
 				MarkdownDescription: "Whether the emoji is animated.",
 				Computed:            true,

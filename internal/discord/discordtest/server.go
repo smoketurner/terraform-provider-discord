@@ -47,20 +47,28 @@ type Server struct {
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
 	emojis   map[string]map[string]*discord.Emoji
+	stickers map[string]map[string]*discord.Sticker
+	sounds   map[string]map[string]*discord.SoundboardSound
 	events   map[string]*discord.ScheduledEvent
 	stages   map[string]*discord.StageInstance
 	settings map[string]*guildSettings
+	ro       *readOnlyState
+	money    *monetization
 	app      *discord.Application
 	// appEmojis are the application's emojis, roleConnections its role
 	// connection metadata, and botBios the bot's server profile bios.
 	appEmojis       map[string]*discord.Emoji
 	roleConnections []discord.RoleConnectionMetadata
 	botBios         map[string]string
-	requests        []string
-	headers         []http.Header
-	edits           []map[string]json.RawMessage
-	failNext        map[string]int
-	botUserID       string
+	// stickerFiles and soundData hold the uploaded files, which Discord
+	// never returns.
+	stickerFiles map[string]Upload
+	soundData    map[string]string
+	requests     []string
+	headers      []http.Header
+	edits        []map[string]json.RawMessage
+	failNext     map[string]int
+	botUserID    string
 	// hidden channels are omitted from the guild channel list, as Discord
 	// does for channels the bot lacks VIEW_CHANNEL on. denied channels are
 	// also refused by GET /channels/{id}.
@@ -86,6 +94,10 @@ func NewServer() *Server {
 		invites:         map[string]*discord.Invite{},
 		messages:        map[string]*discord.Message{},
 		emojis:          map[string]map[string]*discord.Emoji{},
+		stickers:        map[string]map[string]*discord.Sticker{},
+		sounds:          map[string]map[string]*discord.SoundboardSound{},
+		stickerFiles:    map[string]Upload{},
+		soundData:       map[string]string{},
 		events:          map[string]*discord.ScheduledEvent{},
 		stages:          map[string]*discord.StageInstance{},
 		appEmojis:       map[string]*discord.Emoji{},
@@ -112,6 +124,8 @@ func NewServer() *Server {
 		UserID: {User: &discord.User{ID: UserID, Username: "tester", Discriminator: "0"}, Roles: []string{}, JoinedAt: "2024-01-01T00:00:00.000000+00:00"},
 	}
 	s.emojis[GuildID] = map[string]*discord.Emoji{}
+	s.stickers[GuildID] = map[string]*discord.Sticker{}
+	s.sounds[GuildID] = map[string]*discord.SoundboardSound{}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /guilds/{guild}", s.getGuild)
@@ -158,6 +172,15 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/emojis", s.createEmoji)
 	mux.HandleFunc("PATCH /guilds/{guild}/emojis/{emoji}", s.modifyEmoji)
 	mux.HandleFunc("DELETE /guilds/{guild}/emojis/{emoji}", s.deleteEmoji)
+	mux.HandleFunc("GET /guilds/{guild}/stickers/{sticker}", s.getSticker)
+	mux.HandleFunc("POST /guilds/{guild}/stickers", s.createSticker)
+	mux.HandleFunc("PATCH /guilds/{guild}/stickers/{sticker}", s.modifySticker)
+	mux.HandleFunc("DELETE /guilds/{guild}/stickers/{sticker}", s.deleteSticker)
+	mux.HandleFunc("GET /guilds/{guild}/soundboard-sounds", s.listSoundboardSounds)
+	mux.HandleFunc("GET /guilds/{guild}/soundboard-sounds/{sound}", s.getSoundboardSound)
+	mux.HandleFunc("POST /guilds/{guild}/soundboard-sounds", s.createSoundboardSound)
+	mux.HandleFunc("PATCH /guilds/{guild}/soundboard-sounds/{sound}", s.modifySoundboardSound)
+	mux.HandleFunc("DELETE /guilds/{guild}/soundboard-sounds/{sound}", s.deleteSoundboardSound)
 	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
 	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
 	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)
@@ -167,6 +190,8 @@ func NewServer() *Server {
 	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
 	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
+	s.handleReadOnly(mux)
+	s.handleMonetization(mux)
 	s.handleUsers(mux)
 	s.handleApplications(mux)
 
@@ -1397,7 +1422,10 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	m := &discord.Message{ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{}}
+	m := &discord.Message{
+		ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
+		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+	}
 	applyMessage(m, body)
 	if m.Content == "" && len(m.Embeds) == 0 {
 		writeError(w, http.StatusBadRequest, 50006, "Cannot send an empty message")
@@ -1433,6 +1461,8 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.edits = append(s.edits, body)
 	applyMessage(m, body)
+	edited := time.Now().UTC().Format(time.RFC3339Nano)
+	m.EditedTimestamp = &edited
 	writeJSON(w, http.StatusOK, m)
 }
 
@@ -1464,6 +1494,7 @@ func (s *Server) pinMessage(pinned bool) http.HandlerFunc {
 			return
 		}
 		m.Pinned = pinned
+		s.recordPin(m, pinned)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -1532,6 +1563,221 @@ func (s *Server) deleteEmoji(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.emojis[r.PathValue("guild")], r.PathValue("emoji"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// stickerFormats maps the content type of an uploaded sticker file to its
+// format type. An image/png file with an animation control chunk is an APNG.
+var stickerFormats = map[string]int{"image/png": 1, "image/gif": 4, "application/json": 3}
+
+// StickerUpload returns the file uploaded for a sticker.
+func (s *Server) StickerUpload(stickerID string) (Upload, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.stickerFiles[stickerID]
+	return u, ok
+}
+
+func (s *Server) getSticker(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.stickers[r.PathValue("guild")][r.PathValue("sticker")]
+	if !ok {
+		notFound(w, "Sticker", 10060)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (s *Server) createSticker(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	if mediaType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mediaType != "multipart/form-data" {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	var file Upload
+	set(body, "file", &file)
+	format, ok := stickerFormats[file.ContentType]
+	if !ok || len(file.Data) == 0 || len(file.Data) > 512<<10 {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return
+	}
+	if format == 3 && !slices.Contains(g.Features, "VERIFIED") && !slices.Contains(g.Features, "PARTNERED") {
+		writeError(w, http.StatusBadRequest, 50035, "Lottie stickers need the VERIFIED or PARTNERED feature")
+		return
+	}
+	if format == 1 && strings.Contains(string(file.Data), "acTL") {
+		format = 2
+	}
+	st := &discord.Sticker{ID: s.newID(), FormatType: format, Available: true, GuildID: g.ID}
+	set(body, "name", &st.Name)
+	set(body, "tags", &st.Tags)
+	set(body, "description", &st.Description)
+	if st.Name == "" || st.Tags == "" {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return
+	}
+	s.stickers[g.ID][st.ID] = st
+	s.stickerFiles[st.ID] = file
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (s *Server) modifySticker(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, ok := s.stickers[r.PathValue("guild")][r.PathValue("sticker")]
+	if !ok {
+		notFound(w, "Sticker", 10060)
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	set(body, "name", &st.Name)
+	set(body, "tags", &st.Tags)
+	set(body, "description", &st.Description)
+	writeJSON(w, http.StatusOK, st)
+}
+
+func (s *Server) deleteSticker(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.stickers[r.PathValue("guild")][r.PathValue("sticker")]; !ok {
+		notFound(w, "Sticker", 10060)
+		return
+	}
+	delete(s.stickers[r.PathValue("guild")], r.PathValue("sticker"))
+	delete(s.stickerFiles, r.PathValue("sticker"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SoundboardSoundData returns the sound data URI a soundboard sound was
+// created with.
+func (s *Server) SoundboardSoundData(soundID string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, ok := s.soundData[soundID]
+	return data, ok
+}
+
+func (s *Server) listSoundboardSounds(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guild(w, r); !ok {
+		return
+	}
+	items := slices.SortedFunc(maps.Values(s.sounds[r.PathValue("guild")]), func(a, b *discord.SoundboardSound) int {
+		return strings.Compare(a.SoundID, b.SoundID)
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) getSoundboardSound(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sound, ok := s.sounds[r.PathValue("guild")][r.PathValue("sound")]
+	if !ok {
+		notFound(w, "Sound", 10097)
+		return
+	}
+	writeJSON(w, http.StatusOK, sound)
+}
+
+func (s *Server) createSoundboardSound(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	var data string
+	set(body, "sound", &data)
+	if !strings.HasPrefix(data, "data:audio/") {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return
+	}
+	sound := &discord.SoundboardSound{SoundID: s.newID(), Volume: 1, Available: true, GuildID: g.ID}
+	set(body, "name", &sound.Name)
+	if !s.setSoundFields(w, body, sound) {
+		return
+	}
+	s.sounds[g.ID][sound.SoundID] = sound
+	s.soundData[sound.SoundID] = data
+	writeJSON(w, http.StatusOK, sound)
+}
+
+func (s *Server) modifySoundboardSound(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sound, ok := s.sounds[r.PathValue("guild")][r.PathValue("sound")]
+	if !ok {
+		notFound(w, "Sound", 10097)
+		return
+	}
+	body, err := decode(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, 50109, err.Error())
+		return
+	}
+	if _, ok := body["sound"]; ok {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return
+	}
+	updated := *sound
+	set(body, "name", &updated.Name)
+	if !s.setSoundFields(w, body, &updated) {
+		return
+	}
+	*sound = updated
+	writeJSON(w, http.StatusOK, sound)
+}
+
+// setSoundFields applies the volume and emoji of a soundboard sound. A null
+// volume means the default of 1, and a sound has at most one emoji.
+func (s *Server) setSoundFields(w http.ResponseWriter, body map[string]json.RawMessage, sound *discord.SoundboardSound) bool {
+	if _, ok := body["volume"]; ok {
+		var volume *float64
+		set(body, "volume", &volume)
+		sound.Volume = 1
+		if volume != nil {
+			sound.Volume = *volume
+		}
+	}
+	set(body, "emoji_id", &sound.EmojiID)
+	set(body, "emoji_name", &sound.EmojiName)
+	if sound.Name == "" || sound.Volume < 0 || sound.Volume > 1 || (sound.EmojiID != nil && sound.EmojiName != nil) {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
+		return false
+	}
+	return true
+}
+
+func (s *Server) deleteSoundboardSound(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.sounds[r.PathValue("guild")][r.PathValue("sound")]; !ok {
+		notFound(w, "Sound", 10097)
+		return
+	}
+	delete(s.sounds[r.PathValue("guild")], r.PathValue("sound"))
+	delete(s.soundData, r.PathValue("sound"))
 	w.WriteHeader(http.StatusNoContent)
 }
 

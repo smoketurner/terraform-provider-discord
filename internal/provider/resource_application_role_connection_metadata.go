@@ -63,9 +63,9 @@ func newRoleConnectionMetadataResource() resource.Resource {
 	}}}
 }
 
-// applicationIDAttribute is the application a resource belongs to. A bot
+// resourceApplicationIDAttribute is the application a resource belongs to. A bot
 // token can only manage its own application, which is the default.
-func applicationIDAttribute() schema.StringAttribute {
+func resourceApplicationIDAttribute() schema.StringAttribute {
 	return schema.StringAttribute{
 		MarkdownDescription: "ID of the application. Defaults to the application the provider's bot token belongs to, " +
 			"the only one it can manage.",
@@ -83,18 +83,14 @@ func applicationIdentity(state ...string) identityAttribute {
 	return identityAttribute{name: "application_id", description: "ID of the application.", state: state}
 }
 
-// applicationID returns the configured application ID, or the ID of the
-// bot token's application when none is configured.
+// applicationID is resolveApplicationID for a planned value, which is unknown
+// when application_id is not configured.
 func applicationID(ctx context.Context, c *discord.Client, v types.String, diags *diag.Diagnostics) string {
-	if isSet(v) {
-		return v.ValueString()
+	if v.IsUnknown() {
+		v = types.StringNull()
 	}
-	app, err := c.GetCurrentApplication(ctx)
-	if err != nil {
-		apiError(diags, "read application", err)
-		return ""
-	}
-	return app.ID
+	id, _ := resolveApplicationID(ctx, c, v, diags)
+	return id.ValueString()
 }
 
 func localizationsAttribute(desc string, maxLength int) schema.MapAttribute {
@@ -124,7 +120,7 @@ func (r *roleConnectionMetadataResource) Schema(_ context.Context, _ resource.Sc
 			"to a role; that remains a manual step in the server's role settings.",
 		Attributes: map[string]schema.Attribute{
 			"id":             idAttribute("ID of the application."),
-			"application_id": applicationIDAttribute(),
+			"application_id": resourceApplicationIDAttribute(),
 			"records": schema.ListNestedAttribute{
 				MarkdownDescription: "The metadata records, at most 5, each with a unique `key`. An empty list " +
 					"removes them all.",

@@ -6,14 +6,11 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -78,21 +75,11 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					dataURIValidator(),
 					stringvalidator.ExactlyOneOf(path.MatchRoot("image_wo")),
 				},
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplaceIf(
-					func(_ context.Context, req planmodifier.StringRequest, resp *stringplanmodifier.RequiresReplaceIfFuncResponse) {
-						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
-					},
-					"Changing the image uploads a new emoji.", "Changing the image uploads a new emoji.",
-				)},
+				PlanModifiers: []planmodifier.String{replaceOnUpload("Changing the image uploads a new emoji.")},
 			},
 			"image_wo": writeOnlyImage("Image as a data URI (PNG, JPEG, GIF or WebP, at most 256 KiB).", "image"),
 			"image_wo_version": writeOnlyVersion("image", "Changing it uploads `image_wo` as a new emoji.",
-				int64planmodifier.RequiresReplaceIf(
-					func(_ context.Context, req planmodifier.Int64Request, resp *int64planmodifier.RequiresReplaceIfFuncResponse) {
-						resp.RequiresReplace = replacesImage(req.StateValue, req.PlanValue)
-					},
-					"Changing the image version uploads a new emoji.", "Changing the image version uploads a new emoji.",
-				)),
+				replaceOnUploadVersion("Changing the image version uploads a new emoji.")),
 			"roles": schema.SetAttribute{
 				MarkdownDescription: "Role IDs allowed to use the emoji. Omit to allow everyone.",
 				ElementType:         types.StringType,
@@ -113,14 +100,6 @@ func (r *emojiResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 
 func (r *emojiResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	r.client = clientFromResource(req, resp)
-}
-
-// replacesImage reports whether an image change needs a new emoji, as Discord
-// cannot change the image of an existing one. Imported emojis have no image in
-// state, and switching between image and image_wo keeps the same image, so
-// adopting a configured image needs no new upload.
-func replacesImage(state, plan attr.Value) bool {
-	return !state.IsNull() && !plan.IsNull()
 }
 
 func (m *emojiModel) roles(ctx context.Context, diags *diag.Diagnostics) []string {

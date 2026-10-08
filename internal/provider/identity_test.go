@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"regexp"
+	"slices"
 	"testing"
 	"time"
 
@@ -122,6 +123,17 @@ resource "discord_emoji" "test" {
   name      = "tf_acc_identity"
   image     = "` + onePixelPNG + `"
 }
+resource "discord_sticker" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+  tags      = "wave"
+  file      = "` + stickerPNG + `"
+}
+resource "discord_soundboard_sound" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+  sound     = "` + soundMP3 + `"
+}
 resource "discord_scheduled_event" "test" {
   server_id            = local.server_id
   name                 = "tf-acc-identity"
@@ -153,6 +165,8 @@ resource "discord_stage_instance" "test" {
 		"discord_webhook.test":                 {"webhook_id": "id"},
 		"discord_thread.test":                  {"thread_id": "id"},
 		"discord_emoji.test":                   {"server_id": "server_id", "emoji_id": "id"},
+		"discord_sticker.test":                 {"server_id": "server_id", "sticker_id": "id"},
+		"discord_soundboard_sound.test":        {"server_id": "server_id", "sound_id": "id"},
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
 	}
@@ -248,9 +262,11 @@ resource "discord_application_emoji" "test" {
 	for name, attrs := range identities {
 		first.ConfigStateChecks = append(first.ConfigStateChecks, expectIdentity(name, attrs)...)
 		step := identityImportStep(name)
-		// Emoji images cannot be read back, so imported emojis plan to set
-		// them.
-		step.ExpectNonEmptyPlan = name == "discord_emoji.test" || name == "discord_application_emoji.test"
+		// Uploaded files cannot be read back, so the imported resources
+		// plan to set them.
+		step.ExpectNonEmptyPlan = slices.Contains([]string{
+			"discord_emoji.test", "discord_sticker.test", "discord_soundboard_sound.test", "discord_application_emoji.test",
+		}, name)
 		steps = append(steps, step)
 	}
 	env.run(resource.TestCase{
