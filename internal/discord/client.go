@@ -290,7 +290,8 @@ func (c *Client) doAudited(ctx context.Context, method, path string, body, out a
 
 // request performs a request, honoring Discord rate limits and retrying on
 // 429 and transient gateway errors. A nil body sends no payload, a *Multipart
-// is sent as multipart/form-data and anything else as JSON; out may be nil.
+// is sent as multipart/form-data and anything else as JSON; out may be nil,
+// and a *[]byte receives the response body undecoded.
 // A non-empty reason is sent in the X-Audit-Log-Reason header.
 func (c *Client) request(ctx context.Context, method, path, reason string, body, out any) error {
 	payload, contentType, err := encodeBody(body)
@@ -337,6 +338,10 @@ func (c *Client) request(ctx context.Context, method, path, reason string, body,
 		}
 
 		if out == nil || len(respBody) == 0 {
+			return nil
+		}
+		if raw, ok := out.(*[]byte); ok {
+			*raw = respBody
 			return nil
 		}
 		if err := json.Unmarshal(respBody, out); err != nil {
