@@ -37,6 +37,10 @@ type positionsKind struct {
 	audited bool
 }
 
+// positionsResource supports neither import nor resource identity. Several
+// instances can order different subsets of one server, so the server ID does
+// not identify one of them, and the IDs they manage exist only in
+// configuration.
 var _ resource.ResourceWithConfigure = &positionsResource{}
 
 type positionsResource struct {

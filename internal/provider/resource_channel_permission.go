@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -20,9 +19,11 @@ var overwriteTypes = enumMapping{"role", "member"}
 var (
 	_ resource.ResourceWithConfigure   = &channelPermissionResource{}
 	_ resource.ResourceWithImportState = &channelPermissionResource{}
+	_ resource.ResourceWithIdentity    = &channelPermissionResource{}
 )
 
 type channelPermissionResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -36,7 +37,12 @@ type channelPermissionModel struct {
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
-func newChannelPermissionResource() resource.Resource { return &channelPermissionResource{} }
+func newChannelPermissionResource() resource.Resource {
+	return &channelPermissionResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		channelIdentity("channel_id"),
+		{name: "overwrite_id", description: "ID of the role or member the overwrite applies to.", state: []string{"overwrite_id"}},
+	}}}
+}
 
 func (r *channelPermissionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_channel_permission"
@@ -101,6 +107,7 @@ func (r *channelPermissionResource) write(ctx context.Context, m *channelPermiss
 }
 
 func (r *channelPermissionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan channelPermissionModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -115,6 +122,7 @@ func (r *channelPermissionResource) Create(ctx context.Context, req resource.Cre
 }
 
 func (r *channelPermissionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state channelPermissionModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -143,6 +151,7 @@ func (r *channelPermissionResource) Read(ctx context.Context, req resource.ReadR
 }
 
 func (r *channelPermissionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -170,15 +179,4 @@ func (r *channelPermissionResource) Delete(ctx context.Context, req resource.Del
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete channel permission", err)
 	}
-}
-
-func (r *channelPermissionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts, err := splitID(req.ID, 2, "channel_id/overwrite_id")
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("channel_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("overwrite_id"), parts[1])...)
 }

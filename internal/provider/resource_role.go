@@ -20,9 +20,11 @@ import (
 var (
 	_ resource.ResourceWithConfigure   = &roleResource{}
 	_ resource.ResourceWithImportState = &roleResource{}
+	_ resource.ResourceWithIdentity    = &roleResource{}
 )
 
 type roleResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -42,7 +44,12 @@ type roleModel struct {
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
-func newRoleResource() resource.Resource { return &roleResource{} }
+func newRoleResource() resource.Resource {
+	return &roleResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		serverIdentity("server_id"),
+		{name: "role_id", description: "ID of the role.", state: []string{"id"}},
+	}}}
+}
 
 func (r *roleResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_role"
@@ -158,6 +165,7 @@ func (m *roleModel) apply(role *discord.Role) {
 }
 
 func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan roleModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -178,6 +186,7 @@ func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, r
 }
 
 func (r *roleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state roleModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -197,6 +206,7 @@ func (r *roleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 }
 
 func (r *roleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -227,14 +237,4 @@ func (r *roleResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete role", err)
 	}
-}
-
-func (r *roleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts, err := splitID(req.ID, 2, "server_id/role_id")
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("server_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

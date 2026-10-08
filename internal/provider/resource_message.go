@@ -26,9 +26,11 @@ import (
 var (
 	_ resource.ResourceWithConfigure   = &messageResource{}
 	_ resource.ResourceWithImportState = &messageResource{}
+	_ resource.ResourceWithIdentity    = &messageResource{}
 )
 
 type messageResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -74,7 +76,12 @@ var (
 	}
 )
 
-func newMessageResource() resource.Resource { return &messageResource{} }
+func newMessageResource() resource.Resource {
+	return &messageResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		channelIdentity("channel_id"),
+		{name: "message_id", description: "ID of the message.", state: []string{"id"}},
+	}}}
+}
 
 func (r *messageResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_message"
@@ -360,6 +367,7 @@ func (r *messageResource) setPinned(ctx context.Context, m *messageModel, pinned
 }
 
 func (r *messageResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan messageModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -393,6 +401,7 @@ func (r *messageResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 func (r *messageResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state messageModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -412,6 +421,7 @@ func (r *messageResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *messageResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -466,14 +476,4 @@ func (r *messageResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete message", err)
 	}
-}
-
-func (r *messageResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts, err := splitID(req.ID, 2, "channel_id/message_id")
-	if err != nil {
-		resp.Diagnostics.AddError("Invalid import ID", err.Error())
-		return
-	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("channel_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -90,6 +89,7 @@ type channelResource[T any, PT interface {
 	*T
 	channelModel
 }] struct {
+	resourceIdentity
 	kind   channelKind
 	client *discord.Client
 }
@@ -154,6 +154,7 @@ func (r *channelResource[T, PT]) Configure(_ context.Context, req resource.Confi
 }
 
 func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan T
 	m := PT(&plan)
 	resp.Diagnostics.Append(req.Plan.Get(ctx, m)...)
@@ -211,6 +212,7 @@ type createSplitter interface {
 }
 
 func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state T
 	m := PT(&state)
 	resp.Diagnostics.Append(req.State.Get(ctx, m)...)
@@ -237,6 +239,7 @@ func (r *channelResource[T, PT]) Read(ctx context.Context, req resource.ReadRequ
 }
 
 func (r *channelResource[T, PT]) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -287,8 +290,4 @@ func (r *channelResource[T, PT]) Delete(ctx context.Context, req resource.Delete
 	if err := r.client.DeleteChannel(ctx, m.base().ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete "+r.kind.typeName, err)
 	}
-}
-
-func (r *channelResource[T, PT]) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }

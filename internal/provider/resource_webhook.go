@@ -28,9 +28,11 @@ func dataURIValidator() validator.String {
 var (
 	_ resource.ResourceWithConfigure   = &webhookResource{}
 	_ resource.ResourceWithImportState = &webhookResource{}
+	_ resource.ResourceWithIdentity    = &webhookResource{}
 )
 
 type webhookResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -48,7 +50,11 @@ type webhookModel struct {
 	AuditLogReason  types.String `tfsdk:"audit_log_reason"`
 }
 
-func newWebhookResource() resource.Resource { return &webhookResource{} }
+func newWebhookResource() resource.Resource {
+	return &webhookResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{
+		{name: "webhook_id", description: "ID of the webhook.", state: []string{"id"}},
+	}}}
+}
 
 func (r *webhookResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_webhook"
@@ -126,6 +132,7 @@ func (m *webhookModel) apply(w *discord.Webhook) {
 }
 
 func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan webhookModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -150,6 +157,7 @@ func (r *webhookResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state webhookModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -170,6 +178,7 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 func (r *webhookResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -216,8 +225,4 @@ func (r *webhookResource) Delete(ctx context.Context, req resource.DeleteRequest
 	if err := r.client.DeleteWebhook(ctx, state.ID.ValueString()); err != nil && !discord.IsNotFound(err) {
 		apiError(&resp.Diagnostics, "delete webhook", err)
 	}
-}
-
-func (r *webhookResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }

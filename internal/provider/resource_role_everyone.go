@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -15,9 +14,11 @@ import (
 var (
 	_ resource.ResourceWithConfigure   = &roleEveryoneResource{}
 	_ resource.ResourceWithImportState = &roleEveryoneResource{}
+	_ resource.ResourceWithIdentity    = &roleEveryoneResource{}
 )
 
 type roleEveryoneResource struct {
+	resourceIdentity
 	client *discord.Client
 }
 
@@ -28,7 +29,9 @@ type roleEveryoneModel struct {
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
 }
 
-func newRoleEveryoneResource() resource.Resource { return &roleEveryoneResource{} }
+func newRoleEveryoneResource() resource.Resource {
+	return &roleEveryoneResource{resourceIdentity: resourceIdentity{attrs: []identityAttribute{serverIdentity("server_id", "id")}}}
+}
 
 func (r *roleEveryoneResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_role_everyone"
@@ -67,6 +70,7 @@ func (r *roleEveryoneResource) write(ctx context.Context, m *roleEveryoneModel) 
 }
 
 func (r *roleEveryoneResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	var plan roleEveryoneModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
@@ -81,6 +85,7 @@ func (r *roleEveryoneResource) Create(ctx context.Context, req resource.CreateRe
 }
 
 func (r *roleEveryoneResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State, &req.State)
 	var state roleEveryoneModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
@@ -101,6 +106,7 @@ func (r *roleEveryoneResource) Read(ctx context.Context, req resource.ReadReques
 }
 
 func (r *roleEveryoneResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	defer r.setIdentity(ctx, resp.Identity, &resp.Diagnostics, &resp.State)
 	if updateAuditLogReasonOnly(ctx, req, resp) {
 		return
 	}
@@ -118,9 +124,4 @@ func (r *roleEveryoneResource) Update(ctx context.Context, req resource.UpdateRe
 }
 
 func (r *roleEveryoneResource) Delete(_ context.Context, _ resource.DeleteRequest, _ *resource.DeleteResponse) {
-}
-
-func (r *roleEveryoneResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("server_id"), req.ID)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
