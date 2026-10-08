@@ -14,8 +14,8 @@ func (c *Client) ApplicationID(ctx context.Context) (string, error) {
 	if c.applicationID != "" {
 		return c.applicationID, nil
 	}
-	var app Application
-	if err := c.do(ctx, http.MethodGet, "/applications/@me", nil, &app); err != nil {
+	app, err := c.GetCurrentApplication(ctx)
+	if err != nil {
 		return "", err
 	}
 	c.applicationID = app.ID

@@ -10,15 +10,11 @@ import (
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
-// ApplicationID is the ID of the bot's application.
-const ApplicationID = "100000000000000004"
-
 // chatInputNameRegexp is the documented pattern for CHAT_INPUT command and
 // option names; letters must also be lowercase where a lowercase exists.
 var chatInputNameRegexp = regexp.MustCompile(`^[-_\x{02BC}\p{L}\p{N}\p{Devanagari}\p{Thai}]{1,32}$`)
 
 func (s *Server) handleApplicationCommands(mux *http.ServeMux) {
-	mux.HandleFunc("GET /applications/@me", s.getMyApplication)
 	mux.HandleFunc("POST /applications/{app}/commands", s.createCommand)
 	mux.HandleFunc("GET /applications/{app}/commands/{command}", s.getCommand)
 	mux.HandleFunc("PATCH /applications/{app}/commands/{command}", s.editCommand)
@@ -27,10 +23,6 @@ func (s *Server) handleApplicationCommands(mux *http.ServeMux) {
 	mux.HandleFunc("GET /applications/{app}/guilds/{guild}/commands/{command}", s.getCommand)
 	mux.HandleFunc("PATCH /applications/{app}/guilds/{guild}/commands/{command}", s.editCommand)
 	mux.HandleFunc("DELETE /applications/{app}/guilds/{guild}/commands/{command}", s.deleteCommand)
-}
-
-func (s *Server) getMyApplication(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"id": ApplicationID, "name": "Test App", "bot_public": true})
 }
 
 // commandScope checks the application and guild of a command request and
