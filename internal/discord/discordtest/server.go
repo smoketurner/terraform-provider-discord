@@ -45,6 +45,7 @@ type Server struct {
 	invites   map[string]*discord.Invite
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
+	settings  map[string]*guildSettings
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -134,6 +135,7 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/emojis", s.createEmoji)
 	mux.HandleFunc("PATCH /guilds/{guild}/emojis/{emoji}", s.modifyEmoji)
 	mux.HandleFunc("DELETE /guilds/{guild}/emojis/{emoji}", s.deleteEmoji)
+	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
