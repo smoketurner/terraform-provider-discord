@@ -3,12 +3,12 @@
 page_title: "discord_server_settings Resource - discord"
 subcategory: ""
 description: |-
-  Manages the settings of an existing server (guild). Discord does not allow bots to create servers, so this resource adopts a server the bot has been invited to. Settings omitted from configuration are left unmanaged. Destroying the resource only removes it from Terraform state.
+  Manages the settings of an existing server (guild). Discord does not allow bots to create servers, so this resource adopts a server the bot has been invited to. Settings omitted from configuration are left unmanaged; set a channel setting or description to "" to clear it. Of the server features, only the four Discord lets servers change are managed, each with its own argument. Destroying the resource only removes it from Terraform state.
 ---
 
 # discord_server_settings (Resource)
 
-Manages the settings of an existing server (guild). Discord does not allow bots to create servers, so this resource adopts a server the bot has been invited to. Settings omitted from configuration are left unmanaged. Destroying the resource only removes it from Terraform state.
+Manages the settings of an existing server (guild). Discord does not allow bots to create servers, so this resource adopts a server the bot has been invited to. Settings omitted from configuration are left unmanaged; set a channel setting or `description` to `""` to clear it. Of the server features, only the four Discord lets servers change are managed, each with its own argument. Destroying the resource only removes it from Terraform state.
 
 ## Example Usage
 
@@ -21,6 +21,19 @@ resource "discord_server_settings" "main" {
   explicit_content_filter       = "all_members"
   system_channel_id             = discord_text_channel.general.id
   icon                          = "data:image/png;base64,${filebase64("${path.module}/icon.png")}"
+
+  # Community needs a rules channel and a public updates channel.
+  community                 = true
+  rules_channel_id          = discord_text_channel.rules.id
+  public_updates_channel_id = discord_text_channel.moderators.id
+
+  # "" clears a setting; omitting it leaves the setting unmanaged.
+  afk_channel_id = ""
+
+  # Requires the BANNER feature. On Terraform 1.11 or later, banner_wo keeps
+  # the image out of state.
+  banner_wo         = "data:image/png;base64,${filebase64("${path.module}/banner.png")}"
+  banner_wo_version = 1
 }
 ```
 
@@ -35,31 +48,47 @@ resource "discord_server_settings" "main" {
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
-- `afk_channel_id` (String) Voice channel inactive members are moved to. Omit to leave unmanaged.
+- `afk_channel_id` (String) Voice channel inactive members are moved to. Set to `""` to clear the setting; omit to leave it unmanaged.
 - `afk_timeout` (Number) Seconds of inactivity before a member is moved to the AFK channel: `60`, `300`, `900`, `1800` or `3600`.
 - `audit_log_reason` (String) Reason recorded in the server's audit log for changes this resource makes, overriding the provider's `audit_log_reason`. Up to 512 characters. Changing only this argument updates state without calling Discord.
+- `banner` (String) Server banner as a data URI, e.g. `"data:image/png;base64,${filebase64("banner.png")}"`. Requires the `BANNER` feature; animated GIFs require `ANIMATED_BANNER`. Stored in state; prefer `banner_wo` on Terraform 1.11 or later. Removing the attribute leaves the current banner in place.
+- `banner_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Server banner as a data URI. Requires the `BANNER` feature; animated GIFs require `ANIMATED_BANNER`. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `banner_wo_version`. Conflicts with `banner`.
+- `banner_wo_version` (Number) Version of `banner_wo`. Setting or changing it uploads `banner_wo`; removing it leaves the current banner in place.
+- `community` (Boolean) Whether Community is enabled (the `COMMUNITY` feature). Changing it requires the Administrator permission, and enabling it requires `rules_channel_id` and `public_updates_channel_id`. Omit to leave unmanaged.
 - `default_message_notifications` (String) Default notification setting: `all_messages`, `only_mentions`.
-- `description` (String) Server description. Requires Community.
+- `description` (String) Server description. Requires Community. Set to `""` to clear the setting; omit to leave it unmanaged.
+- `discoverable` (Boolean) Whether the server is listed in Server Discovery (the `DISCOVERABLE` feature). Changing it requires the Administrator permission, and the server must meet the discovery requirements. Omit to leave unmanaged.
+- `discovery_splash` (String) Server discovery splash as a data URI, e.g. `"data:image/png;base64,${filebase64("discovery_splash.png")}"`. Requires the `DISCOVERABLE` feature. Stored in state; prefer `discovery_splash_wo` on Terraform 1.11 or later. Removing the attribute leaves the current discovery splash in place.
+- `discovery_splash_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Server discovery splash as a data URI. Requires the `DISCOVERABLE` feature. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `discovery_splash_wo_version`. Conflicts with `discovery_splash`.
+- `discovery_splash_wo_version` (Number) Version of `discovery_splash_wo`. Setting or changing it uploads `discovery_splash_wo`; removing it leaves the current discovery splash in place.
 - `explicit_content_filter` (String) Explicit media content filter: `disabled`, `members_without_roles`, `all_members`.
 - `icon` (String) Server icon as a data URI, e.g. `"data:image/png;base64,${filebase64("icon.png")}"`. Stored in state; prefer `icon_wo` on Terraform 1.11 or later. Removing the attribute leaves the current icon in place.
 - `icon_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Server icon as a data URI. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `icon_wo_version`. Conflicts with `icon`.
 - `icon_wo_version` (Number) Version of `icon_wo`. Setting or changing it uploads `icon_wo`; removing it leaves the current icon in place.
+- `invites_disabled` (Boolean) Whether invites are paused (the `INVITES_DISABLED` feature), preventing new members from joining until set back to `false`. For a pause that ends on its own, use `discord_server_incident_actions`. Omit to leave unmanaged.
 - `name` (String) Server name (2-100 characters).
 - `preferred_locale` (String) Preferred locale, e.g. `en-US`. Requires Community.
 - `premium_progress_bar_enabled` (Boolean) Whether the boost progress bar is shown.
-- `public_updates_channel_id` (String) Channel that receives notices from Discord. Requires Community. Omit to leave unmanaged.
-- `rules_channel_id` (String) Rules channel. Requires Community. Omit to leave unmanaged.
-- `safety_alerts_channel_id` (String) Channel that receives safety alerts. Requires Community. Omit to leave unmanaged.
+- `public_updates_channel_id` (String) Channel that receives notices from Discord. Required by Community. Set to `""` to clear the setting; omit to leave it unmanaged.
+- `raid_alerts_disabled` (Boolean) Whether join raid alerts in the safety alerts channel are disabled (the `RAID_ALERTS_DISABLED` feature). Omit to leave unmanaged.
+- `rules_channel_id` (String) Rules channel. Required by Community. Set to `""` to clear the setting; omit to leave it unmanaged.
+- `safety_alerts_channel_id` (String) Channel that receives safety alerts. Requires Community. Set to `""` to clear the setting; omit to leave it unmanaged.
+- `splash` (String) Server invite splash as a data URI, e.g. `"data:image/png;base64,${filebase64("splash.png")}"`. Requires the `INVITE_SPLASH` feature. Stored in state; prefer `splash_wo` on Terraform 1.11 or later. Removing the attribute leaves the current invite splash in place.
+- `splash_wo` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Server invite splash as a data URI. Requires the `INVITE_SPLASH` feature. Write-only: the value is never stored in plan or state. Requires Terraform 1.11 or later and `splash_wo_version`. Conflicts with `splash`.
+- `splash_wo_version` (Number) Version of `splash_wo`. Setting or changing it uploads `splash_wo`; removing it leaves the current invite splash in place.
 - `system_channel_flags` (Number) System channel flags bitfield, e.g. `1` suppresses join notifications. See the Discord documentation for values.
-- `system_channel_id` (String) Channel that receives system messages such as member joins. Omit to leave unmanaged.
+- `system_channel_id` (String) Channel that receives system messages such as member joins. Set to `""` to clear the setting; omit to leave it unmanaged.
 - `verification_level` (String) Verification level members must meet: `none`, `low`, `medium`, `high`, `very_high`.
 
 ### Read-Only
 
-- `features` (Set of String) Enabled server features, e.g. `COMMUNITY`.
+- `banner_hash` (String) Hash of the current banner. Discord only returns this hash, so a change made outside Terraform makes the next plan upload the configured banner again.
+- `discovery_splash_hash` (String) Hash of the current discovery splash. Discord only returns this hash, so a change made outside Terraform makes the next plan upload the configured discovery splash again.
+- `features` (Set of String) All enabled server features, including those Discord grants, e.g. `NEWS`.
 - `icon_hash` (String) Hash of the current icon. Discord only returns this hash, so a change made outside Terraform makes the next plan upload the configured icon again.
 - `id` (String) Server ID.
 - `owner_id` (String) ID of the server owner.
+- `splash_hash` (String) Hash of the current invite splash. Discord only returns this hash, so a change made outside Terraform makes the next plan upload the configured invite splash again.
 
 ## Import
 
