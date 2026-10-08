@@ -46,6 +46,8 @@ type Server struct {
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
 	automod   map[string]map[string]*discord.AutoModerationRule
+	events    map[string]*discord.ScheduledEvent
+	stages    map[string]*discord.StageInstance
 	settings  map[string]*guildSettings
 	requests  []string
 	headers   []http.Header
@@ -74,6 +76,8 @@ func NewServer() *Server {
 		messages:  map[string]*discord.Message{},
 		emojis:    map[string]map[string]*discord.Emoji{},
 		automod:   map[string]map[string]*discord.AutoModerationRule{},
+		events:    map[string]*discord.ScheduledEvent{},
+		stages:    map[string]*discord.StageInstance{},
 		failNext:  map[string]int{},
 		botUserID: "100000000000000003",
 		hidden:    map[string]bool{},
@@ -141,6 +145,14 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/auto-moderation/rules", s.createAutomodRule)
 	mux.HandleFunc("PATCH /guilds/{guild}/auto-moderation/rules/{rule}", s.modifyAutomodRule)
 	mux.HandleFunc("DELETE /guilds/{guild}/auto-moderation/rules/{rule}", s.deleteAutomodRule)
+	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
+	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
+	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)
+	mux.HandleFunc("DELETE /guilds/{guild}/scheduled-events/{event}", s.deleteScheduledEvent)
+	mux.HandleFunc("GET /stage-instances/{channel}", s.getStageInstance)
+	mux.HandleFunc("POST /stage-instances", s.createStageInstance)
+	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
+	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
@@ -381,7 +393,24 @@ func (s *Server) getRole(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, role)
 }
 
-func applyRole(role *discord.Role, body map[string]json.RawMessage) {
+// applyRole applies a role body. Like Discord, it rejects a role icon or
+// emoji unless the guild has the ROLE_ICONS feature, and stores a new hash
+// for every uploaded icon.
+func (s *Server) applyRole(w http.ResponseWriter, g *discord.Guild, role *discord.Role, body map[string]json.RawMessage) bool {
+	var icon, emoji *string
+	set(body, "icon", &icon)
+	set(body, "unicode_emoji", &emoji)
+	if (icon != nil || emoji != nil) && !slices.Contains(g.Features, "ROLE_ICONS") {
+		writeError(w, http.StatusBadRequest, 50101, "This server needs more boosts to perform this action")
+		return false
+	}
+	if _, ok := body["icon"]; ok {
+		if icon != nil {
+			h := "roleicon" + s.newID()
+			icon = &h
+		}
+		role.Icon = icon
+	}
 	set(body, "name", &role.Name)
 	set(body, "permissions", &role.Permissions)
 	set(body, "color", &role.Color)
@@ -397,12 +426,14 @@ func applyRole(role *discord.Role, body map[string]json.RawMessage) {
 	set(body, "hoist", &role.Hoist)
 	set(body, "mentionable", &role.Mentionable)
 	set(body, "unicode_emoji", &role.UnicodeEmoji)
+	return true
 }
 
 func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.guild(w, r); !ok {
+	g, ok := s.guild(w, r)
+	if !ok {
 		return
 	}
 	body, err := decode(r)
@@ -412,7 +443,9 @@ func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 	}
 	guildID := r.PathValue("guild")
 	role := &discord.Role{ID: s.newID(), Name: "new role", Permissions: s.roles[guildID][guildID].Permissions, Position: 1, Colors: &discord.RoleColors{}}
-	applyRole(role, body)
+	if !s.applyRole(w, g, role, body) {
+		return
+	}
 	for _, other := range s.roles[guildID] {
 		if other.ID != guildID {
 			other.Position++
@@ -435,8 +468,9 @@ func (s *Server) modifyRole(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50109, err.Error())
 		return
 	}
-	applyRole(role, body)
-	writeJSON(w, http.StatusOK, role)
+	if s.applyRole(w, s.guilds[r.PathValue("guild")], role, body) {
+		writeJSON(w, http.StatusOK, role)
+	}
 }
 
 func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
@@ -694,6 +728,7 @@ func (s *Server) deleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.channels, ch.ID)
+	delete(s.stages, ch.ID)
 	for _, t := range s.threads {
 		if t.ParentID != nil && *t.ParentID == ch.ID {
 			s.deleteThread(t.ID)

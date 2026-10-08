@@ -93,6 +93,77 @@ resource "discord_role" "test" {
 	})
 }
 
+func TestAccRoleIcon(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	const address = "discord_role.test"
+	role := func(attrs string) string {
+		return env.config(`
+resource "discord_role" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-role-icon"
+` + attrs + `
+}`)
+	}
+	withIcon := role(`  icon = "` + onePixelPNG + `"`)
+	var id, hash string
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config:      role(`  icon = "https://example.com/a.png"`),
+				ExpectError: regexp.MustCompile(`base64 image data URI`),
+			},
+			{
+				Config:      withIcon,
+				ExpectError: regexp.MustCompile(`needs more boosts`),
+			},
+			{
+				PreConfig: func() { env.fake.SetGuildFeatures("COMMUNITY", "ROLE_ICONS") },
+				Config:    withIcon,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(address, "icon", onePixelPNG),
+					resource.TestCheckResourceAttrSet(address, "icon_hash"),
+					captureAttr(address, "id", &id),
+					captureAttr(address, "icon_hash", &hash),
+				),
+			},
+			{
+				ResourceName:            address,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"icon"},
+				ImportStateIdFunc:       func(*terraform.State) (string, error) { return env.serverID + "/" + id, nil },
+			},
+			{
+				// The icon is removed in the Discord client: uploaded again.
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyRole(ctx, env.serverID, id, discord.Payload{"icon": nil})
+					return err
+				}),
+				Config: withIcon,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet(address, "icon_hash"),
+					attrDiffers(address, "icon_hash", &hash),
+				),
+			},
+			{
+				// Removing the argument removes the icon.
+				Config: role(""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
+				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr(address, "icon"),
+					resource.TestCheckNoResourceAttr(address, "icon_hash"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccRoleValidation(t *testing.T) {
 	env := newTestEnv(t)
 	env.run(resource.TestCase{
