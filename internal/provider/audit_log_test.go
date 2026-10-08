@@ -246,6 +246,35 @@ resource "discord_invite" "test" {
 	})
 }
 
+// The follow-up modify that sets nsfw on a new media channel carries the
+// resource's reason too.
+func TestAccAuditLogReasonMediaChannelCreate(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	var channelID string
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{{
+			Config: env.config(`
+resource "discord_media_channel" "test" {
+  server_id        = local.server_id
+  name             = "tf-acc-audit-media"
+  nsfw             = true
+  audit_log_reason = "Media for ops"
+}`),
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("discord_media_channel.test", "nsfw", "true"),
+				captureAttr("discord_media_channel.test", "id", &channelID),
+				func(*terraform.State) error {
+					return env.expectReasons(map[string]string{
+						"POST /guilds/" + env.serverID + "/channels": "Media for ops",
+						"PATCH /channels/" + channelID:               "Media for ops",
+					})
+				},
+			),
+		}},
+	})
+}
+
 func TestAccAuditLogReasonEnvironment(t *testing.T) {
 	env := newTestEnv(t)
 	env.requireFake()

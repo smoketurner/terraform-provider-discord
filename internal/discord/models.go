@@ -17,8 +17,14 @@ const (
 	OverwriteTypeMember = 1
 )
 
-// ChannelFlagRequireTag requires forum and media posts to have a tag.
-const ChannelFlagRequireTag = 1 << 4
+// Channel flags managed by the provider.
+const (
+	// ChannelFlagRequireTag requires forum and media posts to have a tag.
+	ChannelFlagRequireTag = 1 << 4
+	// ChannelFlagHideMediaDownloadOptions hides the download options on a
+	// media channel's embedded media.
+	ChannelFlagHideMediaDownloadOptions = 1 << 15
+)
 
 // Guild is a Discord server.
 type Guild struct {

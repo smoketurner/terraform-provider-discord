@@ -124,6 +124,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newVoiceChannelResource,
 		newStageChannelResource,
 		newForumChannelResource,
+		newMediaChannelResource,
 		newChannelPermissionResource,
 		newChannelPositionsResource,
 		newMemberRoleResource,

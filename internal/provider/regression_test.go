@@ -227,6 +227,67 @@ resource "discord_forum_channel" "test" {
 	})
 }
 
+// Changing hide_media_download_options or require_tag must keep the other
+// managed flag and channel flags set outside Terraform.
+func TestAccMediaChannelKeepsUnmanagedFlags(t *testing.T) {
+	env := newTestEnv(t)
+	// Discord may refuse arbitrary flags on a live media channel.
+	env.requireFake()
+	const (
+		spoiler = 1 << 21 // IS_SPOILER_CHANNEL
+		hide    = discord.ChannelFlagHideMediaDownloadOptions
+		require = discord.ChannelFlagRequireTag
+	)
+	var id string
+	cfg := func(requireTag, hideDownloads bool) string {
+		return env.config(fmt.Sprintf(`
+resource "discord_media_channel" "test" {
+  server_id                   = local.server_id
+  name                        = "tf-acc-media-flags"
+  require_tag                 = %t
+  hide_media_download_options = %t
+}`, requireTag, hideDownloads))
+	}
+	wantFlags := func(want int64) resource.TestCheckFunc {
+		return func(*terraform.State) error {
+			ch, err := env.client.GetChannel(context.Background(), id)
+			if err != nil {
+				return err
+			}
+			if ch.Flags != want {
+				return fmt.Errorf("flags = %d, want %d", ch.Flags, want)
+			}
+			return nil
+		}
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: cfg(true, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_media_channel.test", "id", &id),
+					wantFlags(require|hide),
+				),
+			},
+			{
+				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
+					_, err := c.ModifyChannel(ctx, id, discord.Payload{"flags": require | hide | spoiler})
+					return err
+				}),
+				Config: cfg(true, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("discord_media_channel.test", "hide_media_download_options", "false"),
+					wantFlags(require|spoiler),
+				),
+			},
+			{
+				Config: cfg(false, true),
+				Check:  wantFlags(hide | spoiler),
+			},
+		},
+	})
+}
+
 // Reordering tied roles must not leave a listed role sharing a position with
 // an unlisted one, which would move the unlisted role in the display order.
 func TestAccRolePositionsKeepUnlistedOrder(t *testing.T) {
