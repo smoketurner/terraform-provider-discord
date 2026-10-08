@@ -246,3 +246,51 @@ func (c *Client) ModifyEmoji(ctx context.Context, guildID, emojiID string, p Pay
 func (c *Client) DeleteEmoji(ctx context.Context, guildID, emojiID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/emojis/"+emojiID, nil, nil)
 }
+
+// GetSticker fetches a custom guild sticker.
+func (c *Client) GetSticker(ctx context.Context, guildID, stickerID string) (*Sticker, error) {
+	var s Sticker
+	return &s, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/stickers/"+stickerID, nil, &s)
+}
+
+// CreateSticker uploads a custom guild sticker, with the file in the "file"
+// form field.
+func (c *Client) CreateSticker(ctx context.Context, guildID string, m *Multipart) (*Sticker, error) {
+	var s Sticker
+	return &s, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/stickers", m, &s)
+}
+
+// ModifySticker updates a custom guild sticker. Its file cannot change.
+func (c *Client) ModifySticker(ctx context.Context, guildID, stickerID string, p Payload) (*Sticker, error) {
+	var s Sticker
+	return &s, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/stickers/"+stickerID, p, &s)
+}
+
+// DeleteSticker deletes a custom guild sticker.
+func (c *Client) DeleteSticker(ctx context.Context, guildID, stickerID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/stickers/"+stickerID, nil, nil)
+}
+
+// GetSoundboardSound fetches a guild soundboard sound.
+func (c *Client) GetSoundboardSound(ctx context.Context, guildID, soundID string) (*SoundboardSound, error) {
+	var s SoundboardSound
+	return &s, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, nil, &s)
+}
+
+// CreateSoundboardSound uploads a guild soundboard sound.
+func (c *Client) CreateSoundboardSound(ctx context.Context, guildID string, p Payload) (*SoundboardSound, error) {
+	var s SoundboardSound
+	return &s, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/soundboard-sounds", p, &s)
+}
+
+// ModifySoundboardSound updates a guild soundboard sound. Its sound cannot
+// change.
+func (c *Client) ModifySoundboardSound(ctx context.Context, guildID, soundID string, p Payload) (*SoundboardSound, error) {
+	var s SoundboardSound
+	return &s, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, p, &s)
+}
+
+// DeleteSoundboardSound deletes a guild soundboard sound.
+func (c *Client) DeleteSoundboardSound(ctx context.Context, guildID, soundID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/soundboard-sounds/"+soundID, nil, nil)
+}

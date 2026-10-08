@@ -49,8 +49,8 @@ operations:
   create_guild_role: {status: covered, by: [discord_role]}
   create_guild_scheduled_event: {status: planned, issue: 17}
   create_guild_scheduled_event_exception: {status: pending_docs}
-  create_guild_soundboard_sound: {status: planned, issue: 26}
-  create_guild_sticker: {status: planned, issue: 16}
+  create_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
+  create_guild_sticker: {status: covered, by: [discord_sticker]}
   create_guild_template: {status: planned, issue: 29}
   create_interaction_response: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   create_linked_lobby_guild_invite_for_self: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
@@ -83,8 +83,8 @@ operations:
   delete_guild_role: {status: covered, by: [discord_role]}
   delete_guild_scheduled_event: {status: planned, issue: 17}
   delete_guild_scheduled_event_exception: {status: pending_docs}
-  delete_guild_soundboard_sound: {status: planned, issue: 26}
-  delete_guild_sticker: {status: planned, issue: 16}
+  delete_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
+  delete_guild_sticker: {status: covered, by: [discord_sticker]}
   delete_guild_template: {status: planned, issue: 29}
   delete_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   delete_lobby_member: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
@@ -132,8 +132,8 @@ operations:
   get_guild_preview: {status: planned, issue: 44}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   get_guild_scheduled_event: {status: planned, issue: 17}
-  get_guild_soundboard_sound: {status: planned, issue: 26}
-  get_guild_sticker: {status: planned, issue: 16}
+  get_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
+  get_guild_sticker: {status: covered, by: [discord_sticker]}
   get_guild_template: {status: planned, issue: 29}
   get_guild_vanity_url: {status: planned, issue: 44}
   get_guild_webhooks: {status: planned, issue: 41}
@@ -239,8 +239,8 @@ operations:
   update_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
   update_guild_scheduled_event: {status: planned, issue: 17}
   update_guild_scheduled_event_exception: {status: pending_docs}
-  update_guild_soundboard_sound: {status: planned, issue: 26}
-  update_guild_sticker: {status: planned, issue: 16}
+  update_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
+  update_guild_sticker: {status: covered, by: [discord_sticker]}
   update_guild_template: {status: planned, issue: 29}
   update_guild_welcome_screen: {status: planned, issue: 19}
   update_guild_widget_settings: {status: planned, issue: 28}

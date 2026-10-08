@@ -406,6 +406,14 @@ func TestAuditLogReasonEndpoints(t *testing.T) {
 		{"POST /guilds/1/emojis", true, func() error { _, err := c.CreateEmoji(ctx, "1", p); return err }},
 		{"PATCH /guilds/1/emojis/8", true, func() error { _, err := c.ModifyEmoji(ctx, "1", "8", p); return err }},
 		{"DELETE /guilds/1/emojis/8", true, func() error { return c.DeleteEmoji(ctx, "1", "8") }},
+		{"POST /guilds/1/stickers", true, func() error { _, err := c.CreateSticker(ctx, "1", &Multipart{Payload: p}); return err }},
+		{"PATCH /guilds/1/stickers/9", true, func() error { _, err := c.ModifySticker(ctx, "1", "9", p); return err }},
+		{"DELETE /guilds/1/stickers/9", true, func() error { return c.DeleteSticker(ctx, "1", "9") }},
+		{"GET /guilds/1/stickers/9", false, func() error { _, err := c.GetSticker(ctx, "1", "9"); return err }},
+		{"POST /guilds/1/soundboard-sounds", true, func() error { _, err := c.CreateSoundboardSound(ctx, "1", p); return err }},
+		{"PATCH /guilds/1/soundboard-sounds/10", true, func() error { _, err := c.ModifySoundboardSound(ctx, "1", "10", p); return err }},
+		{"DELETE /guilds/1/soundboard-sounds/10", true, func() error { return c.DeleteSoundboardSound(ctx, "1", "10") }},
+		{"GET /guilds/1/soundboard-sounds/10", false, func() error { _, err := c.GetSoundboardSound(ctx, "1", "10"); return err }},
 		{"GET /guilds/1", false, func() error { _, err := c.GetGuild(ctx, "1"); return err }},
 	}
 	for _, tt := range calls {

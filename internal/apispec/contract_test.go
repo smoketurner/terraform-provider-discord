@@ -43,6 +43,8 @@ var modelSchemas = map[string]struct {
 	"Embed":           {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
 	"Message":         {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
 	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
+	"Sticker":         {reflect.TypeFor[discord.Sticker](), []string{"GuildStickerResponse"}},
+	"SoundboardSound": {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go

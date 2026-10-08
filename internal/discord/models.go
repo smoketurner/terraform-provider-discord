@@ -268,3 +268,25 @@ type Emoji struct {
 	Managed  bool     `json:"managed"`
 	Animated bool     `json:"animated"`
 }
+
+// Sticker is a custom guild sticker.
+type Sticker struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	Tags        string  `json:"tags"`
+	FormatType  int     `json:"format_type"`
+	Available   bool    `json:"available"`
+	GuildID     string  `json:"guild_id"`
+}
+
+// SoundboardSound is a guild soundboard sound.
+type SoundboardSound struct {
+	SoundID   string  `json:"sound_id"`
+	Name      string  `json:"name"`
+	Volume    float64 `json:"volume"`
+	EmojiID   *string `json:"emoji_id"`
+	EmojiName *string `json:"emoji_name"`
+	Available bool    `json:"available"`
+	GuildID   string  `json:"guild_id"`
+}
