@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "metadata": [
+        {
+          "channel_id": "",
+          "custom_message": "No invites",
+          "duration_seconds": 0
+        }
+      ],
+      "type": 1
+    }
+  ],
+  "creator_id": "1180000000000000006",
+  "enabled": true,
+  "event_type": 1,
+  "exempt_channels": [],
+  "exempt_roles": [
+    "1180000000000000003"
+  ],
+  "id": "1180000000000000010",
+  "name": "Block invites",
+  "server_id": "1180000000000000001",
+  "trigger_metadata": [
+    {
+      "allow_list": [],
+      "keyword_filter": [
+        "discord.gg"
+      ],
+      "mention_raid_protection_enabled": false,
+      "mention_total_limit": 0,
+      "presets": [],
+      "regex_patterns": []
+    }
+  ],
+  "trigger_type": 1
+}

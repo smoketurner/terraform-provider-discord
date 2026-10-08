@@ -36,7 +36,9 @@ resource "discord_role" "member" {
 }
 ```
 
-See the [documentation](docs/index.md) for bot setup and every resource, data source and function.
+See the [documentation](docs/index.md) for bot setup and every resource, data source and function. Coming from the
+archived Lucky3028/discord provider? [Migrate from Lucky3028/discord](docs/guides/migrate-from-lucky3028.md) moves its
+resources to this provider without recreating them (Terraform 1.8+).
 
 ## Resources, data sources and functions
 

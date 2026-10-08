@@ -1,0 +1,31 @@
+{
+  "afk_channel_id": "1180000000000000002",
+  "afk_timeout": 900,
+  "default_message_notifications": 1,
+  "description": "",
+  "explicit_content_filter": 1,
+  "icon_data_uri": "data:image/png;base64,iVBORw0KGgo=",
+  "icon_hash": "i1c0n",
+  "icon_url": "",
+  "id": "1180000000000000001",
+  "name": "My Server",
+  "owner_id": "1180000000000000016",
+  "region": "us-east",
+  "roles": [
+    {
+      "color": 0,
+      "hoist": false,
+      "id": "1180000000000000001",
+      "managed": false,
+      "mentionable": false,
+      "name": "@everyone",
+      "permissions": 104324673,
+      "position": 0
+    }
+  ],
+  "server_id": "1180000000000000001",
+  "splash_data_uri": "",
+  "splash_hash": "5p1a5h",
+  "splash_url": "https://example.com/splash.png",
+  "verification_level": 2
+}

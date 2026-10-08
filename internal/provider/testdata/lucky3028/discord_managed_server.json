@@ -1,0 +1,20 @@
+{
+  "afk_channel_id": "",
+  "afk_timeout": 300,
+  "default_message_notifications": 0,
+  "description": "A place to chat",
+  "explicit_content_filter": 2,
+  "icon_data_uri": "",
+  "icon_hash": "",
+  "icon_url": "",
+  "id": "1180000000000000001",
+  "name": "My Server",
+  "owner_id": "1180000000000000016",
+  "region": "",
+  "roles": null,
+  "server_id": "1180000000000000001",
+  "splash_data_uri": "",
+  "splash_hash": "",
+  "splash_url": "",
+  "verification_level": 1
+}

@@ -128,6 +128,9 @@ type channelKind struct {
 	// place, if any. Both kinds expose the channel's current type as the
 	// "type" attribute.
 	convertible *channelConversion
+	// lucky3028Type is the Lucky3028/discord resource type moved blocks can
+	// move to this kind, if any.
+	lucky3028Type string
 }
 
 // channelConversion describes the other side of an in-place type conversion.
@@ -421,21 +424,26 @@ func (r *channelResource[T, PT]) Delete(ctx context.Context, req resource.Delete
 	}
 }
 
-// MoveState lets a moved block change the resource type between kinds that
-// Discord converts in place. Attributes the kinds share are copied; the
-// refresh that follows fills in the rest, and the plan then shows the "type"
-// change that Update sends.
+// MoveState lets a moved block move a channel from Lucky3028/discord, or
+// change the resource type between kinds that Discord converts in place. For
+// a conversion, attributes the kinds share are copied; the refresh that
+// follows fills in the rest, and the plan then shows the "type" change that
+// Update sends.
 func (r *channelResource[T, PT]) MoveState(ctx context.Context) []resource.StateMover {
+	var movers []resource.StateMover
+	if r.kind.lucky3028Type != "" {
+		movers = append(movers, luckyMover(r.resourceIdentity, r.kind.lucky3028Type, r.luckyChannel))
+	}
 	c := r.kind.convertible
 	if c == nil {
-		return nil
+		return movers
 	}
 	var source resource.SchemaResponse
 	c.resource().Schema(ctx, resource.SchemaRequest{}, &source)
-	return []resource.StateMover{{
+	return append(movers, resource.StateMover{
 		SourceSchema: &source.Schema,
 		StateMover: func(ctx context.Context, req resource.MoveStateRequest, resp *resource.MoveStateResponse) {
-			if req.SourceTypeName != "discord_"+c.typeName {
+			if req.SourceTypeName != "discord_"+c.typeName || strings.EqualFold(req.SourceProviderAddress, lucky3028Address) {
 				return
 			}
 			if req.SourceState == nil {
@@ -451,7 +459,7 @@ func (r *channelResource[T, PT]) MoveState(ctx context.Context) []resource.State
 			resp.TargetState.Raw = raw
 			r.setIdentity(ctx, resp.TargetIdentity, &resp.Diagnostics, &resp.TargetState)
 		},
-	}}
+	})
 }
 
 // copySharedAttributes builds an object of the target type from the source

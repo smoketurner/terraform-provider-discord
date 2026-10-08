@@ -1,0 +1,18 @@
+{
+  "application_id": "1180000000000000011",
+  "id": "1180000000000000011",
+  "metadata": [
+    {
+      "description": "Days since joining",
+      "key": "joined_at",
+      "name": "Joined",
+      "type": 6
+    },
+    {
+      "description": "Minimum level",
+      "key": "level",
+      "name": "Level",
+      "type": 2
+    }
+  ]
+}

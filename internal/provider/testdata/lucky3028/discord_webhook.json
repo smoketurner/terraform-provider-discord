@@ -1,0 +1,12 @@
+{
+  "avatar_data_uri": "data:image/png;base64,iVBORw0KGgo=",
+  "avatar_hash": "a1b2c3",
+  "avatar_url": "",
+  "channel_id": "1180000000000000002",
+  "github_url": "https://discord.com/api/webhooks/1180000000000000008/secret-token/github",
+  "id": "1180000000000000008",
+  "name": "Deploys",
+  "slack_url": "https://discord.com/api/webhooks/1180000000000000008/secret-token/slack",
+  "token": "secret-token",
+  "url": "https://discord.com/api/webhooks/1180000000000000008/secret-token"
+}
