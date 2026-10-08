@@ -95,9 +95,11 @@ resource "discord_text_channel" "a" {
   name      = "tf-acc-audit-a"
 }
 resource "discord_text_channel" "b" {
-  server_id = local.server_id
-  name      = "tf-acc-audit-b"
+  server_id  = local.server_id
+  name       = "tf-acc-audit-b"
+  depends_on = [discord_text_channel.a]
 }
+# Tied positions sort by ID, so b is listed below a until it is moved.
 resource "discord_channel_positions" "test" {
   server_id   = local.server_id
   channel_ids = [discord_text_channel.b.id, discord_text_channel.a.id]
