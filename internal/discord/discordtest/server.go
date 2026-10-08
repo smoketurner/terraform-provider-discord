@@ -4,6 +4,9 @@ package discordtest
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,18 +51,22 @@ type Server struct {
 	posters  map[string]string // message ID to the webhook that posted it
 	invites  map[string]*discord.Invite
 	messages map[string]*discord.Message
-	emojis   map[string]map[string]*discord.Emoji
-	automod  map[string]map[string]*discord.AutoModerationRule
-	stickers map[string]map[string]*discord.Sticker
-	sounds   map[string]map[string]*discord.SoundboardSound
-	events   map[string]*discord.ScheduledEvent
-	stages   map[string]*discord.StageInstance
-	settings map[string]*guildSettings
-	lists    listState
-	ro       *readOnlyState
-	money    *monetization
-	app      *discord.Application
-	commands map[string]*discord.ApplicationCommand
+	// referenced holds the attachments of each message that an embed or
+	// component references, which Discord leaves out of the message's
+	// attachments.
+	referenced map[string][]discord.Attachment
+	emojis     map[string]map[string]*discord.Emoji
+	automod    map[string]map[string]*discord.AutoModerationRule
+	stickers   map[string]map[string]*discord.Sticker
+	sounds     map[string]map[string]*discord.SoundboardSound
+	events     map[string]*discord.ScheduledEvent
+	stages     map[string]*discord.StageInstance
+	settings   map[string]*guildSettings
+	lists      listState
+	ro         *readOnlyState
+	money      *monetization
+	app        *discord.Application
+	commands   map[string]*discord.ApplicationCommand
 	// appEmojis are the application's emojis, roleConnections its role
 	// connection metadata, and botBios the bot's server profile bios.
 	appEmojis       map[string]*discord.Emoji
@@ -92,10 +99,12 @@ type Server struct {
 }
 
 // NewServer starts a fake Discord API seeded with one guild containing an
-// @everyone role and one member. Call Close when done.
+// @everyone role and one member. Call Close when done. New IDs have 19
+// digits, as Discord's do now, so messages that include them wrap like real
+// ones.
 func NewServer() *Server {
 	s := &Server{
-		nextID:          200000000000000000,
+		nextID:          1500000000000000000,
 		guilds:          map[string]*discord.Guild{},
 		roles:           map[string]map[string]*discord.Role{},
 		channels:        map[string]*discord.Channel{},
@@ -106,6 +115,7 @@ func NewServer() *Server {
 		posters:         map[string]string{},
 		invites:         map[string]*discord.Invite{},
 		messages:        map[string]*discord.Message{},
+		referenced:      map[string][]discord.Attachment{},
 		emojis:          map[string]map[string]*discord.Emoji{},
 		automod:         map[string]map[string]*discord.AutoModerationRule{},
 		stickers:        map[string]map[string]*discord.Sticker{},
@@ -418,7 +428,16 @@ func setFeatures(g *discord.Guild, features []string) string {
 	return ""
 }
 
-// setImage stores a fake hash for an uploaded image, or clears it on null.
+// imageHash returns the hash Discord reports for an uploaded image. Discord
+// derives it from the content, so uploading the same image again keeps the
+// hash.
+func imageHash(data string) *string {
+	sum := sha256.Sum256([]byte(data))
+	h := hex.EncodeToString(sum[:16])
+	return &h
+}
+
+// setImage stores the hash of an uploaded image, or clears it on null.
 func (s *Server) setImage(body map[string]json.RawMessage, key string, dst **string) {
 	if _, ok := body[key]; !ok {
 		return
@@ -426,8 +445,7 @@ func (s *Server) setImage(body map[string]json.RawMessage, key string, dst **str
 	var image *string
 	set(body, key, &image)
 	if image != nil {
-		h := key + s.newID()
-		image = &h
+		image = imageHash(*image)
 	}
 	*dst = image
 }
@@ -588,8 +606,7 @@ func (s *Server) applyRole(w http.ResponseWriter, g *discord.Guild, role *discor
 	}
 	if _, ok := body["icon"]; ok {
 		if icon != nil {
-			h := "roleicon" + s.newID()
-			icon = &h
+			icon = imageHash(*icon)
 		}
 		role.Icon = icon
 	}
@@ -687,7 +704,17 @@ func (s *Server) modifyRolePositions(w http.ResponseWriter, r *http.Request) {
 			notFound(w, "Role", 10011)
 			return
 		}
-		role.Position = u.Position
+		// The bot cannot move @everyone, managed roles, or roles from or to
+		// a position that is not below its highest role.
+		moved := *role
+		moved.Position = u.Position
+		if role.ID == guildID || role.Managed || !s.belowBot(guildID, role) || !s.belowBot(guildID, &moved) {
+			writeError(w, http.StatusForbidden, 50013, "Missing Permissions")
+			return
+		}
+	}
+	for _, u := range updates {
+		s.roles[guildID][u.ID].Position = u.Position
 	}
 	writeJSON(w, http.StatusOK, s.sortedRoles(guildID))
 }
@@ -732,6 +759,11 @@ func (s *Server) applyChannel(ch *discord.Channel, body map[string]json.RawMessa
 	if ch.Type == discord.ChannelTypeText || ch.Type == discord.ChannelTypeAnnouncement {
 		ch.Name = strings.ToLower(strings.Join(strings.Fields(ch.Name), "-"))
 	}
+	// Stage channels default to 10000 users, and Discord stores 10000 when
+	// 0 is sent.
+	if ch.Type == discord.ChannelTypeStage && ch.UserLimit == 0 {
+		ch.UserLimit = 10000
+	}
 	if ch.Type == discord.ChannelTypeStage && ch.Bitrate > 64000 {
 		return fmt.Errorf("bitrate %d exceeds 64000 for stage channels", ch.Bitrate)
 	}
@@ -772,6 +804,12 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
 		return
 	}
+	// Media channels are a beta limited to servers with Server
+	// Subscriptions enabled.
+	if ch.Type == discord.ChannelTypeMedia && !slices.Contains(g.Features, MediaChannelFeature) {
+		writeError(w, http.StatusBadRequest, 50024, "Cannot execute action on this channel type")
+		return
+	}
 	switch ch.Type {
 	case discord.ChannelTypeVoice, discord.ChannelTypeStage:
 		ch.Bitrate = 64000
@@ -783,6 +821,9 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 	if ch.Type == discord.ChannelTypeMedia {
 		delete(body, "nsfw")
 	}
+	// Create Guild Channel documents flags, but Discord ignores them, as
+	// a forum created with REQUIRE_TAG shows.
+	delete(body, "flags")
 	var overwrites []struct {
 		ID    string  `json:"id"`
 		Type  *int    `json:"type"`
@@ -852,6 +893,22 @@ func (s *Server) DenyChannel(channelID string) {
 	defer s.mu.Unlock()
 	s.hidden[channelID] = true
 	s.denied[channelID] = true
+}
+
+// MediaChannelFeature is the guild feature, Server Subscriptions enabled,
+// that media channels require.
+const MediaChannelFeature = "ROLE_SUBSCRIPTIONS_ENABLED"
+
+// AddGuildFeatures adds features to the seeded guild.
+func (s *Server) AddGuildFeatures(features ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g := s.guilds[GuildID]
+	for _, f := range features {
+		if !slices.Contains(g.Features, f) {
+			g.Features = append(g.Features, f)
+		}
+	}
 }
 
 // SetGuildFeatures replaces the features of the seeded guild.
@@ -1217,6 +1274,50 @@ func (s *Server) removeBan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// belowBot reports whether role is displayed below the bot's highest role.
+// A bot without roles is treated as able to manage every role.
+func (s *Server) belowBot(guildID string, role *discord.Role) bool {
+	bot, ok := s.members[guildID][s.botUserID]
+	if !ok || len(bot.Roles) == 0 {
+		return true
+	}
+	for _, id := range bot.Roles {
+		top := s.roles[guildID][id]
+		if top != nil && (role.Position < top.Position || role.Position == top.Position && compareIDs(role.ID, top.ID) < 0) {
+			return true
+		}
+	}
+	return false
+}
+
+// AddBotRole creates the bot's managed role above every other role and
+// returns its ID.
+func (s *Server) AddBotRole(guildID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var top int64
+	for _, r := range s.roles[guildID] {
+		top = max(top, r.Position)
+	}
+	role := &discord.Role{ID: s.newID(), Name: "bot", Permissions: "8", Position: top + 1, Managed: true, Colors: &discord.RoleColors{}}
+	s.roles[guildID][role.ID] = role
+	bot, ok := s.members[guildID][s.botUserID]
+	if !ok {
+		bot = &discord.Member{User: s.application().Bot, Roles: []string{}, JoinedAt: "2024-01-01T00:00:00.000000+00:00"}
+		s.members[guildID][s.botUserID] = bot
+	}
+	bot.Roles = append(bot.Roles, role.ID)
+	return role.ID
+}
+
+// SetRolePosition sets a role's position outside of the API, as Discord
+// does when several roles are created at once and share a position.
+func (s *Server) SetRolePosition(guildID, roleID string, position int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.roles[guildID][roleID].Position = position
+}
+
 // AddManagedRole creates a role managed by an integration, such as a bot's
 // role, grants it to the given members and returns its ID.
 func (s *Server) AddManagedRole(guildID, name string, userIDs ...string) string {
@@ -1276,8 +1377,7 @@ func (s *Server) setAvatar(wh *discord.Webhook, body map[string]json.RawMessage)
 	var avatar *string
 	set(body, "avatar", &avatar)
 	if avatar != nil {
-		h := "avatar" + s.newID()
-		avatar = &h
+		avatar = imageHash(*avatar)
 	}
 	wh.Avatar = avatar
 }
@@ -1632,11 +1732,13 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 		Attachments: []discord.Attachment{}, Timestamp: s.now().UTC().Format(time.RFC3339Nano),
 	}
 	applyMessage(m, body)
-	if err := s.applyMessageParts(m, body, true); err != nil {
+	referenced, err := s.applyMessageParts(m, body, true)
+	if err != nil {
 		writeMessageError(w, err)
 		return
 	}
 	s.messages[m.ID] = m
+	s.referenced[m.ID] = referenced
 	writeJSON(w, http.StatusOK, m)
 }
 
@@ -1669,13 +1771,16 @@ func (s *Server) editMessage(w http.ResponseWriter, r *http.Request) {
 	edit := *m
 	edit.Embeds = slices.Clone(m.Embeds)
 	applyMessage(&edit, body)
-	if err := s.applyMessageParts(&edit, body, false); err != nil {
+	edit.Attachments = slices.Concat(m.Attachments, s.referenced[m.ID])
+	referenced, err := s.applyMessageParts(&edit, body, false)
+	if err != nil {
 		writeMessageError(w, err)
 		return
 	}
 	edited := time.Now().UTC().Format(time.RFC3339Nano)
 	edit.EditedTimestamp = &edited
 	*m = edit
+	s.referenced[m.ID] = referenced
 	writeJSON(w, http.StatusOK, m)
 }
 
@@ -1687,6 +1792,7 @@ func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.messages, m.ID)
+	delete(s.referenced, m.ID)
 	delete(s.reactions, m.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -1697,6 +1803,7 @@ func (s *Server) DeleteMessage(messageID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.messages, messageID)
+	delete(s.referenced, messageID)
 	delete(s.reactions, messageID)
 }
 
@@ -1928,6 +2035,10 @@ func (s *Server) createSoundboardSound(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body")
 		return
 	}
+	if !validSound(data) {
+		writeError(w, http.StatusBadRequest, 50110, "The provided file is invalid.")
+		return
+	}
 	sound := &discord.SoundboardSound{SoundID: s.newID(), Volume: 1, Available: true, GuildID: g.ID}
 	set(body, "name", &sound.Name)
 	if !s.setSoundFields(w, body, sound) {
@@ -1966,6 +2077,34 @@ func (s *Server) modifySoundboardSound(w http.ResponseWriter, r *http.Request) {
 
 // setSoundFields applies the volume and emoji of a soundboard sound. A null
 // volume means the default of 1, and a sound has at most one emoji.
+// validSound mimics Discord's check that an uploaded sound decodes: an MP3
+// needs an MPEG audio frame after any ID3v2 tag, and an Ogg file an Opus or
+// Vorbis stream. A file holding only a signature is rejected.
+func validSound(dataURI string) bool {
+	_, encoded, ok := strings.Cut(dataURI, ",")
+	if !ok {
+		return false
+	}
+	b, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return false
+	}
+	if bytes.HasPrefix(b, []byte("OggS")) {
+		return bytes.Contains(b, []byte("OpusHead")) || bytes.Contains(b, []byte("\x01vorbis"))
+	}
+	if len(b) >= 10 && bytes.HasPrefix(b, []byte("ID3")) {
+		size := int(b[6])<<21 | int(b[7])<<14 | int(b[8])<<7 | int(b[9])
+		if 10+size > len(b) {
+			return false
+		}
+		b = b[10+size:]
+	}
+	// An MPEG audio frame header: the frame sync, a known version and
+	// layer, and a valid bitrate and sample rate.
+	return len(b) >= 4 && b[0] == 0xFF && b[1]&0xE0 == 0xE0 && b[1]>>3&3 != 1 && b[1]>>1&3 != 0 &&
+		b[2]>>4 != 0 && b[2]>>4 != 0xF && b[2]>>2&3 != 3
+}
+
 func (s *Server) setSoundFields(w http.ResponseWriter, body map[string]json.RawMessage, sound *discord.SoundboardSound) bool {
 	if _, ok := body["volume"]; ok {
 		var volume *float64

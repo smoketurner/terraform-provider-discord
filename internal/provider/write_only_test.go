@@ -18,8 +18,12 @@ import (
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
-// otherPNG is a second valid 1x1 PNG, so tests can tell uploads apart.
-const otherPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+// otherPNG and thirdPNG are more valid 1x1 PNGs, so tests can tell uploads
+// apart: Discord derives image hashes from the content.
+const (
+	otherPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+	thirdPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNg+M8AAAICAQB7CYF4AAAAAElFTkSuQmCC"
+)
 
 var writeOnlySupported = []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_11_0)}
 

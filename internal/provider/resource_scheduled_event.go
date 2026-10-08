@@ -156,14 +156,15 @@ func (r *scheduledEventResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"scheduled_start_time": schema.StringAttribute{
 				MarkdownDescription: "When the event starts, as an RFC 3339 timestamp such as `2030-01-01T18:00:00Z`. " +
-					"Discord requires it to be in the future when the event is created. Write it in UTC (`Z`) so that " +
+					"Discord requires it to be in the future when the event is created, and within five years from now. " +
+					"Write it in UTC (`Z`) so that " +
 					"an imported event plans no change.",
 				Required:   true,
 				Validators: []validator.String{rfc3339Validator{}},
 			},
 			"scheduled_end_time": schema.StringAttribute{
-				MarkdownDescription: "When the event ends, as an RFC 3339 timestamp after `scheduled_start_time`. " +
-					"Required for `external` events.",
+				MarkdownDescription: "When the event ends, as an RFC 3339 timestamp after `scheduled_start_time` and " +
+					"within five years from now. Required for `external` events.",
 				Optional:   true,
 				Validators: []validator.String{rfc3339Validator{}},
 			},
@@ -301,6 +302,19 @@ func (r *scheduledEventResource) ValidateConfig(ctx context.Context, req resourc
 		end, errEnd := time.Parse(time.RFC3339, m.ScheduledEndTime.ValueString())
 		if errStart == nil && errEnd == nil && !end.After(start) {
 			invalid("scheduled_end_time", "scheduled_end_time must be after scheduled_start_time.")
+		}
+	}
+	// Discord rejects events that start or end more than five years ahead.
+	limit := time.Now().AddDate(5, 0, 0)
+	for _, a := range []struct {
+		name string
+		v    types.String
+	}{{"scheduled_start_time", m.ScheduledStartTime}, {"scheduled_end_time", m.ScheduledEndTime}} {
+		if !isSet(a.v) {
+			continue
+		}
+		if t, err := time.Parse(time.RFC3339, a.v.ValueString()); err == nil && t.After(limit) {
+			invalid(a.name, a.name+" must be within five years from now.")
 		}
 	}
 	if isSet(m.RecurrenceRule) {

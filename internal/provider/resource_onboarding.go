@@ -215,8 +215,8 @@ func (r *onboardingResource) Schema(_ context.Context, _ resource.SchemaRequest,
 										MarkdownDescription: "Whether the custom emoji in `emoji_id` is animated.",
 										Optional:            true,
 									},
-									"role_ids":    snowflakeSet("Roles given to members who choose the option (at most 50).", 50),
-									"channel_ids": snowflakeSet("Channels members who choose the option are added to (at most 50).", 50),
+									"role_ids":    snowflakeSet("Roles given to members who choose the option (at most 50). An option needs at least one role or channel.", 50),
+									"channel_ids": snowflakeSet("Channels members who choose the option are added to (at most 50). An option needs at least one role or channel.", 50),
 								},
 							},
 						},
@@ -231,12 +231,17 @@ func (r *onboardingResource) Configure(_ context.Context, req resource.Configure
 	r.client = clientFromResource(req, resp)
 }
 
-// ValidateConfig checks the channel requirement Discord enforces while
-// onboarding is enabled, when every value it depends on is known. Whether
-// @everyone can send messages in the channels is left to Discord.
+// ValidateConfig checks that every prompt option grants a role or a channel,
+// and the channel requirement Discord enforces while onboarding is enabled,
+// when every value they depend on is known. Whether @everyone can send
+// messages in the channels is left to Discord.
 func (r *onboardingResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var m onboardingModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &m)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	validateOptionTargets(ctx, m.Prompts, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() || !m.Enabled.ValueBool() || m.Mode.IsUnknown() {
 		return
 	}
@@ -267,6 +272,32 @@ func (r *onboardingResource) ValidateConfig(ctx context.Context, req resource.Va
 		resp.Diagnostics.AddAttributeError(path.Root("default_channel_ids"), "Too few onboarding channels",
 			fmt.Sprintf("Enabling onboarding requires at least %d channels; %d are configured. In advanced mode, "+
 				"channels of prompt options count too.", minOnboardingChannels, len(channels)))
+	}
+}
+
+// validateOptionTargets reports prompt options with neither roles nor
+// channels, which Discord rejects with ROLE_OR_CHANNEL_REQUIRED.
+func validateOptionTargets(ctx context.Context, prompts types.List, diags *diag.Diagnostics) {
+	if prompts.IsNull() || prompts.IsUnknown() {
+		return
+	}
+	var ps []onboardingPromptModel
+	diags.Append(prompts.ElementsAs(ctx, &ps, false)...)
+	for i, p := range ps {
+		if p.Options.IsNull() || p.Options.IsUnknown() {
+			continue
+		}
+		var options []onboardingOptionModel
+		diags.Append(p.Options.ElementsAs(ctx, &options, false)...)
+		for j, o := range options {
+			if o.RoleIDs.IsUnknown() || o.ChannelIDs.IsUnknown() {
+				continue
+			}
+			if len(o.RoleIDs.Elements()) == 0 && len(o.ChannelIDs.Elements()) == 0 {
+				diags.AddAttributeError(path.Root("prompts").AtListIndex(i).AtName("options").AtListIndex(j),
+					"Option grants nothing", fmt.Sprintf("Option %q of prompt %q needs at least one of role_ids or channel_ids.", o.Title.ValueString(), p.Title.ValueString()))
+			}
+		}
 	}
 }
 

@@ -423,6 +423,10 @@ resource "discord_scheduled_event" "test" {
   scheduled_end_time = "` + start + `"`), `scheduled_end_time must be after scheduled_start_time`},
 		{event(`  entity_type = "external"
   location = "Online"
+  scheduled_start_time = "` + start + `"
+  scheduled_end_time = "` + eventTime(6*365*24*time.Hour) + `"`), `scheduled_end_time must be within five years from now`},
+		{event(`  entity_type = "external"
+  location = "Online"
   scheduled_start_time = "tomorrow"
   scheduled_end_time = "` + end + `"`), `must be an RFC 3339 timestamp`},
 		{external(`  description = ""`), `character count must be between 1 and 1000`},
@@ -505,8 +509,10 @@ resource "discord_scheduled_event" "test" {
 			},
 			{
 				// The cover is changed in the Discord client: uploaded again.
+				// The new cover differs from the current one, whose hash
+				// Discord would otherwise keep.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
-					e, err := c.ModifyScheduledEvent(ctx, env.serverID, id, discord.Payload{"image": otherPNG})
+					e, err := c.ModifyScheduledEvent(ctx, env.serverID, id, discord.Payload{"image": thirdPNG})
 					if err == nil {
 						drifted = *e.Image
 					}

@@ -470,7 +470,7 @@ action "discord_set_voice_channel_status" "test" {
 		},
 		resource.TestStep{
 			Config:      cfg("v3", text, `status = "Chatting"`),
-			ExpectError: regexp.MustCompile(`Cannot execute action on\s+this channel type`),
+			ExpectError: regexp.MustCompile(`Cannot\s+execute\s+action\s+on\s+this\s+channel\s+type`),
 		},
 	)
 }

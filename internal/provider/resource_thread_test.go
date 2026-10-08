@@ -150,6 +150,7 @@ resource "discord_thread" "test" {
 
 func TestAccThreadMediaPostStarterMessage(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	media := `
 resource "discord_media_channel" "test" {
   server_id = local.server_id
@@ -395,25 +396,25 @@ resource "discord_thread" "test" {
 resource "discord_thread" "test" {
   channel_id = discord_forum_channel.test.id
   name       = "x"
-}`, `whose posts\s+need a starter message`),
+}`, `whose\s+posts\s+need\s+a\s+starter\s+message`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_forum_channel.test.id
   name       = "x"
   private    = true
-}`, `forum or media channel, which has no\s+private threads`),
+}`, `forum\s+or\s+media\s+channel,\s+which\s+has\s+no\s+private\s+threads`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_text_channel.test.id
   name       = "x"
   message    = { content = "x" }
-}`, `is not a forum or media channel`),
+}`, `is\s+not\s+a\s+forum\s+or\s+media\s+channel`),
 			step(`
 resource "discord_thread" "test" {
   channel_id = discord_announcement_channel.test.id
   name       = "x"
   private    = true
-}`, `announcement channel, which has no\s+private threads`),
+}`, `announcement\s+channel,\s+which\s+has\s+no\s+private\s+threads`),
 		},
 	})
 }

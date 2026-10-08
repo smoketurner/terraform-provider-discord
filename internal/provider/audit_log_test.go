@@ -250,6 +250,7 @@ resource "discord_invite" "test" {
 // resource's reason too.
 func TestAccAuditLogReasonMediaChannelCreate(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	env.requireFake()
 	var channelID string
 	env.run(resource.TestCase{

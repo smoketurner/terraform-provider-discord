@@ -177,7 +177,11 @@ resource "discord_message" "test" {
 					resource.TestCheckResourceAttr("discord_message.test", "attachments.0.description", "Server rules"),
 					resource.TestCheckResourceAttr("discord_message.test", "attachments.0.spoiler", "false"),
 					resource.TestCheckResourceAttr("discord_message.test", "attachments.1.spoiler", "true"),
-					resource.TestCheckResourceAttr("discord_message.test", "attachments.1.content_type", "image/png"),
+					// Discord lists only the attachments embeds do not show,
+					// so the banner is read from the embed, which has no media
+					// type.
+					resource.TestCheckNoResourceAttr("discord_message.test", "attachments.1.content_type"),
+					resource.TestCheckResourceAttr("discord_message.test", "attachments.0.content_type", "text/plain; charset=utf-8"),
 					resource.TestCheckResourceAttr("discord_message.test", "embeds.0.image_url", "attachment://banner.png"),
 					captureAttr("discord_message.test", "attachments.0.id", &rulesID),
 					captureAttr("discord_message.test", "attachments.1.id", &bannerID),
@@ -187,8 +191,10 @@ resource "discord_message" "test" {
 			},
 			messageImportStep(&channelID, &messageID,
 				"attachments.0.source", "attachments.0.source_hash", "attachments.1.content_base64",
-				// Discord returns the URL an attachment:// reference resolves to.
-				"embeds.0.image_url"),
+				// Discord returns the URL an attachment:// reference resolves
+				// to, and nothing reports whether the file it shows is a
+				// spoiler.
+				"embeds.0.image_url", "attachments.1.spoiler"),
 			{
 				// The banner is removed and the rules description edited in
 				// place, keeping the rules file without uploading it again.
@@ -405,9 +411,20 @@ resource "discord_message" "test" {
 			},
 			messageImportStep(&channelID, &messageID),
 			{
-				Config:           message(`discord_sticker.test[*].id`),
+				// Discord returns the stickers in descending ID order; the
+				// configured order is kept.
+				Config:           message(`sort(discord_sticker.test[*].id)`),
 				ConfigPlanChecks: expectMessageAction(plancheck.ResourceActionDestroyBeforeCreate),
-				Check:            resource.TestCheckResourceAttr("discord_message.test", "sticker_ids.#", "2"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("discord_message.test", "sticker_ids.#", "2"),
+					func(s *terraform.State) error {
+						attrs := s.RootModule().Resources["discord_message.test"].Primary.Attributes
+						if first, second := attrs["sticker_ids.0"], attrs["sticker_ids.1"]; first > second {
+							return fmt.Errorf("sticker_ids = [%s, %s], want the configured ascending order", first, second)
+						}
+						return nil
+					},
+				),
 			},
 		},
 	})
@@ -418,6 +435,11 @@ func TestAccMessagePoll(t *testing.T) {
 	var channelID, messageID string
 	message := func(content, question string) string {
 		return env.config(messageChannel + `
+resource "discord_emoji" "test" {
+  server_id = local.server_id
+  name      = "tf_acc_poll"
+  image     = "` + onePixelPNG + `"
+}
 resource "discord_message" "test" {
   channel_id = discord_text_channel.test.id
   content    = "` + content + `"
@@ -425,7 +447,7 @@ resource "discord_message" "test" {
     question = "` + question + `"
     answers = [
       { text = "Pizza", emoji_name = "🍕" },
-      { text = "Tacos", emoji_id = "123456789012345678" },
+      { text = "Tacos", emoji_id = discord_emoji.test.id },
       { text = "Salad" },
     ]
     duration          = 48
@@ -463,7 +485,7 @@ resource "discord_message" "test" {
 					resource.TestCheckResourceAttr("discord_message.test", "poll.question", "Lunch?"),
 					resource.TestCheckResourceAttr("discord_message.test", "poll.answers.#", "3"),
 					resource.TestCheckResourceAttr("discord_message.test", "poll.answers.0.emoji_name", "🍕"),
-					resource.TestCheckResourceAttr("discord_message.test", "poll.answers.1.emoji_id", "123456789012345678"),
+					resource.TestCheckResourceAttrPair("discord_message.test", "poll.answers.1.emoji_id", "discord_emoji.test", "id"),
 					resource.TestCheckNoResourceAttr("discord_message.test", "poll.answers.1.emoji_name"),
 					resource.TestCheckResourceAttr("discord_message.test", "poll.duration", "48"),
 					resource.TestCheckResourceAttr("discord_message.test", "poll.allow_multiselect", "true"),

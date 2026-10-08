@@ -127,7 +127,7 @@ operations:
   get_guild_ban: {status: covered, by: [discord_ban]}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
-  get_guild_member: {status: covered, by: [data.discord_member, discord_bot_member, discord_member, discord_member_role, discord_member_roles]}
+  get_guild_member: {status: covered, by: [data.discord_member, discord_bot_member, discord_member, discord_member_role, discord_member_roles, discord_role_positions]}
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: covered, by: [data.discord_server_preview]}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
@@ -151,7 +151,7 @@ operations:
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
-  get_my_user: {status: covered, by: [data.discord_current_user, discord_bot_member, discord_bot_user, discord_message_reaction]}
+  get_my_user: {status: covered, by: [data.discord_current_user, discord_bot_member, discord_bot_user, discord_message_reaction, discord_role_positions]}
   get_openid_connect_userinfo: {status: out_of_scope, reason: "OpenID Connect for OAuth2 users"}
   get_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   get_public_keys: {status: out_of_scope, reason: "OAuth2 token signing keys"}

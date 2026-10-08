@@ -100,3 +100,24 @@ func TestStageInstanceClosedWithChannel(t *testing.T) {
 		t.Errorf("stage instance of a deleted channel: %v", err)
 	}
 }
+
+func TestScheduledEventWithinFiveYears(t *testing.T) {
+	s := NewServer()
+	defer s.Close()
+	c := discord.NewClient(s.URL, Token, "test")
+	tooFar := time.Now().AddDate(5, 0, 1)
+	for name, times := range map[string][2]time.Time{
+		"start": {tooFar, tooFar.Add(time.Hour)},
+		"end":   {time.Now().Add(time.Hour), tooFar},
+	} {
+		_, err := c.CreateScheduledEvent(t.Context(), GuildID, discord.Payload{
+			"name": "event", "privacy_level": discord.PrivacyLevelGuildOnly, "entity_type": discord.ScheduledEventEntityExternal,
+			"entity_metadata":      discord.Payload{"location": "Online"},
+			"scheduled_start_time": times[0].Format(time.RFC3339),
+			"scheduled_end_time":   times[1].Format(time.RFC3339),
+		})
+		if err == nil {
+			t.Errorf("%s more than five years ahead: created", name)
+		}
+	}
+}

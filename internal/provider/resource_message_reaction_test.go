@@ -155,14 +155,16 @@ resource "discord_message_reaction" "test" {
 				),
 			},
 			{
-				// The custom emoji is deleted: the reaction went with it.
+				// The custom emoji is deleted and created again with a new ID:
+				// the reaction with the deleted emoji stays on the message, so
+				// it is replaced.
 				PreConfig: env.outsideTerraform(func(ctx context.Context, c *discord.Client) error {
 					return c.DeleteEmoji(ctx, env.serverID, emojiID)
 				}),
 				Config: reactions("🎉"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
-						plancheck.ExpectResourceAction("discord_message_reaction.custom", plancheck.ResourceActionCreate),
+						plancheck.ExpectResourceAction("discord_message_reaction.custom", plancheck.ResourceActionDestroyBeforeCreate),
 					},
 				},
 			},

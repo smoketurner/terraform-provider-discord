@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -263,8 +264,14 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 			delete(p, k)
 		}
 	}
+	// Discord ignores flags, such as require_tag, when creating a channel,
+	// so they are set by a follow-up modify.
+	followUp := discord.Payload{}
 	if f, ok := p["flags"].(channelFlags); ok {
-		p["flags"] = f.merge(0)
+		delete(p, "flags")
+		if flags := f.merge(0); flags != 0 {
+			followUp["flags"] = flags
+		}
 	}
 	overwrites, diags := m.base().initialOverwrites(ctx)
 	resp.Diagnostics.Append(diags...)
@@ -274,9 +281,8 @@ func (r *channelResource[T, PT]) Create(ctx context.Context, req resource.Create
 	if overwrites != nil {
 		p["permission_overwrites"] = overwrites
 	}
-	var followUp discord.Payload
 	if s, ok := any(m).(createSplitter); ok {
-		followUp = s.splitCreate(p)
+		maps.Copy(followUp, s.splitCreate(p))
 	}
 	p["type"] = r.kind.channelType
 	ch, err := r.client.CreateChannel(ctx, m.base().ServerID.ValueString(), p)

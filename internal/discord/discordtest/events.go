@@ -69,6 +69,9 @@ func decodeRecurrenceRule(raw json.RawMessage) (*discord.RecurrenceRule, error) 
 	return &rule, nil
 }
 
+// errScheduleTooFar is Discord's GUILD_SCHEDULED_EVENT_SCHEDULE_FUTURE error.
+var errScheduleTooFar = errors.New("scheduled start and end times must be within five years")
+
 // applyScheduledEvent sets the fields of a create or modify request on e and
 // checks the result against the documented requirements for its entity type.
 func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]json.RawMessage, creating bool) error {
@@ -108,8 +111,7 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		var image *string
 		set(body, "image", &image)
 		if image != nil {
-			h := "cover" + s.newID()
-			image = &h
+			image = imageHash(*image)
 		}
 		e.Image = image
 	}
@@ -147,7 +149,13 @@ func (s *Server) applyScheduledEvent(e *discord.ScheduledEvent, body map[string]
 		if !endTime.After(startTime) {
 			return errors.New("scheduled_end_time must be after scheduled_start_time")
 		}
+		if endTime.After(time.Now().AddDate(5, 0, 0)) {
+			return errScheduleTooFar
+		}
 		e.ScheduledEndTime = &end
+	}
+	if startTime.After(time.Now().AddDate(5, 0, 0)) {
+		return errScheduleTooFar
 	}
 
 	switch e.EntityType {

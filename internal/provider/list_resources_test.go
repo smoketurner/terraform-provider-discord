@@ -172,10 +172,6 @@ resource "discord_forum_channel" "test" {
   server_id = local.server_id
   name      = "tf-acc-list"
 }
-resource "discord_media_channel" "test" {
-  server_id = local.server_id
-  name      = "tf-acc-list"
-}
 resource "discord_channel_permission" "test" {
   channel_id   = discord_text_channel.test.id
   overwrite_id = discord_role.test.id
@@ -258,7 +254,6 @@ resource "discord_application_emoji" "test" {
 		{"discord_announcement_channel", server, map[string]string{"channel_id": "id"}, nil},
 		{"discord_stage_channel", server, map[string]string{"channel_id": "id"}, nil},
 		{"discord_forum_channel", server, map[string]string{"channel_id": "id"}, nil},
-		{"discord_media_channel", server, map[string]string{"channel_id": "id"}, nil},
 		{"discord_channel_permission", server, map[string]string{"channel_id": "channel_id", "overwrite_id": "overwrite_id"}, nil},
 		{"discord_channel_follower", server, map[string]string{"webhook_id": "id"}, nil},
 		{"discord_invite", server, map[string]string{"channel_id": "channel_id", "code": "id"}, nil},
@@ -271,6 +266,15 @@ resource "discord_application_emoji" "test" {
 		{"discord_scheduled_event", server, map[string]string{"server_id": "server_id", "event_id": "id"}, nil},
 		{"discord_application_command", server, map[string]string{"application_id": "application_id", "server_id": "server_id", "command_id": "id"}, nil},
 		{"discord_application_emoji", "", map[string]string{"application_id": "application_id", "emoji_id": "id"}, images},
+	}
+	if env.mediaChannels() {
+		cfg += `
+resource "discord_media_channel" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-list"
+}
+`
+		lists = append(lists, listed{"discord_media_channel", server, map[string]string{"channel_id": "id"}, nil})
 	}
 	if env.userID != "" {
 		cfg += `

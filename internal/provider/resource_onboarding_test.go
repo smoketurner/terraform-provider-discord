@@ -81,7 +81,7 @@ const (
       title         = "Pronouns"
       type          = "dropdown"
       in_onboarding = false
-      options       = [{ title = "Ask me" }]
+      options       = [{ title = "Ask me", role_ids = [discord_role.test.id] }]
     }`
 )
 
@@ -305,7 +305,7 @@ resource "discord_onboarding" "test" {
   prompts   = ` + prompts + `
 }`)
 	}
-	option := `{ title = "Option" }`
+	option := `{ title = "Option", role_ids = ["100000000000000011"] }`
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
@@ -327,6 +327,11 @@ resource "discord_onboarding" "test" {
 			{
 				Config:      config(`[{ title = "P", options = [{ title = "` + strings.Repeat("x", 51) + `" }] }]`),
 				ExpectError: regexp.MustCompile(`string length must be between 1 and\s+50`),
+			},
+			{
+				// Discord rejects an option with neither roles nor channels.
+				Config:      config(`[{ title = "P", options = [` + option + `, { title = "Nothing", role_ids = [] }] }]`),
+				ExpectError: regexp.MustCompile(`Option "Nothing" of prompt "P" needs at least one of role_ids or\s+channel_ids`),
 			},
 			{
 				Config:      config(`[{ title = "P", options = [{ title = "O", role_ids = ["admins"] }] }]`),

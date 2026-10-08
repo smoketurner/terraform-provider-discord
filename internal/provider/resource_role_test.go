@@ -145,8 +145,9 @@ resource "discord_role" "test" {
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
 				},
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet(address, "icon_hash"),
-					attrDiffers(address, "icon_hash", &hash),
+					// Discord derives the hash from the image, so the same icon
+					// gets the same hash again.
+					resource.TestCheckResourceAttrPtr(address, "icon_hash", &hash),
 				),
 			},
 			{
@@ -248,22 +249,28 @@ resource "discord_role_everyone" "test" {
 	})
 }
 
-func TestAccRolePositions(t *testing.T) {
-	env := newTestEnv(t)
-	roles := `
+// rolesInOrder declares roles a, b and c, created one after another: roles
+// Discord creates at the same time can share a position.
+const rolesInOrder = `
 resource "discord_role" "a" {
   server_id = local.server_id
   name      = "tf-acc-a"
 }
 resource "discord_role" "b" {
-  server_id = local.server_id
-  name      = "tf-acc-b"
+  server_id  = local.server_id
+  name       = "tf-acc-b"
+  depends_on = [discord_role.a]
 }
 resource "discord_role" "c" {
-  server_id = local.server_id
-  name      = "tf-acc-c"
+  server_id  = local.server_id
+  name       = "tf-acc-c"
+  depends_on = [discord_role.b]
 }
 `
+
+func TestAccRolePositions(t *testing.T) {
+	env := newTestEnv(t)
+	roles := rolesInOrder
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
@@ -297,6 +304,53 @@ resource "discord_role_positions" "test" {
   role_ids  = [discord_role.c.id, "123456789012345678"]
 }`),
 				ExpectError: regexp.MustCompile(`does not exist in server`),
+			},
+		},
+	})
+}
+
+// The bot cannot move @everyone, managed roles or roles that are not below its
+// highest role, so a reorder that would move one fails before Discord
+// answers Missing Permissions.
+func TestAccRolePositionsLocked(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	botRole := env.fake.AddBotRole(env.serverID)
+	var aID, bID string
+	positions := func(ids string) string {
+		return env.config(rolesInOrder + `
+resource "discord_role_positions" "test" {
+  server_id = local.server_id
+  role_ids  = ` + ids + `
+}`)
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(rolesInOrder),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					captureAttr("discord_role.a", "id", &aID),
+					captureAttr("discord_role.b", "id", &bID),
+				),
+			},
+			{
+				// a and b share the position just below the bot's role, so
+				// separating them would push the bot's role up.
+				PreConfig: func() {
+					env.fake.SetRolePosition(env.serverID, aID, 1)
+					env.fake.SetRolePosition(env.serverID, bID, 1)
+					env.fake.SetRolePosition(env.serverID, botRole, 2)
+				},
+				Config:      positions(`[discord_role.a.id, discord_role.b.id]`),
+				ExpectError: regexp.MustCompile(`(?s)moves ` + botRole + ` to position \d+.*it is managed by an\s+integration`),
+			},
+			{
+				Config:      positions(`[discord_role.a.id, "` + botRole + `"]`),
+				ExpectError: regexp.MustCompile(`(?s)moves ` + botRole + `.*bot cannot move it`),
+			},
+			{
+				Config:      positions(`["` + env.serverID + `", discord_role.a.id]`),
+				ExpectError: regexp.MustCompile(`it is the @everyone role`),
 			},
 		},
 	})

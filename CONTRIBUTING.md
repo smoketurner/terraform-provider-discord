@@ -64,9 +64,10 @@ export DISCORD_TEST_USER_ID=...   # optional: a member for discord_member_role t
 make testacc
 ```
 
-The bot needs the Administrator permission on the test server. The **Live acceptance tests** workflow runs these
-tests weekly once the `dev` environment is configured with the `DISCORD_TOKEN` secret and the `DISCORD_SERVER_ID`
-variable.
+The bot needs the Administrator permission on the test server. Tests that create media channels skip servers
+without Server Subscriptions (the `ROLE_SUBSCRIPTIONS_ENABLED` feature), which Discord requires for them. The
+**Live acceptance tests** workflow runs these tests weekly once the `dev` environment is configured with the
+`DISCORD_TOKEN` secret and the `DISCORD_SERVER_ID` variable.
 
 ## Debugging
 

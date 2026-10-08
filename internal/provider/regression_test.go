@@ -231,6 +231,7 @@ resource "discord_forum_channel" "test" {
 // managed flag and channel flags set outside Terraform.
 func TestAccMediaChannelKeepsUnmanagedFlags(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	// Discord may refuse arbitrary flags on a live media channel.
 	env.requireFake()
 	const (

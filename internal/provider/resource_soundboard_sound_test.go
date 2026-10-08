@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	_ "embed"
 	"encoding/base64"
 	"fmt"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -20,11 +22,18 @@ import (
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
-// Sounds as data URIs, holding only a file signature: Discord's own checks of
-// the audio are not modeled by the fake.
-const (
-	soundMP3 = "data:audio/mpeg;base64,SUQzBAAAAAAAAA=="
-	soundOgg = "data:audio/ogg;base64,T2dnUwACAAAAAAAAAAA="
+// testdata/sound.mp3 is half a second of silence as 14 MPEG-1 Layer III
+// frames (mono, 32 kHz, 32 kbit/s), which Discord accepts as a soundboard
+// sound.
+//
+//go:embed testdata/sound.mp3
+var soundFile []byte
+
+// soundMP3 and otherSoundMP3 are two different valid sounds as data URIs;
+// the second plays the first twice.
+var (
+	soundMP3      = "data:audio/mpeg;base64," + base64.StdEncoding.EncodeToString(soundFile)
+	otherSoundMP3 = "data:audio/mpeg;base64," + base64.StdEncoding.EncodeToString(slices.Concat(soundFile, soundFile))
 )
 
 // checkSoundData verifies the sound discord_soundboard_sound.test was created
@@ -155,12 +164,12 @@ resource "discord_soundboard_sound" "test" {
 			{
 				// The sound cannot change in place: a new sound uploads a new one.
 				Config: sound(`  name     = "tf-acc-renamed"
-  sound    = "` + soundOgg + `"
+  sound    = "` + otherSoundMP3 + `"
   emoji_id = discord_emoji.test.id`),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace)},
 				},
-				Check:             env.checkSoundData(soundOgg),
+				Check:             env.checkSoundData(otherSoundMP3),
 				ConfigStateChecks: []statecheck.StateCheck{ids.AddStateValue(address, tfjsonpath.New("id"))},
 			},
 		},
@@ -203,23 +212,23 @@ resource "discord_soundboard_sound" "test" {
 			serverImportStep(env, address, "sound_wo_version"),
 			{
 				// A new value under the same version is not sent.
-				Config: withSound(soundOgg, "1"),
+				Config: withSound(otherSoundMP3, "1"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
 				},
 			},
 			{
-				Config: withSound(soundOgg, "2"),
+				Config: withSound(otherSoundMP3, "2"),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionReplace)},
 				},
-				Check: env.checkSoundData(soundOgg),
+				Check: env.checkSoundData(otherSoundMP3),
 				ConfigStateChecks: append(expectNull(address, "sound_wo"),
 					ids.AddStateValue(address, tfjsonpath.New("id"))),
 			},
 			{
 				// Switching to the stored argument keeps the sound.
-				Config: sound(`  sound = "` + soundOgg + `"`),
+				Config: sound(`  sound = "` + otherSoundMP3 + `"`),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate)},
 				},
@@ -237,7 +246,7 @@ func TestSoundValidator(t *testing.T) {
 	}{
 		{"mpeg", soundMP3, ""},
 		{"mp3", "data:audio/mp3;base64,SUQz", ""},
-		{"ogg", soundOgg, ""},
+		{"ogg", "data:audio/ogg;base64,T2dnUw==", ""},
 		{"largest", sized(maxSoundSize), ""},
 		{"too large", sized(maxSoundSize + 1), "at most 512 KB"},
 		{"wav", "data:audio/wav;base64,UklGRg==", "base64 MP3 or Ogg data URI"},

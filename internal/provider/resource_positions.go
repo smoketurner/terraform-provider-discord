@@ -31,6 +31,10 @@ type positionsKind struct {
 	// leaves channels the bot cannot view out of the channel list.
 	fetch func(ctx context.Context, c *discord.Client, serverID, id string) (discord.Positioned, error)
 	apply func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error
+	// locked, when set, returns the IDs the bot cannot move, each with the
+	// reason. Discord rejects the whole reorder with Missing Permissions
+	// when it includes one of them.
+	locked func(ctx context.Context, c *discord.Client, serverID string) (map[string]string, error)
 
 	// audited is true when Discord records an audit log reason for the
 	// reorder; it does not for channel positions.
@@ -62,7 +66,8 @@ func newRolePositionsResource() resource.Resource {
 		description: "Orders a set of server roles atomically with a single API request. Roles that are not listed keep " +
 			"their place: the listed roles are rearranged among the positions they already occupy. When listed roles share " +
 			"a position, the roles above them may be renumbered to separate them, without changing their order. The bot can only " +
-			"move roles below its own highest role.",
+			"move roles below its own highest role, and never @everyone or roles managed by an integration; an order that would move " +
+			"one of those fails without changing any position.",
 		idsAttr:    "role_ids",
 		idsDesc:    "Role IDs ordered from highest to lowest, as shown in the Discord client.",
 		descending: true,
@@ -78,7 +83,48 @@ func newRolePositionsResource() resource.Resource {
 		apply: func(ctx context.Context, c *discord.Client, serverID string, updates []discord.PositionUpdate) error {
 			return c.ModifyRolePositions(ctx, serverID, updates)
 		},
+		locked: lockedRoles,
 	}}
+}
+
+// lockedRoles returns the roles the bot cannot move: @everyone, roles managed
+// by an integration, such as the bot's own role, and roles that are not below
+// the bot's highest role.
+func lockedRoles(ctx context.Context, c *discord.Client, serverID string) (map[string]string, error) {
+	roles, err := c.ListRoles(ctx, serverID)
+	if err != nil {
+		return nil, err
+	}
+	me, err := c.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	member, err := c.GetMember(ctx, serverID, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	// below reports whether role a is displayed below role b.
+	below := func(a, b discord.Role) bool {
+		return a.Position < b.Position || a.Position == b.Position && compareSnowflakes(a.ID, b.ID) < 0
+	}
+	var top *discord.Role
+	for i, r := range roles {
+		if slices.Contains(member.Roles, r.ID) && (top == nil || below(*top, r)) {
+			top = &roles[i]
+		}
+	}
+	locked := map[string]string{}
+	for _, r := range roles {
+		switch {
+		case r.ID == serverID:
+			locked[r.ID] = "it is the @everyone role"
+		case r.Managed:
+			locked[r.ID] = "it is managed by an integration"
+		case top != nil && !below(r, *top):
+			locked[r.ID] = "it is not below the bot's highest role"
+		}
+	}
+	return locked, nil
 }
 
 func newChannelPositionsResource() resource.Resource {
@@ -254,12 +300,41 @@ func (r *positionsResource) write(ctx context.Context, m *positionsModel) diag.D
 		return diags
 	}
 	if updates := discord.Reorder(current, r.ascending(ids)); len(updates) > 0 {
+		diags.Append(r.checkLocked(ctx, serverID, updates)...)
+		if diags.HasError() {
+			return diags
+		}
 		if err := r.kind.apply(ctx, r.client, serverID, updates); err != nil {
 			apiError(&diags, "update positions", err)
 			return diags
 		}
 	}
 	m.ID = m.ServerID
+	return diags
+}
+
+// checkLocked reports the updates that would move an item the bot cannot
+// move, so the configuration error is explained instead of Discord's Missing
+// Permissions. Moves of unlisted items come from renumbering listed items
+// that share a position.
+func (r *positionsResource) checkLocked(ctx context.Context, serverID string, updates []discord.PositionUpdate) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if r.kind.locked == nil {
+		return diags
+	}
+	locked, err := r.kind.locked(ctx, r.client, serverID)
+	if err != nil {
+		apiError(&diags, "check which positions the bot can change", err)
+		return diags
+	}
+	for _, u := range updates {
+		if reason, ok := locked[u.ID]; ok {
+			diags.AddAttributeError(path.Root(r.kind.idsAttr), "Cannot reorder",
+				fmt.Sprintf("Applying the configured order moves %s to position %d, but the bot cannot move it: %s. "+
+					"List only items below the bot's highest role, or move the bot's role higher in the Discord client.",
+					u.ID, u.Position, reason))
+		}
+	}
 	return diags
 }
 

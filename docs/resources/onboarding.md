@@ -104,12 +104,12 @@ Required:
 
 Optional:
 
-- `channel_ids` (Set of String) Channels members who choose the option are added to (at most 50).
+- `channel_ids` (Set of String) Channels members who choose the option are added to (at most 50). An option needs at least one role or channel.
 - `description` (String) Option description (up to 100 characters).
 - `emoji_animated` (Boolean) Whether the custom emoji in `emoji_id` is animated.
 - `emoji_id` (String) ID of a custom emoji shown with the option.
 - `emoji_name` (String) Unicode emoji shown with the option, or the name of the custom emoji in `emoji_id`.
-- `role_ids` (Set of String) Roles given to members who choose the option (at most 50).
+- `role_ids` (Set of String) Roles given to members who choose the option (at most 50). An option needs at least one role or channel.
 
 Read-Only:
 

@@ -232,6 +232,10 @@ func (s *Server) onboardingPrompts(guildID string, req []promptRequest, current 
 			prompt.ID = s.newID()
 		}
 		for _, o := range p.Options {
+			// Discord answers ROLE_OR_CHANNEL_REQUIRED.
+			if len(o.RoleIDs) == 0 && len(o.ChannelIDs) == 0 {
+				return nil, false
+			}
 			opt := discord.OnboardingPromptOption{
 				ID: o.ID, Title: o.Title, ChannelIDs: o.ChannelIDs, RoleIDs: o.RoleIDs,
 				Emoji: s.promptEmoji(guildID, o),

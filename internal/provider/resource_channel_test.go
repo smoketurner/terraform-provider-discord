@@ -171,6 +171,16 @@ func TestAccAnnouncementAndStageChannels(t *testing.T) {
 	env.run(resource.TestCase{
 		Steps: []resource.TestStep{
 			{
+				// Discord stores 10000 when 0 is sent to a stage channel.
+				Config: env.config(`
+resource "discord_stage_channel" "test" {
+  server_id  = local.server_id
+  name       = "tf-acc-stage"
+  user_limit = 0
+}`),
+				ExpectError: regexp.MustCompile(`value must be between 1 and 10000`),
+			},
+			{
 				Config: env.config(`
 resource "discord_announcement_channel" "test" {
   server_id = local.server_id
@@ -183,11 +193,20 @@ resource "discord_stage_channel" "test" {
 }`),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("discord_announcement_channel.test", "topic", "Announcements"),
-					resource.TestCheckResourceAttr("discord_stage_channel.test", "user_limit", "0"),
+					resource.TestCheckResourceAttr("discord_stage_channel.test", "user_limit", "10000"),
 				),
 			},
 			importStep("discord_announcement_channel.test"),
 			importStep("discord_stage_channel.test"),
+			{
+				Config: env.config(`
+resource "discord_stage_channel" "test" {
+  server_id  = local.server_id
+  name       = "tf-acc-stage"
+  user_limit = 50
+}`),
+				Check: resource.TestCheckResourceAttr("discord_stage_channel.test", "user_limit", "50"),
+			},
 		},
 	})
 }
@@ -291,6 +310,7 @@ resource "discord_text_channel" "test" {
 
 func TestAccMediaChannel(t *testing.T) {
 	env := newTestEnv(t)
+	env.requireMediaChannels()
 	sameTagID := statecheck.CompareValue(compare.ValuesSame())
 	var channelID string
 	updated := env.config(`
@@ -409,6 +429,22 @@ resource "discord_media_channel" "test" {
 				},
 			},
 		},
+	})
+}
+
+// Without Server Subscriptions Discord refuses to create a media channel.
+func TestAccMediaChannelUnavailable(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{{
+			Config: env.config(`
+resource "discord_media_channel" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-media"
+}`),
+			ExpectError: regexp.MustCompile(`Cannot\s+execute\s+action\s+on\s+this\s+channel\s+type\s+\(code\s+50024\)`),
+		}},
 	})
 }
 

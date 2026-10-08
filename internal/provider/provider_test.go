@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -79,6 +80,29 @@ func (e *testEnv) requireFake() {
 	e.t.Helper()
 	if e.live {
 		e.t.Skip("test relies on the fake Discord API")
+	}
+}
+
+// mediaChannels reports whether the server can have media channels, a beta
+// Discord limits to servers with Server Subscriptions enabled. The fake
+// server is given the feature.
+func (e *testEnv) mediaChannels() bool {
+	e.t.Helper()
+	if !e.live {
+		e.fake.AddGuildFeatures(discordtest.MediaChannelFeature)
+		return true
+	}
+	g, err := e.client.GetGuild(context.Background(), e.serverID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return slices.Contains(g.Features, discordtest.MediaChannelFeature)
+}
+
+func (e *testEnv) requireMediaChannels() {
+	e.t.Helper()
+	if !e.mediaChannels() {
+		e.t.Skip("media channels require the server to have Server Subscriptions enabled (" + discordtest.MediaChannelFeature + ")")
 	}
 }
 
