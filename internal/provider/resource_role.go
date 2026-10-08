@@ -39,6 +39,10 @@ type roleModel struct {
 	Hoist          types.Bool   `tfsdk:"hoist"`
 	Mentionable    types.Bool   `tfsdk:"mentionable"`
 	UnicodeEmoji   types.String `tfsdk:"unicode_emoji"`
+	Icon           types.String `tfsdk:"icon"`
+	IconWO         types.String `tfsdk:"icon_wo"`
+	IconWOVersion  types.Int64  `tfsdk:"icon_wo_version"`
+	IconHash       types.String `tfsdk:"icon_hash"`
 	Position       types.Int64  `tfsdk:"position"`
 	Managed        types.Bool   `tfsdk:"managed"`
 	AuditLogReason types.String `tfsdk:"audit_log_reason"`
@@ -111,6 +115,21 @@ func (r *roleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				MarkdownDescription: "Unicode emoji used as the role icon. Requires the server to have the `ROLE_ICONS` feature.",
 				Optional:            true,
 			},
+			"icon": schema.StringAttribute{
+				MarkdownDescription: "Role icon image as a data URI (JPG, GIF, or PNG), e.g. " +
+					"`\"data:image/png;base64,${filebase64(\"icon.png\")}\"`. Requires the server to have the `ROLE_ICONS` " +
+					"feature. Stored in state; prefer `icon_wo` on Terraform 1.11 or later.",
+				Optional:   true,
+				Validators: []validator.String{dataURIValidator(), stringvalidator.ConflictsWith(path.MatchRoot("icon_wo"))},
+			},
+			"icon_wo": writeOnlyImage("Role icon image as a data URI (JPG, GIF, or PNG). Requires the `ROLE_ICONS` feature.", "icon"),
+			"icon_wo_version": writeOnlyVersion("icon",
+				"Setting or changing it uploads `icon_wo`; removing it removes the icon unless `icon` is set."),
+			"icon_hash": schema.StringAttribute{
+				MarkdownDescription: "Hash of the current role icon. A change made outside Terraform makes the next plan upload " +
+					"the configured icon again.",
+				Computed: true,
+			},
 			// No UseStateForUnknown: creating other roles in the same apply
 			// shifts this role's position.
 			"position": schema.Int64Attribute{
@@ -143,6 +162,10 @@ func (m *roleModel) payload() discord.Payload {
 	putBool(p, "hoist", m.Hoist)
 	putBool(p, "mentionable", m.Mentionable)
 	putString(p, "unicode_emoji", m.UnicodeEmoji)
+	// icon_wo is compared through its version.
+	if m.IconWOVersion.IsNull() {
+		putString(p, "icon", m.Icon)
+	}
 	return p
 }
 
@@ -160,6 +183,7 @@ func (m *roleModel) apply(role *discord.Role) {
 	m.Hoist = types.BoolValue(role.Hoist)
 	m.Mentionable = types.BoolValue(role.Mentionable)
 	m.UnicodeEmoji = stringPtrValue(role.UnicodeEmoji)
+	m.IconHash = stringPtrValue(role.Icon)
 	m.Position = types.Int64Value(role.Position)
 	m.Managed = types.BoolValue(role.Managed)
 }
@@ -175,6 +199,15 @@ func (r *roleResource) Create(ctx context.Context, req resource.CreateRequest, r
 	p := plan.payload()
 	if plan.UnicodeEmoji.IsNull() {
 		delete(p, "unicode_emoji")
+	}
+	if plan.Icon.IsNull() {
+		delete(p, "icon")
+	}
+	if !plan.IconWOVersion.IsNull() {
+		putKnownString(p, "icon", writeOnlyString(ctx, req.Config, "icon_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	role, err := r.client.CreateRole(ctx, plan.ServerID.ValueString(), p)
 	if err != nil {
@@ -201,6 +234,7 @@ func (r *roleResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		apiError(&resp.Diagnostics, "read role", err)
 		return
 	}
+	clearImageOnDrift(state.IconHash, role.Icon, &state.Icon, &state.IconWOVersion)
 	state.apply(role)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -217,7 +251,14 @@ func (r *roleResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 	ctx = withAuditLogReason(ctx, plan.AuditLogReason)
-	role, err := r.client.ModifyRole(ctx, state.ServerID.ValueString(), state.ID.ValueString(), diffPayload(plan.payload(), state.payload()))
+	p := diffPayload(plan.payload(), state.payload())
+	if writeOnlyChanged(plan.IconWOVersion, state.IconWOVersion) {
+		putKnownString(p, "icon", writeOnlyString(ctx, req.Config, "icon_wo", &resp.Diagnostics))
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	role, err := r.client.ModifyRole(ctx, state.ServerID.ValueString(), state.ID.ValueString(), p)
 	if err != nil {
 		apiError(&resp.Diagnostics, "update role", err)
 		return
