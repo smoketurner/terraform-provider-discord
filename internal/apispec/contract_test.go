@@ -22,6 +22,7 @@ var modelSchemas = map[string]struct {
 	schemas []string
 }{
 	"Guild":           {reflect.TypeFor[discord.Guild](), []string{"GuildWithCountsResponse", "GuildResponse"}},
+	"IncidentsData":   {reflect.TypeFor[discord.IncidentsData](), []string{"GuildIncidentsDataResponse", "GuildIncidentActionsRequest"}},
 	"RoleColors":      {reflect.TypeFor[discord.RoleColors](), []string{"GuildRoleColorsResponse", "RoleColors"}},
 	"Role":            {reflect.TypeFor[discord.Role](), []string{"GuildRoleResponse"}},
 	"Overwrite":       {reflect.TypeFor[discord.Overwrite](), []string{"ChannelPermissionOverwriteResponse"}},
