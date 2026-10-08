@@ -150,6 +150,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newSoundboardSoundResource,
 		newScheduledEventResource,
 		newStageInstanceResource,
+		newApplicationCommandResource,
 	}
 }
 

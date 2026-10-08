@@ -56,6 +56,7 @@ type Server struct {
 	ro       *readOnlyState
 	money    *monetization
 	app      *discord.Application
+	commands map[string]*discord.ApplicationCommand
 	// stickerFiles and soundData hold the uploaded files, which Discord
 	// never returns.
 	stickerFiles map[string]Upload
@@ -201,6 +202,7 @@ func NewServer() *Server {
 	s.handleReadOnly(mux)
 	s.handleMonetization(mux)
 	s.handleUsers(mux)
+	s.handleApplicationCommands(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s

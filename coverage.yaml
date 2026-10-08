@@ -37,13 +37,13 @@ operations:
   bulk_update_lobby_members: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   consume_entitlement: {status: out_of_scope, reason: "consuming a purchase is runtime state of the application"}
   count_guild_scheduled_event_users: {status: pending_docs}
-  create_application_command: {status: planned, issue: 7}
+  create_application_command: {status: covered, by: [discord_application_command]}
   create_application_emoji: {status: planned, issue: 30}
   create_auto_moderation_rule: {status: planned, issue: 6}
   create_channel_invite: {status: covered, by: [discord_invite]}
   create_dm: {status: out_of_scope, reason: "DMs are not server configuration"}
   create_entitlement: {status: planned, issue: 82}
-  create_guild_application_command: {status: planned, issue: 7}
+  create_guild_application_command: {status: covered, by: [discord_application_command]}
   create_guild_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_voice_channel]}
   create_guild_emoji: {status: covered, by: [discord_emoji]}
   create_guild_role: {status: covered, by: [discord_role]}
@@ -67,7 +67,7 @@ operations:
   crosspost_message: {status: planned, issue: 50}
   delete_all_message_reactions: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
   delete_all_message_reactions_by_emoji: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
-  delete_application_command: {status: planned, issue: 7}
+  delete_application_command: {status: covered, by: [discord_application_command]}
   delete_application_emoji: {status: planned, issue: 30}
   delete_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   delete_auto_moderation_rule: {status: planned, issue: 6}
@@ -75,7 +75,7 @@ operations:
   delete_channel_permission_overwrite: {status: covered, by: [discord_channel_permission]}
   delete_entitlement: {status: planned, issue: 82}
   delete_group_dm_user: {status: out_of_scope, reason: "group DMs are not server configuration"}
-  delete_guild_application_command: {status: planned, issue: 7}
+  delete_guild_application_command: {status: covered, by: [discord_application_command]}
   delete_guild_emoji: {status: covered, by: [discord_emoji]}
   delete_guild_integration: {status: out_of_scope, reason: "integrations are added by users in the Discord client"}
   delete_guild_member: {status: out_of_scope, reason: "kicking members is moderation, not configuration"}
@@ -110,7 +110,7 @@ operations:
   get_active_guild_threads: {status: planned, issue: 41}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
   get_application: {status: pending_docs}
-  get_application_command: {status: planned, issue: 7}
+  get_application_command: {status: covered, by: [discord_application_command]}
   get_application_emoji: {status: planned, issue: 30}
   get_application_role_connections_metadata: {status: planned, issue: 8}
   get_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
@@ -122,8 +122,8 @@ operations:
   get_entitlements: {status: covered, by: [data.discord_entitlements]}
   get_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_guild: {status: covered, by: [data.discord_server, discord_server_settings]}
-  get_guild_application_command: {status: planned, issue: 7}
-  get_guild_application_command_permissions: {status: planned, issue: 7}
+  get_guild_application_command: {status: covered, by: [discord_application_command]}
+  get_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
   get_guild_ban: {status: covered, by: [discord_ban]}
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
@@ -147,7 +147,7 @@ operations:
   get_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_lobby_messages: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   get_message: {status: covered, by: [data.discord_message, discord_message, discord_thread]}
-  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus]}
+  get_my_application: {status: covered, by: [data.discord_current_application, data.discord_entitlements, data.discord_skus, discord_application_command]}
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
@@ -176,13 +176,13 @@ operations:
   leave_guild: {status: out_of_scope, reason: "removes the bot from the server"}
   leave_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   leave_thread: {status: out_of_scope, reason: "leaving threads is runtime state"}
-  list_application_commands: {status: planned, issue: 7}
+  list_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_application_emojis: {status: planned, issue: 30}
   list_auto_moderation_rules: {status: planned, issue: 41}
   list_channel_invites: {status: covered, by: [discord_invite]}
   list_channel_webhooks: {status: planned, issue: 41}
-  list_guild_application_command_permissions: {status: planned, issue: 7}
-  list_guild_application_commands: {status: planned, issue: 7}
+  list_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
+  list_guild_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_guild_audit_log_entries: {status: covered, by: [data.discord_audit_log]}
   list_guild_bans: {status: planned, issue: 41}
   list_guild_channels: {status: covered, by: [data.discord_channel, discord_channel_positions]}
@@ -225,14 +225,14 @@ operations:
   trigger_typing_indicator: {status: out_of_scope, reason: "typing indicators are transient"}
   unban_user_from_guild: {status: covered, by: [discord_ban]}
   update_application: {status: pending_docs}
-  update_application_command: {status: planned, issue: 7}
+  update_application_command: {status: covered, by: [discord_application_command]}
   update_application_emoji: {status: planned, issue: 30}
   update_application_role_connections_metadata: {status: planned, issue: 8}
   update_application_user_role_connection: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   update_auto_moderation_rule: {status: planned, issue: 6}
   update_channel: {status: covered, by: [discord_announcement_channel, discord_category_channel, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
   update_guild: {status: covered, by: [discord_server_settings]}
-  update_guild_application_command: {status: planned, issue: 7}
+  update_guild_application_command: {status: covered, by: [discord_application_command]}
   update_guild_emoji: {status: covered, by: [discord_emoji]}
   update_guild_incident_actions: {status: covered, by: [discord_server_incident_actions]}
   update_guild_member: {status: covered, by: [discord_member, discord_member_roles]}

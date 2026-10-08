@@ -160,6 +160,11 @@ resource "discord_stage_instance" "test" {
   channel_id = discord_stage_channel.test.id
   topic      = "tf-acc-identity"
 }
+resource "discord_application_command" "test" {
+  server_id = local.server_id
+  type      = "user"
+  name      = "tf-acc-identity"
+}
 `
 	identities := map[string]map[string]string{
 		"discord_server_settings.test":         {"server_id": "server_id"},
@@ -186,6 +191,7 @@ resource "discord_stage_instance" "test" {
 		"discord_soundboard_sound.test":        {"server_id": "server_id", "sound_id": "id"},
 		"discord_scheduled_event.test":         {"server_id": "server_id", "event_id": "id"},
 		"discord_stage_instance.test":          {"channel_id": "channel_id"},
+		"discord_application_command.test":     {"application_id": "application_id", "server_id": "server_id", "command_id": "id"},
 	}
 	if env.userID != "" {
 		cfg += `

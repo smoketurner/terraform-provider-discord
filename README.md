@@ -52,6 +52,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Other | `discord_invite`, `discord_message`, `discord_message_reaction`, `discord_thread`, `discord_emoji`, `discord_sticker`, `discord_soundboard_sound`, `data.discord_invite`, `data.discord_message`, `data.discord_pinned_messages`, `data.discord_sticker`, `data.discord_sticker_pack`, `data.discord_sticker_packs`, `data.discord_default_soundboard_sounds` |
 | Events | `discord_scheduled_event`, `discord_stage_instance` |
 | Monetization | `data.discord_skus`, `data.discord_entitlements`, `data.discord_sku_subscriptions` |
+| Applications | `discord_application_command` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
 
 ## Design notes
