@@ -148,6 +148,12 @@ func (c *Client) SearchMembers(ctx context.Context, guildID, query string) ([]Me
 	return members, c.do(ctx, http.MethodGet, path, nil, &members)
 }
 
+// ModifyMember updates a guild member's nickname, roles or timeout.
+func (c *Client) ModifyMember(ctx context.Context, guildID, userID string, p Payload) (*Member, error) {
+	var m Member
+	return &m, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/members/"+userID, p, &m)
+}
+
 // AddMemberRole grants a role to a member.
 func (c *Client) AddMemberRole(ctx context.Context, guildID, userID, roleID string) error {
 	return c.doAudited(ctx, http.MethodPut, "/guilds/"+guildID+"/members/"+userID+"/roles/"+roleID, nil, nil)
