@@ -246,3 +246,50 @@ func (c *Client) ModifyEmoji(ctx context.Context, guildID, emojiID string, p Pay
 func (c *Client) DeleteEmoji(ctx context.Context, guildID, emojiID string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/guilds/"+guildID+"/emojis/"+emojiID, nil, nil)
 }
+
+// GetScheduledEvent fetches a guild scheduled event.
+func (c *Client) GetScheduledEvent(ctx context.Context, guildID, eventID string) (*ScheduledEvent, error) {
+	var e ScheduledEvent
+	return &e, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/scheduled-events/"+eventID, nil, &e)
+}
+
+// CreateScheduledEvent creates a guild scheduled event.
+func (c *Client) CreateScheduledEvent(ctx context.Context, guildID string, p Payload) (*ScheduledEvent, error) {
+	var e ScheduledEvent
+	return &e, c.doAudited(ctx, http.MethodPost, "/guilds/"+guildID+"/scheduled-events", p, &e)
+}
+
+// ModifyScheduledEvent updates a guild scheduled event.
+func (c *Client) ModifyScheduledEvent(ctx context.Context, guildID, eventID string, p Payload) (*ScheduledEvent, error) {
+	var e ScheduledEvent
+	return &e, c.doAudited(ctx, http.MethodPatch, "/guilds/"+guildID+"/scheduled-events/"+eventID, p, &e)
+}
+
+// DeleteScheduledEvent deletes a guild scheduled event. Unlike creating and
+// updating, Discord does not document an audit log reason for it.
+func (c *Client) DeleteScheduledEvent(ctx context.Context, guildID, eventID string) error {
+	return c.do(ctx, http.MethodDelete, "/guilds/"+guildID+"/scheduled-events/"+eventID, nil, nil)
+}
+
+// GetStageInstance fetches the stage instance of a stage channel.
+func (c *Client) GetStageInstance(ctx context.Context, channelID string) (*StageInstance, error) {
+	var s StageInstance
+	return &s, c.do(ctx, http.MethodGet, "/stage-instances/"+channelID, nil, &s)
+}
+
+// CreateStageInstance starts a stage instance on a stage channel.
+func (c *Client) CreateStageInstance(ctx context.Context, p Payload) (*StageInstance, error) {
+	var s StageInstance
+	return &s, c.doAudited(ctx, http.MethodPost, "/stage-instances", p, &s)
+}
+
+// ModifyStageInstance updates the stage instance of a stage channel.
+func (c *Client) ModifyStageInstance(ctx context.Context, channelID string, p Payload) (*StageInstance, error) {
+	var s StageInstance
+	return &s, c.doAudited(ctx, http.MethodPatch, "/stage-instances/"+channelID, p, &s)
+}
+
+// DeleteStageInstance ends the stage instance of a stage channel.
+func (c *Client) DeleteStageInstance(ctx context.Context, channelID string) error {
+	return c.doAudited(ctx, http.MethodDelete, "/stage-instances/"+channelID, nil, nil)
+}

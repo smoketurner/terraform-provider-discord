@@ -43,6 +43,13 @@ var modelSchemas = map[string]struct {
 	"Embed":           {reflect.TypeFor[discord.Embed](), []string{"MessageEmbedResponse", "RichEmbed"}},
 	"Message":         {reflect.TypeFor[discord.Message](), []string{"MessageResponse"}},
 	"Emoji":           {reflect.TypeFor[discord.Emoji](), []string{"EmojiResponse"}},
+	"EntityMetadata":  {reflect.TypeFor[discord.EntityMetadata](), []string{"EntityMetadataExternalResponse", "EntityMetadataExternal"}},
+	"NWeekday":        {reflect.TypeFor[discord.NWeekday](), []string{"ByNWeekdayResponse", "ByNWeekday"}},
+	"RecurrenceRule":  {reflect.TypeFor[discord.RecurrenceRule](), []string{"RecurrenceRuleResponse", "RecurrenceRule"}},
+	"ScheduledEvent": {reflect.TypeFor[discord.ScheduledEvent](), []string{
+		"ExternalScheduledEventResponse", "StageScheduledEventResponse", "VoiceScheduledEventResponse",
+	}},
+	"StageInstance": {reflect.TypeFor[discord.StageInstance](), []string{"StageInstanceResponse"}},
 }
 
 // TestModelsTableIsComplete fails when a struct is added to models.go

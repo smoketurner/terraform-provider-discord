@@ -268,3 +268,73 @@ type Emoji struct {
 	Managed  bool     `json:"managed"`
 	Animated bool     `json:"animated"`
 }
+
+// Scheduled event entity types.
+const (
+	ScheduledEventEntityStageInstance = 1
+	ScheduledEventEntityVoice         = 2
+	ScheduledEventEntityExternal      = 3
+)
+
+// Scheduled event statuses. Completed and canceled are final.
+const (
+	ScheduledEventStatusScheduled = 1
+	ScheduledEventStatusActive    = 2
+	ScheduledEventStatusCompleted = 3
+	ScheduledEventStatusCanceled  = 4
+)
+
+// PrivacyLevelGuildOnly is the only privacy level of scheduled events and the
+// only one of stage instances that is not deprecated.
+const PrivacyLevelGuildOnly = 2
+
+// EntityMetadata holds the location of an external scheduled event.
+type EntityMetadata struct {
+	Location *string `json:"location,omitempty"`
+}
+
+// NWeekday is a weekday within a given week of the month (1-5).
+type NWeekday struct {
+	N   int64 `json:"n"`
+	Day int64 `json:"day"`
+}
+
+// RecurrenceRule defines how a scheduled event repeats.
+type RecurrenceRule struct {
+	Start      string     `json:"start"`
+	Frequency  int64      `json:"frequency"`
+	Interval   int64      `json:"interval"`
+	ByWeekday  []int64    `json:"by_weekday"`
+	ByNWeekday []NWeekday `json:"by_n_weekday"`
+	ByMonth    []int64    `json:"by_month"`
+	ByMonthDay []int64    `json:"by_month_day"`
+}
+
+// ScheduledEvent is a guild scheduled event.
+type ScheduledEvent struct {
+	ID                 string          `json:"id"`
+	GuildID            string          `json:"guild_id"`
+	ChannelID          *string         `json:"channel_id"`
+	CreatorID          *string         `json:"creator_id"`
+	Name               string          `json:"name"`
+	Description        *string         `json:"description"`
+	ScheduledStartTime string          `json:"scheduled_start_time"`
+	ScheduledEndTime   *string         `json:"scheduled_end_time"`
+	PrivacyLevel       int64           `json:"privacy_level"`
+	Status             int64           `json:"status"`
+	EntityType         int64           `json:"entity_type"`
+	EntityID           *string         `json:"entity_id"`
+	EntityMetadata     *EntityMetadata `json:"entity_metadata"`
+	Image              *string         `json:"image"`
+	RecurrenceRule     *RecurrenceRule `json:"recurrence_rule"`
+}
+
+// StageInstance is the live state of a stage channel.
+type StageInstance struct {
+	ID                    string  `json:"id"`
+	GuildID               string  `json:"guild_id"`
+	ChannelID             string  `json:"channel_id"`
+	Topic                 string  `json:"topic"`
+	PrivacyLevel          int64   `json:"privacy_level"`
+	GuildScheduledEventID *string `json:"guild_scheduled_event_id"`
+}

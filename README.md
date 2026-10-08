@@ -48,6 +48,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Permissions | `discord_channel_permission` |
 | Members | `discord_member_role`, `data.discord_member` |
 | Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji` |
+| Events | `discord_scheduled_event`, `discord_stage_instance` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+) |
 
 ## Design notes
