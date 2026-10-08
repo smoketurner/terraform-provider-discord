@@ -46,6 +46,7 @@ type Server struct {
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
 	automod   map[string]map[string]*discord.AutoModerationRule
+	settings  map[string]*guildSettings
 	requests  []string
 	headers   []http.Header
 	edits     []map[string]json.RawMessage
@@ -140,6 +141,7 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/auto-moderation/rules", s.createAutomodRule)
 	mux.HandleFunc("PATCH /guilds/{guild}/auto-moderation/rules/{rule}", s.modifyAutomodRule)
 	mux.HandleFunc("DELETE /guilds/{guild}/auto-moderation/rules/{rule}", s.deleteAutomodRule)
+	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s

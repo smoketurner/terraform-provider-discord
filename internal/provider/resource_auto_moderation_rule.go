@@ -348,7 +348,9 @@ func (a automodActionModel) values() map[string]attr.Value {
 	}
 }
 
-func setStrings(ctx context.Context, v types.Set, diags *diag.Diagnostics) []string {
+// stringsOrEmpty returns a set's strings, or an empty slice for a null set,
+// so that the payload clears the list rather than sending null.
+func stringsOrEmpty(ctx context.Context, v types.Set, diags *diag.Diagnostics) []string {
 	out := []string{}
 	if isSet(v) {
 		diags.Append(v.ElementsAs(ctx, &out, false)...)
@@ -370,8 +372,8 @@ func optionalStringSet(ctx context.Context, values []string, diags *diag.Diagnos
 func (m *autoModerationRuleModel) payload(ctx context.Context, diags *diag.Diagnostics) discord.Payload {
 	p := discord.Payload{
 		"name":            m.Name.ValueString(),
-		"exempt_roles":    setStrings(ctx, m.ExemptRoleIDs, diags),
-		"exempt_channels": setStrings(ctx, m.ExemptChannelIDs, diags),
+		"exempt_roles":    stringsOrEmpty(ctx, m.ExemptRoleIDs, diags),
+		"exempt_channels": stringsOrEmpty(ctx, m.ExemptChannelIDs, diags),
 	}
 	automodEventTypes.put(p, "event_type", m.EventType)
 	putBool(p, "enabled", m.Enabled)
@@ -400,14 +402,14 @@ func (m *autoModerationRuleModel) payload(ctx context.Context, diags *diag.Diagn
 		for _, name := range automodMetadataFields[m.TriggerType.ValueString()] {
 			switch name {
 			case "keyword_filter":
-				tm[name] = setStrings(ctx, meta.KeywordFilter, diags)
+				tm[name] = stringsOrEmpty(ctx, meta.KeywordFilter, diags)
 			case "regex_patterns":
-				tm[name] = setStrings(ctx, meta.RegexPatterns, diags)
+				tm[name] = stringsOrEmpty(ctx, meta.RegexPatterns, diags)
 			case "allow_list":
-				tm[name] = setStrings(ctx, meta.AllowList, diags)
+				tm[name] = stringsOrEmpty(ctx, meta.AllowList, diags)
 			case "presets":
 				presets := []int64{}
-				for _, s := range setStrings(ctx, meta.Presets, diags) {
+				for _, s := range stringsOrEmpty(ctx, meta.Presets, diags) {
 					if n, ok := automodPresets.value(s); ok {
 						presets = append(presets, n)
 					}
