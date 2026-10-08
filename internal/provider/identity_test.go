@@ -107,6 +107,15 @@ resource "discord_message" "test" {
   channel_id = discord_text_channel.test.id
   content    = "Identity"
 }
+resource "discord_message_reaction" "test" {
+  channel_id = discord_text_channel.test.id
+  message_id = discord_message.test.id
+  emoji      = "👍"
+}
+resource "discord_channel_follower" "test" {
+  source_channel_id = discord_announcement_channel.test.id
+  channel_id        = discord_text_channel.test.id
+}
 resource "discord_invite" "test" {
   channel_id = discord_text_channel.test.id
 }
@@ -166,6 +175,8 @@ resource "discord_stage_instance" "test" {
 		"discord_media_channel.test":           {"channel_id": "id"},
 		"discord_channel_permission.test":      {"channel_id": "channel_id", "overwrite_id": "overwrite_id"},
 		"discord_message.test":                 {"channel_id": "channel_id", "message_id": "id"},
+		"discord_message_reaction.test":        {"channel_id": "channel_id", "message_id": "message_id", "emoji": "emoji"},
+		"discord_channel_follower.test":        {"webhook_id": "id"},
 		"discord_invite.test":                  {"channel_id": "channel_id", "code": "id"},
 		"discord_webhook.test":                 {"webhook_id": "id"},
 		"discord_webhook_message.test":         {"webhook_id": "webhook_id", "channel_id": "channel_id", "message_id": "id"},

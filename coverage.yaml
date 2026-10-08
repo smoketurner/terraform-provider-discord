@@ -20,7 +20,7 @@ operations:
   add_guild_member_role: {status: covered, by: [discord_member_role]}
   add_invite_target_user: {status: planned, issue: 38}
   add_lobby_member: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
-  add_my_message_reaction: {status: planned, issue: 33}
+  add_my_message_reaction: {status: covered, by: [discord_message_reaction]}
   add_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   applications_get_activity_instance: {status: out_of_scope, reason: "activity instances are runtime state of the game SDK"}
   ban_user_from_guild: {status: covered, by: [discord_ban]}
@@ -89,13 +89,13 @@ operations:
   delete_lobby: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   delete_lobby_member: {status: out_of_scope, reason: "lobbies are a game SDK feature"}
   delete_message: {status: covered, by: [discord_message]}
-  delete_my_message_reaction: {status: planned, issue: 33}
+  delete_my_message_reaction: {status: covered, by: [discord_message_reaction]}
   delete_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   delete_pin: {status: covered, by: [discord_message]}
   delete_stage_instance: {status: covered, by: [discord_stage_instance]}
   delete_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   delete_user_message_reaction: {status: out_of_scope, reason: "discord_message_reaction manages only the bot's own reactions"}
-  delete_webhook: {status: covered, by: [discord_webhook]}
+  delete_webhook: {status: covered, by: [discord_channel_follower, discord_webhook]}
   delete_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
   delete_webhook_message: {status: covered, by: [discord_webhook_message]}
   deprecated_create_pin: {status: out_of_scope, reason: "deprecated in favor of create_pin"}
@@ -106,7 +106,7 @@ operations:
   execute_github_compatible_webhook: {status: out_of_scope, reason: "GitHub payload format for external services"}
   execute_slack_compatible_webhook: {status: out_of_scope, reason: "Slack payload format for external services"}
   execute_webhook: {status: covered, by: [discord_webhook_message]}
-  follow_channel: {status: planned, issue: 32}
+  follow_channel: {status: covered, by: [discord_channel_follower]}
   get_active_guild_threads: {status: planned, issue: 41}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
   get_application: {status: pending_docs}
@@ -151,7 +151,7 @@ operations:
   get_my_guild_member: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_my_oauth2_application: {status: out_of_scope, reason: "same application as get_my_application"}
   get_my_oauth2_authorization: {status: out_of_scope, reason: "describes an OAuth2 authorization, not the bot"}
-  get_my_user: {status: covered, by: [data.discord_current_user]}
+  get_my_user: {status: covered, by: [data.discord_current_user, discord_message_reaction]}
   get_openid_connect_userinfo: {status: out_of_scope, reason: "OpenID Connect for OAuth2 users"}
   get_original_webhook_message: {status: out_of_scope, reason: "interaction responses need a live interaction"}
   get_public_keys: {status: out_of_scope, reason: "OAuth2 token signing keys"}
@@ -165,7 +165,7 @@ operations:
   get_thread_member: {status: out_of_scope, reason: "thread membership is runtime state"}
   get_user: {status: covered, by: [data.discord_user]}
   get_voice_state: {status: out_of_scope, reason: "voice states are runtime state"}
-  get_webhook: {status: covered, by: [discord_webhook, discord_webhook_message, ephemeral.discord_webhook]}
+  get_webhook: {status: covered, by: [discord_channel_follower, discord_webhook, discord_webhook_message, ephemeral.discord_webhook]}
   get_webhook_by_token: {status: out_of_scope, reason: "the bot token operations cover the same webhook"}
   get_webhook_message: {status: covered, by: [discord_webhook_message]}
   guild_role_member_counts: {status: covered, by: [data.discord_role_member_counts]}
@@ -198,7 +198,7 @@ operations:
   list_guild_stickers: {status: planned, issue: 41}
   list_guild_templates: {status: planned, issue: 41}
   list_guild_voice_regions: {status: covered, by: [data.discord_voice_regions]}
-  list_message_reactions_by_emoji: {status: planned, issue: 33}
+  list_message_reactions_by_emoji: {status: covered, by: [discord_message_reaction]}
   list_messages: {status: planned, issue: 82}
   list_my_connections: {status: out_of_scope, reason: "third-party account connections of an OAuth2 user"}
   list_my_guilds: {status: out_of_scope, reason: "configurations name their servers explicitly"}
