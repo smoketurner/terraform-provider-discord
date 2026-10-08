@@ -172,12 +172,14 @@ type User struct {
 	Bot           bool    `json:"bot"`
 }
 
-// Member is a user's membership in a guild.
+// Member is a user's membership in a guild. CommunicationDisabledUntil is
+// when the member's timeout ends; null or a time in the past means none.
 type Member struct {
-	User     *User    `json:"user"`
-	Nick     *string  `json:"nick"`
-	Roles    []string `json:"roles"`
-	JoinedAt string   `json:"joined_at"`
+	User                       *User    `json:"user"`
+	Nick                       *string  `json:"nick"`
+	Roles                      []string `json:"roles"`
+	JoinedAt                   string   `json:"joined_at"`
+	CommunicationDisabledUntil *string  `json:"communication_disabled_until"`
 }
 
 // Webhook is a channel webhook.

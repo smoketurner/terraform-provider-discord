@@ -153,8 +153,20 @@ resource "discord_member_role" "test" {
   user_id   = local.user_id
   role_id   = discord_role.test.id
 }
+resource "discord_member_roles" "test" {
+  server_id = local.server_id
+  user_id   = local.user_id
+  role_ids  = [discord_role.test.id]
+}
+resource "discord_member" "test" {
+  server_id = local.server_id
+  user_id   = local.user_id
+  nick      = "tf-acc-identity"
+}
 `
 		identities["discord_member_role.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id", "role_id": "role_id"}
+		identities["discord_member_roles.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
+		identities["discord_member.test"] = map[string]string{"server_id": "server_id", "user_id": "user_id"}
 	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
