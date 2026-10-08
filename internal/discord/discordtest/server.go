@@ -45,6 +45,8 @@ type Server struct {
 	invites   map[string]*discord.Invite
 	messages  map[string]*discord.Message
 	emojis    map[string]map[string]*discord.Emoji
+	events    map[string]*discord.ScheduledEvent
+	stages    map[string]*discord.StageInstance
 	settings  map[string]*guildSettings
 	requests  []string
 	headers   []http.Header
@@ -72,6 +74,8 @@ func NewServer() *Server {
 		invites:   map[string]*discord.Invite{},
 		messages:  map[string]*discord.Message{},
 		emojis:    map[string]map[string]*discord.Emoji{},
+		events:    map[string]*discord.ScheduledEvent{},
+		stages:    map[string]*discord.StageInstance{},
 		failNext:  map[string]int{},
 		botUserID: "100000000000000003",
 		hidden:    map[string]bool{},
@@ -135,6 +139,14 @@ func NewServer() *Server {
 	mux.HandleFunc("POST /guilds/{guild}/emojis", s.createEmoji)
 	mux.HandleFunc("PATCH /guilds/{guild}/emojis/{emoji}", s.modifyEmoji)
 	mux.HandleFunc("DELETE /guilds/{guild}/emojis/{emoji}", s.deleteEmoji)
+	mux.HandleFunc("GET /guilds/{guild}/scheduled-events/{event}", s.getScheduledEvent)
+	mux.HandleFunc("POST /guilds/{guild}/scheduled-events", s.createScheduledEvent)
+	mux.HandleFunc("PATCH /guilds/{guild}/scheduled-events/{event}", s.modifyScheduledEvent)
+	mux.HandleFunc("DELETE /guilds/{guild}/scheduled-events/{event}", s.deleteScheduledEvent)
+	mux.HandleFunc("GET /stage-instances/{channel}", s.getStageInstance)
+	mux.HandleFunc("POST /stage-instances", s.createStageInstance)
+	mux.HandleFunc("PATCH /stage-instances/{channel}", s.modifyStageInstance)
+	mux.HandleFunc("DELETE /stage-instances/{channel}", s.deleteStageInstance)
 	s.handleGuildSettings(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
@@ -710,6 +722,7 @@ func (s *Server) deleteChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(s.channels, ch.ID)
+	delete(s.stages, ch.ID)
 	for _, t := range s.threads {
 		if t.ParentID != nil && *t.ParentID == ch.ID {
 			s.deleteThread(t.ID)
