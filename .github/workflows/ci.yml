@@ -69,6 +69,26 @@ jobs:
             (echo; echo "Run 'go mod tidy' and 'make generate', then commit the changes."; exit 1)
       - run: cd tools && go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs validate --provider-dir .. --provider-name discord
 
+  # Checks coverage.yaml, the client's endpoints and its models against the
+  # pinned Discord OpenAPI spec. The spec is downloaded at the commit pinned
+  # in internal/apispec/pin.go and verified against its checksum.
+  api-coverage:
+    name: API coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: echo api-coverage > .cache-key
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            .cache-key
+      - run: make api-coverage API_SPEC="$RUNNER_TEMP/openapi.json"
+
   test:
     name: Test (Terraform ${{ matrix.terraform }})
     runs-on: ubuntu-latest
