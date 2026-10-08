@@ -77,6 +77,10 @@ var modelSchemas = map[string]struct {
 	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
 	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
 	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
+	"Integration": {reflect.TypeFor[discord.Integration](), []string{
+		"DiscordIntegrationResponse", "ExternalConnectionIntegrationResponse", "GuildSubscriptionIntegrationResponse",
+	}},
+	"IntegrationAccount": {reflect.TypeFor[discord.IntegrationAccount](), []string{"AccountResponse"}},
 
 	"FollowedChannel":      {reflect.TypeFor[discord.FollowedChannel](), []string{"ChannelFollowerResponse"}},
 	"FollowerWebhook":      {reflect.TypeFor[discord.FollowerWebhook](), []string{"ChannelFollowerWebhookResponse"}},

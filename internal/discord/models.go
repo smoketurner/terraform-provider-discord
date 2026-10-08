@@ -731,6 +731,22 @@ type PromptEmoji struct {
 	Animated bool    `json:"animated"`
 }
 
+// Integration is a guild integration: a bot or OAuth2 application, a Twitch
+// or YouTube connection, or server subscriptions.
+type Integration struct {
+	ID      string             `json:"id"`
+	Name    string             `json:"name"`
+	Type    string             `json:"type"`
+	Enabled bool               `json:"enabled"`
+	Account IntegrationAccount `json:"account"`
+}
+
+// IntegrationAccount is the account an integration belongs to.
+type IntegrationAccount struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // VoiceRegion is a voice server region a voice or stage channel can use.
 type VoiceRegion struct {
 	ID         string `json:"id"`

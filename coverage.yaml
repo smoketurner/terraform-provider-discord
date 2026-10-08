@@ -107,7 +107,7 @@ operations:
   execute_slack_compatible_webhook: {status: out_of_scope, reason: "Slack payload format for external services"}
   execute_webhook: {status: covered, by: [discord_webhook_message]}
   follow_channel: {status: covered, by: [discord_channel_follower]}
-  get_active_guild_threads: {status: planned, issue: 41}
+  get_active_guild_threads: {status: covered, by: [data.discord_threads]}
   get_answer_voters: {status: out_of_scope, reason: "poll votes are runtime state"}
   get_application: {status: pending_docs}
   get_application_command: {status: covered, by: [discord_application_command]}
@@ -136,7 +136,7 @@ operations:
   get_guild_sticker: {status: covered, by: [discord_sticker]}
   get_guild_template: {status: out_of_scope, reason: "looks up any server's template by code; discord_server_template reads its own from list_guild_templates"}
   get_guild_vanity_url: {status: covered, by: [data.discord_server_vanity_url]}
-  get_guild_webhooks: {status: planned, issue: 41}
+  get_guild_webhooks: {status: covered, by: [data.discord_webhooks]}
   get_guild_welcome_screen: {status: covered, by: [discord_welcome_screen]}
   get_guild_widget: {status: covered, by: [data.discord_server_widget]}
   get_guild_widget_png: {status: out_of_scope, reason: "returns an image"}
@@ -178,25 +178,25 @@ operations:
   leave_thread: {status: out_of_scope, reason: "leaving threads is runtime state"}
   list_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_application_emojis: {status: planned, issue: 30}
-  list_auto_moderation_rules: {status: planned, issue: 41}
+  list_auto_moderation_rules: {status: covered, by: [data.discord_auto_moderation_rules]}
   list_channel_invites: {status: covered, by: [discord_invite]}
   list_channel_webhooks: {status: planned, issue: 41}
   list_guild_application_command_permissions: {status: out_of_scope, reason: "command permissions can only be changed with a user OAuth2 token, so the provider does not manage them; default_member_permissions on discord_application_command covers the bot-token case"}
   list_guild_application_commands: {status: out_of_scope, reason: "discord_application_command reads each command by ID; listing commands to find unmanaged ones is not configuration"}
   list_guild_audit_log_entries: {status: covered, by: [data.discord_audit_log]}
-  list_guild_bans: {status: planned, issue: 41}
-  list_guild_channels: {status: covered, by: [data.discord_channel, discord_channel_positions]}
-  list_guild_emojis: {status: planned, issue: 41}
-  list_guild_integrations: {status: planned, issue: 41}
-  list_guild_invites: {status: planned, issue: 41}
-  list_guild_members: {status: planned, issue: 41}
-  list_guild_roles: {status: covered, by: [data.discord_role, discord_role_positions]}
+  list_guild_bans: {status: covered, by: [data.discord_bans]}
+  list_guild_channels: {status: covered, by: [data.discord_channel, data.discord_channels, discord_channel_positions]}
+  list_guild_emojis: {status: covered, by: [data.discord_emojis]}
+  list_guild_integrations: {status: covered, by: [data.discord_integrations]}
+  list_guild_invites: {status: covered, by: [data.discord_invites]}
+  list_guild_members: {status: covered, by: [data.discord_members]}
+  list_guild_roles: {status: covered, by: [data.discord_role, data.discord_roles, discord_role_positions]}
   list_guild_scheduled_event_exception_users: {status: pending_docs}
   list_guild_scheduled_event_users: {status: out_of_scope, reason: "event subscribers are runtime state"}
-  list_guild_scheduled_events: {status: planned, issue: 41}
-  list_guild_soundboard_sounds: {status: planned, issue: 41}
-  list_guild_stickers: {status: planned, issue: 41}
-  list_guild_templates: {status: covered, by: [discord_server_template]}
+  list_guild_scheduled_events: {status: covered, by: [data.discord_scheduled_events]}
+  list_guild_soundboard_sounds: {status: covered, by: [data.discord_soundboard_sounds]}
+  list_guild_stickers: {status: covered, by: [data.discord_stickers]}
+  list_guild_templates: {status: covered, by: [data.discord_server_templates, discord_server_template]}
   list_guild_voice_regions: {status: covered, by: [data.discord_voice_regions]}
   list_message_reactions_by_emoji: {status: covered, by: [discord_message_reaction]}
   list_messages: {status: planned, issue: 82}
