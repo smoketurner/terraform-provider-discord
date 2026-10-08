@@ -141,6 +141,40 @@ resource "discord_text_channel" "test" {
 	})
 }
 
+func TestAccChannelConvertKeepsIdentity(t *testing.T) {
+	env := newTestEnv(t)
+	var channelID string
+	env.run(resource.TestCase{
+		TerraformVersionChecks: requiresIdentity,
+		Steps: []resource.TestStep{
+			{
+				Config: env.config(`
+resource "discord_text_channel" "news" {
+  server_id = local.server_id
+  name      = "tf-acc-convert-identity"
+}`),
+				Check:             captureAttr("discord_text_channel.news", "id", &channelID),
+				ConfigStateChecks: expectIdentity("discord_text_channel.news", map[string]string{"channel_id": "id"}),
+			},
+			{
+				Config: env.config(`
+resource "discord_announcement_channel" "news" {
+  server_id = local.server_id
+  name      = "tf-acc-convert-identity"
+}
+moved {
+  from = discord_text_channel.news
+  to   = discord_announcement_channel.news
+}`),
+				ConfigPlanChecks:  expectConversion("discord_announcement_channel.news", "announcement"),
+				Check:             env.checkChannelType("discord_announcement_channel.news", &channelID, discord.ChannelTypeAnnouncement),
+				ConfigStateChecks: expectIdentity("discord_announcement_channel.news", map[string]string{"channel_id": "id"}),
+			},
+			identityImportStep("discord_announcement_channel.news"),
+		},
+	})
+}
+
 func TestAccChannelConvertRequiresNews(t *testing.T) {
 	env := newTestEnv(t)
 	env.requireFake()
