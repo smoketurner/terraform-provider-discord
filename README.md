@@ -49,6 +49,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `data.discord_member` |
 | Other | `discord_webhook`, `discord_invite`, `discord_message`, `discord_thread`, `discord_emoji` |
 | Events | `discord_scheduled_event`, `discord_stage_instance` |
+| Applications | `discord_application_command` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+) |
 
 ## Design notes

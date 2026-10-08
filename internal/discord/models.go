@@ -1,5 +1,7 @@
 package discord
 
+import "encoding/json"
+
 // Channel types managed by the provider.
 const (
 	ChannelTypeText         = 0
@@ -399,4 +401,72 @@ type PromptEmoji struct {
 	ID       *string `json:"id"`
 	Name     *string `json:"name"`
 	Animated bool    `json:"animated"`
+}
+
+// Application is the bot's application. The provider only reads its ID.
+type Application struct {
+	ID string `json:"id"`
+}
+
+// Application command types managed by the provider.
+const (
+	ApplicationCommandTypeChatInput = 1
+	ApplicationCommandTypeUser      = 2
+	ApplicationCommandTypeMessage   = 3
+)
+
+// Application command option types.
+const (
+	CommandOptionTypeSubCommand      = 1
+	CommandOptionTypeSubCommandGroup = 2
+	CommandOptionTypeString          = 3
+	CommandOptionTypeInteger         = 4
+	CommandOptionTypeNumber          = 10
+)
+
+// ApplicationCommand is a slash, user or message command. GuildID is empty
+// for a global command.
+type ApplicationCommand struct {
+	ID                       string                     `json:"id"`
+	Type                     int64                      `json:"type"`
+	ApplicationID            string                     `json:"application_id"`
+	GuildID                  string                     `json:"guild_id,omitempty"`
+	Name                     string                     `json:"name"`
+	NameLocalizations        map[string]string          `json:"name_localizations"`
+	Description              string                     `json:"description"`
+	DescriptionLocalizations map[string]string          `json:"description_localizations"`
+	Options                  []ApplicationCommandOption `json:"options,omitempty"`
+	DefaultMemberPermissions *string                    `json:"default_member_permissions"`
+	Contexts                 []int64                    `json:"contexts"`
+	IntegrationTypes         []int64                    `json:"integration_types,omitempty"`
+	NSFW                     bool                       `json:"nsfw"`
+	Version                  string                     `json:"version"`
+}
+
+// ApplicationCommandOption is a parameter, subcommand or subcommand group of
+// a command. Which fields apply depends on Type; the rest are omitted.
+type ApplicationCommandOption struct {
+	Type                     int64                            `json:"type"`
+	Name                     string                           `json:"name"`
+	NameLocalizations        map[string]string                `json:"name_localizations,omitempty"`
+	Description              string                           `json:"description"`
+	DescriptionLocalizations map[string]string                `json:"description_localizations,omitempty"`
+	Required                 bool                             `json:"required,omitempty"`
+	Choices                  []ApplicationCommandOptionChoice `json:"choices,omitempty"`
+	Options                  []ApplicationCommandOption       `json:"options,omitempty"`
+	ChannelTypes             []int64                          `json:"channel_types,omitempty"`
+	MinValue                 *float64                         `json:"min_value,omitempty"`
+	MaxValue                 *float64                         `json:"max_value,omitempty"`
+	MinLength                *int64                           `json:"min_length,omitempty"`
+	MaxLength                *int64                           `json:"max_length,omitempty"`
+	Autocomplete             bool                             `json:"autocomplete,omitempty"`
+	FileTypes                []string                         `json:"file_types,omitempty"`
+}
+
+// ApplicationCommandOptionChoice is a value users pick for an option. Value
+// is a JSON string, integer or number depending on the option type.
+type ApplicationCommandOptionChoice struct {
+	Name              string            `json:"name"`
+	NameLocalizations map[string]string `json:"name_localizations,omitempty"`
+	Value             json.RawMessage   `json:"value"`
 }

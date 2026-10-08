@@ -58,7 +58,25 @@ var modelSchemas = map[string]struct {
 	"OnboardingPrompt":       {reflect.TypeFor[discord.OnboardingPrompt](), []string{"OnboardingPromptResponse"}},
 	"OnboardingPromptOption": {reflect.TypeFor[discord.OnboardingPromptOption](), []string{"OnboardingPromptOptionResponse"}},
 	"PromptEmoji":            {reflect.TypeFor[discord.PromptEmoji](), []string{"SettingsEmojiResponse"}},
+	"Application":            {reflect.TypeFor[discord.Application](), []string{"PrivateApplicationResponse"}},
+	"ApplicationCommand":     {reflect.TypeFor[discord.ApplicationCommand](), []string{"ApplicationCommandResponse"}},
+	"ApplicationCommandOption": {reflect.TypeFor[discord.ApplicationCommandOption](), []string{
+		"ApplicationCommandAttachmentOptionResponse", "ApplicationCommandBooleanOptionResponse",
+		"ApplicationCommandChannelOptionResponse", "ApplicationCommandIntegerOptionResponse",
+		"ApplicationCommandMentionableOptionResponse", "ApplicationCommandNumberOptionResponse",
+		"ApplicationCommandRoleOptionResponse", "ApplicationCommandStringOptionResponse",
+		"ApplicationCommandSubcommandGroupOptionResponse", "ApplicationCommandSubcommandOptionResponse",
+		"ApplicationCommandUserOptionResponse",
+	}},
+	"ApplicationCommandOptionChoice": {reflect.TypeFor[discord.ApplicationCommandOptionChoice](), []string{
+		"ApplicationCommandOptionStringChoiceResponse", "ApplicationCommandOptionIntegerChoiceResponse",
+		"ApplicationCommandOptionNumberChoiceResponse",
+	}},
 }
+
+// modelUnions lists the structs that model a union: each JSON field must
+// exist in at least one of the schemas listed, rather than in all of them.
+var modelUnions = map[string]bool{"ApplicationCommandOption": true}
 
 // TestModelsTableIsComplete fails when a struct is added to models.go
 // without an entry in modelSchemas.
@@ -93,6 +111,19 @@ func TestModelsTableIsComplete(t *testing.T) {
 func TestModelsMatchSpec(t *testing.T) {
 	s := pinnedSpec(t)
 	for name, m := range modelSchemas {
+		if modelUnions[name] {
+			union := &Schema{}
+			for _, schemaName := range m.schemas {
+				if _, ok := s.Schema(schemaName); !ok {
+					t.Errorf("discord.%s: schema %s is not in the spec", name, schemaName)
+				}
+				union.OneOf = append(union.OneOf, &Schema{Ref: "#/components/schemas/" + schemaName})
+			}
+			for _, err := range structMismatches(s, m.typ, union) {
+				t.Errorf("discord.%s against the union of its schemas: %s", name, err)
+			}
+			continue
+		}
 		for _, schemaName := range m.schemas {
 			sc, ok := s.Schema(schemaName)
 			if !ok {

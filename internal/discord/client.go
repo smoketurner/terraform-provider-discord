@@ -43,6 +43,11 @@ type Client struct {
 	routes      map[string]string
 	buckets     map[string]*bucket
 	globalUntil time.Time
+
+	// appMu guards applicationID, the cached ID of the bot's application.
+	// It is held while the ID is fetched so concurrent callers fetch once.
+	appMu         sync.Mutex
+	applicationID string
 }
 
 // bucket is the rate limit state for one bucket and top-level resource.
