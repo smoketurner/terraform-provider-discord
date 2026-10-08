@@ -255,6 +255,16 @@ resource "discord_server_widget" "test" {
 			identities[name] = map[string]string{"server_id": "server_id"}
 		}
 	}
+	// A server has one template, which the live server may already have.
+	if !env.live {
+		cfg += `
+resource "discord_server_template" "test" {
+  server_id = local.server_id
+  name      = "tf-acc-identity"
+}
+`
+		identities["discord_server_template.test"] = map[string]string{"server_id": "server_id", "code": "id"}
+	}
 
 	first := resource.TestStep{Config: env.config(cfg)}
 	var steps []resource.TestStep

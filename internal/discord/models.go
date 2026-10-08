@@ -260,6 +260,13 @@ type WebhookSourceChannel struct {
 	Name string `json:"name"`
 }
 
+// InviteRole is the partial role an invite grants to the users who accept
+// it.
+type InviteRole struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 // InviteChannel is the partial channel included in an invite.
 type InviteChannel struct {
 	ID   string `json:"id"`
@@ -278,26 +285,66 @@ type InviteGuild struct {
 	PremiumSubscriptionCount int64    `json:"premium_subscription_count"`
 }
 
+// InviteApplication is the partial embedded application an invite opens.
+type InviteApplication struct {
+	ID string `json:"id"`
+}
+
+// Invite target types.
+const (
+	InviteTargetStream              = 1
+	InviteTargetEmbeddedApplication = 2
+)
+
 // Invite is an invite. The metadata (max age, uses, creation time) is only
 // returned by the Get Channel Invites and Create Channel Invite endpoints,
 // and the approximate counts only by Get Invite.
 type Invite struct {
-	Type                     int64          `json:"type"`
-	Code                     string         `json:"code"`
-	Guild                    *InviteGuild   `json:"guild,omitempty"`
-	Channel                  *InviteChannel `json:"channel"`
-	Inviter                  *User          `json:"inviter,omitempty"`
-	TargetType               int64          `json:"target_type,omitempty"`
-	TargetUser               *User          `json:"target_user,omitempty"`
-	ApproximateMemberCount   *int64         `json:"approximate_member_count,omitempty"`
-	ApproximatePresenceCount *int64         `json:"approximate_presence_count,omitempty"`
-	Flags                    int64          `json:"flags,omitempty"`
-	MaxAge                   int64          `json:"max_age"`
-	MaxUses                  int64          `json:"max_uses"`
-	Uses                     int64          `json:"uses"`
-	Temporary                bool           `json:"temporary"`
-	CreatedAt                string         `json:"created_at"`
-	ExpiresAt                *string        `json:"expires_at"`
+	Type                     int64              `json:"type"`
+	Code                     string             `json:"code"`
+	Guild                    *InviteGuild       `json:"guild,omitempty"`
+	Channel                  *InviteChannel     `json:"channel"`
+	Inviter                  *User              `json:"inviter,omitempty"`
+	TargetType               int64              `json:"target_type,omitempty"`
+	TargetUser               *User              `json:"target_user,omitempty"`
+	TargetApplication        *InviteApplication `json:"target_application,omitempty"`
+	Roles                    []InviteRole       `json:"roles,omitempty"`
+	ApproximateMemberCount   *int64             `json:"approximate_member_count,omitempty"`
+	ApproximatePresenceCount *int64             `json:"approximate_presence_count,omitempty"`
+	Flags                    int64              `json:"flags,omitempty"`
+	MaxAge                   int64              `json:"max_age"`
+	MaxUses                  int64              `json:"max_uses"`
+	Uses                     int64              `json:"uses"`
+	Temporary                bool               `json:"temporary"`
+	CreatedAt                string             `json:"created_at"`
+	ExpiresAt                *string            `json:"expires_at"`
+}
+
+// GuildTemplate is a server template: a snapshot of a guild's settings,
+// roles and channels that new servers can be created from.
+type GuildTemplate struct {
+	Code          string  `json:"code"`
+	Name          string  `json:"name"`
+	Description   *string `json:"description"`
+	UsageCount    int64   `json:"usage_count"`
+	CreatorID     string  `json:"creator_id"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+	SourceGuildID string  `json:"source_guild_id"`
+	IsDirty       *bool   `json:"is_dirty"`
+}
+
+// PruneResult is the number of members a prune removed or would remove. It
+// is null when the prune was started without computing the count.
+type PruneResult struct {
+	Pruned *int64 `json:"pruned"`
+}
+
+// BulkBanResult lists the users a bulk ban banned and those it could not ban
+// or that were already banned.
+type BulkBanResult struct {
+	BannedUsers []string `json:"banned_users"`
+	FailedUsers []string `json:"failed_users"`
 }
 
 // EmbedFooter is the footer of an embed.

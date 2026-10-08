@@ -7,6 +7,7 @@ import (
 	"os"
 	"unicode/utf8"
 
+	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -24,6 +25,7 @@ var (
 	_ provider.Provider                       = &discordProvider{}
 	_ provider.ProviderWithFunctions          = &discordProvider{}
 	_ provider.ProviderWithEphemeralResources = &discordProvider{}
+	_ provider.ProviderWithActions            = &discordProvider{}
 )
 
 type discordProvider struct {
@@ -113,6 +115,7 @@ func (p *discordProvider) Configure(ctx context.Context, req provider.ConfigureR
 	resp.ResourceData = client
 	resp.DataSourceData = client
 	resp.EphemeralResourceData = client
+	resp.ActionData = client
 }
 
 func (p *discordProvider) Resources(_ context.Context) []func() resource.Resource {
@@ -152,6 +155,7 @@ func (p *discordProvider) Resources(_ context.Context) []func() resource.Resourc
 		newScheduledEventResource,
 		newStageInstanceResource,
 		newApplicationCommandResource,
+		newServerTemplateResource,
 	}
 }
 
@@ -195,5 +199,18 @@ func (p *discordProvider) Functions(_ context.Context) []func() function.Functio
 	return []func() function.Function{
 		newPermissionsFunction,
 		newColorFunction,
+	}
+}
+
+func (p *discordProvider) Actions(_ context.Context) []func() action.Action {
+	return []func() action.Action{
+		newSendMessageAction,
+		newCrosspostMessageAction,
+		newEndPollAction,
+		newBulkDeleteMessagesAction,
+		newPruneMembersAction,
+		newBulkBanAction,
+		newSyncServerTemplateAction,
+		newSetVoiceChannelStatusAction,
 	}
 }

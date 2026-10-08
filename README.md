@@ -42,7 +42,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 
 | Kind | Names |
 |------|-------|
-| Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `data.discord_server`, `data.discord_server_preview`, `data.discord_server_vanity_url`, `data.discord_server_widget`, `data.discord_voice_regions`, `data.discord_audit_log` |
+| Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `discord_server_template`, `data.discord_server`, `data.discord_server_preview`, `data.discord_server_vanity_url`, `data.discord_server_widget`, `data.discord_voice_regions`, `data.discord_audit_log` |
 | Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_role_member_counts` |
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `discord_channel_follower`, `data.discord_channel` |
 | Permissions | `discord_channel_permission` |
@@ -54,6 +54,7 @@ See the [documentation](docs/index.md) for bot setup and every resource, data so
 | Monetization | `data.discord_skus`, `data.discord_entitlements`, `data.discord_sku_subscriptions` |
 | Applications | `discord_application_command` |
 | Functions | `provider::discord::permissions`, `provider::discord::color` (Terraform 1.8+); `data.discord_permissions`, `data.discord_color` for older versions |
+| Actions | `discord_send_message`, `discord_crosspost_message`, `discord_end_poll`, `discord_bulk_delete_messages`, `discord_prune_members`, `discord_bulk_ban`, `discord_sync_server_template`, `discord_set_voice_channel_status` (Terraform 1.14+) |
 
 ## Design notes
 

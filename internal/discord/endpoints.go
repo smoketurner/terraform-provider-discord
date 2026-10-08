@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 // Payload is a JSON request body. Only the keys present are sent, and a nil
@@ -275,6 +276,32 @@ func (c *Client) ListChannelInvites(ctx context.Context, channelID string) ([]In
 // DeleteInvite revokes an invite.
 func (c *Client) DeleteInvite(ctx context.Context, code string) error {
 	return c.doAudited(ctx, http.MethodDelete, "/invites/"+url.PathEscape(code), nil, nil)
+}
+
+// GetInviteTargetUsers returns the IDs of the users allowed to accept an
+// invite. Discord returns them as a CSV file with a user_id header.
+func (c *Client) GetInviteTargetUsers(ctx context.Context, code string) ([]string, error) {
+	var csv []byte
+	if err := c.do(ctx, http.MethodGet, "/invites/"+url.PathEscape(code)+"/target-users", nil, &csv); err != nil {
+		return nil, err
+	}
+	ids := []string{}
+	for line := range strings.Lines(string(csv)) {
+		if id := strings.TrimSpace(line); id != "" && id != "user_id" {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+// AddInviteTargetUsers allows up to 1000 more users to accept an invite.
+func (c *Client) AddInviteTargetUsers(ctx context.Context, code string, userIDs []string) error {
+	return c.do(ctx, http.MethodPost, "/invites/"+url.PathEscape(code)+"/target-users/bulk-add", Payload{"user_ids": userIDs}, nil)
+}
+
+// RemoveInviteTargetUsers stops up to 1000 users from accepting an invite.
+func (c *Client) RemoveInviteTargetUsers(ctx context.Context, code string, userIDs []string) error {
+	return c.do(ctx, http.MethodPost, "/invites/"+url.PathEscape(code)+"/target-users/bulk-delete", Payload{"user_ids": userIDs}, nil)
 }
 
 // CreateMessage posts a message to a channel.

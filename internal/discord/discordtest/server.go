@@ -3,6 +3,7 @@
 package discordtest
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,6 +82,7 @@ type Server struct {
 	// clockSkew is added to the wall clock, so tests can let incident
 	// actions expire without waiting.
 	clockSkew time.Duration
+	ops       operations
 }
 
 // NewServer starts a fake Discord API seeded with one guild containing an
@@ -209,6 +211,7 @@ func NewServer() *Server {
 	s.handleMonetization(mux)
 	s.handleUsers(mux)
 	s.handleApplicationCommands(mux)
+	s.handleOperations(mux)
 
 	s.Server = httptest.NewServer(s.middleware(mux))
 	return s
@@ -222,9 +225,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		key := r.Method + " " + r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
 		s.mu.Lock()
 		s.requests = append(s.requests, key)
 		s.headers = append(s.headers, r.Header.Clone())
+		s.ops.bodies = append(s.ops.bodies, body)
 		fail := s.failNext[key]
 		if fail > 0 {
 			s.failNext[key] = fail - 1
@@ -1488,9 +1494,13 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 	set(body, "max_age", &inv.MaxAge)
 	set(body, "max_uses", &inv.MaxUses)
 	set(body, "temporary", &inv.Temporary)
+	if msg := s.applyInviteTargets(ch.GuildID, inv, body); msg != "" {
+		writeError(w, http.StatusBadRequest, 50035, "Invalid Form Body: "+msg)
+		return
+	}
 	var unique bool
 	set(body, "unique", &unique)
-	if !unique {
+	if !unique && inv.TargetType == 0 && len(inv.Roles) == 0 && body["target_user_ids"] == nil {
 		for _, existing := range s.invites {
 			if existing.Channel.ID == ch.ID && existing.MaxAge == inv.MaxAge && existing.MaxUses == inv.MaxUses && existing.Temporary == inv.Temporary {
 				writeJSON(w, http.StatusOK, existing)
@@ -1503,6 +1513,11 @@ func (s *Server) createInvite(w http.ResponseWriter, r *http.Request) {
 		inv.ExpiresAt = &expires
 	}
 	s.invites[inv.Code] = inv
+	if _, ok := body["target_user_ids"]; ok {
+		var ids []string
+		set(body, "target_user_ids", &ids)
+		s.ops.inviteTargets[inv.Code] = slices.Sorted(slices.Values(ids))
+	}
 	writeJSON(w, http.StatusOK, inv)
 }
 
@@ -1599,8 +1614,8 @@ func (s *Server) createMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := &discord.Message{
-		ID: s.newID(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
-		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+		ID: s.newSnowflake(), ChannelID: ch.ID, Author: &discord.User{ID: s.botUserID, Username: "bot", Bot: true}, Embeds: []discord.Embed{},
+		Timestamp: s.now().UTC().Format(time.RFC3339Nano),
 	}
 	applyMessage(m, body)
 	if m.Content == "" && len(m.Embeds) == 0 {
