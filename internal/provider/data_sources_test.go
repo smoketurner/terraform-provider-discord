@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+
+	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }
@@ -97,6 +99,50 @@ data "discord_channel" "test" {
   id        = "123"
 }`),
 				ExpectError: regexp.MustCompile(`Invalid Attribute Combination`),
+			},
+		},
+	})
+}
+
+func TestAccDataSourceHiddenChannel(t *testing.T) {
+	env := newTestEnv(t)
+	env.requireFake()
+	hidden := env.seedChannel("tf-acc-hidden", discord.ChannelTypeText, 0, "")
+	denied := env.seedChannel("tf-acc-denied", discord.ChannelTypeText, 0, "")
+	env.fake.HideChannel(hidden)
+	env.fake.DenyChannel(denied)
+	lookup := func(attrs string) string {
+		return env.config(`
+data "discord_channel" "test" {
+  server_id = local.server_id
+  ` + attrs + `
+}`)
+	}
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{
+			{
+				// Lookups by ID fall back to fetching the channel.
+				Config: lookup(`id = "` + hidden + `"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.discord_channel.test", "name", "tf-acc-hidden"),
+					resource.TestCheckResourceAttr("data.discord_channel.test", "type", "text"),
+				),
+			},
+			{
+				Config:      lookup(`id = "` + hidden + `"` + "\n  type = \"voice\""),
+				ExpectError: regexp.MustCompile(`(?s)No channel found.*View\s+Channel\s+permission`),
+			},
+			{
+				Config:      lookup(`name = "tf-acc-hidden"`),
+				ExpectError: regexp.MustCompile(`(?s)No channel found.*View\s+Channel\s+permission`),
+			},
+			{
+				Config:      lookup(`id = "999999999999999999"`),
+				ExpectError: regexp.MustCompile(`No channel found`),
+			},
+			{
+				Config:      lookup(`id = "` + denied + `"`),
+				ExpectError: regexp.MustCompile(`(?s)View\s+Channel\s+permission.*Missing\s+Access`),
 			},
 		},
 	})
