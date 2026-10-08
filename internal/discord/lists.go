@@ -59,6 +59,23 @@ func (c *Client) ListEmojis(ctx context.Context, guildID string) ([]Emoji, error
 	return emojis, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/emojis", nil, &emojis)
 }
 
+// ListStickers lists the custom stickers of a guild.
+func (c *Client) ListStickers(ctx context.Context, guildID string) ([]Sticker, error) {
+	var stickers []Sticker
+	return stickers, c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/stickers", nil, &stickers)
+}
+
+// ListSoundboardSounds lists the soundboard sounds of a guild.
+func (c *Client) ListSoundboardSounds(ctx context.Context, guildID string) ([]SoundboardSound, error) {
+	var resp struct {
+		Items []SoundboardSound `json:"items"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/soundboard-sounds", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Items, nil
+}
+
 // ListGuildWebhooks lists the webhooks of every channel in a guild.
 func (c *Client) ListGuildWebhooks(ctx context.Context, guildID string) ([]Webhook, error) {
 	var webhooks []Webhook

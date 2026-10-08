@@ -252,6 +252,55 @@ data "discord_emojis" "test" {
 	})
 }
 
+func TestAccStickersAndSoundsDataSources(t *testing.T) {
+	env := newTestEnv(t)
+	cfg := env.config(`
+resource "discord_sticker" "test" {
+  server_id   = local.server_id
+  name        = "tf-acc-stickers"
+  description = "Listed"
+  tags        = "wave"
+  file        = "` + stickerPNG + `"
+}
+resource "discord_soundboard_sound" "test" {
+  server_id  = local.server_id
+  name       = "tf-acc-sounds"
+  sound      = "` + soundMP3 + `"
+  volume     = 0.5
+  emoji_name = "🦆"
+}
+data "discord_stickers" "test" {
+  server_id  = local.server_id
+  depends_on = [discord_sticker.test]
+}
+data "discord_soundboard_sounds" "test" {
+  server_id  = local.server_id
+  depends_on = [discord_soundboard_sound.test]
+}`)
+	env.run(resource.TestCase{
+		Steps: []resource.TestStep{{
+			Config: cfg,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckTypeSetElemNestedAttrs("data.discord_stickers.test", "stickers.*", map[string]string{
+					"name":        "tf-acc-stickers",
+					"description": "Listed",
+					"tags":        "wave",
+					"format_type": "png",
+					"available":   "true",
+				}),
+				resource.TestCheckTypeSetElemAttrPair("data.discord_stickers.test", "stickers.*.id", "discord_sticker.test", "id"),
+				resource.TestCheckTypeSetElemNestedAttrs("data.discord_soundboard_sounds.test", "sounds.*", map[string]string{
+					"name":       "tf-acc-sounds",
+					"volume":     "0.5",
+					"emoji_name": "🦆",
+					"available":  "true",
+				}),
+				resource.TestCheckTypeSetElemAttrPair("data.discord_soundboard_sounds.test", "sounds.*.id", "discord_soundboard_sound.test", "id"),
+			),
+		}},
+	})
+}
+
 func TestAccWebhooksDataSource(t *testing.T) {
 	env := newTestEnv(t)
 	cfg := env.config(`
@@ -468,7 +517,7 @@ func TestAccListDataSourcesUnknownServer(t *testing.T) {
 	env := newTestEnv(t)
 	env.requireFake()
 	names := []string{
-		"channels", "roles", "members", "emojis", "webhooks", "invites", "bans",
+		"channels", "roles", "members", "emojis", "stickers", "soundboard_sounds", "webhooks", "invites", "bans",
 		"scheduled_events", "threads", "integrations", "server_templates",
 	}
 	steps := make([]resource.TestStep, 0, len(names))

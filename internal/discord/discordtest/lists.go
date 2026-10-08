@@ -21,6 +21,7 @@ func (s *Server) handleLists(mux *http.ServeMux) {
 	mux.HandleFunc("GET /guilds/{guild}/members", s.listMembers)
 	mux.HandleFunc("GET /guilds/{guild}/bans", s.listBans)
 	mux.HandleFunc("GET /guilds/{guild}/emojis", s.listEmojis)
+	mux.HandleFunc("GET /guilds/{guild}/stickers", s.listStickers)
 	mux.HandleFunc("GET /guilds/{guild}/webhooks", s.listGuildWebhooks)
 	mux.HandleFunc("GET /guilds/{guild}/invites", s.listGuildInvites)
 	mux.HandleFunc("GET /guilds/{guild}/scheduled-events", s.listScheduledEvents)
@@ -120,6 +121,16 @@ func (s *Server) listEmojis(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sortedByID(s.emojis[g.ID], func(*discord.Emoji) bool { return true }))
+}
+
+func (s *Server) listStickers(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.guild(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, sortedByID(s.stickers[g.ID], func(*discord.Sticker) bool { return true }))
 }
 
 func (s *Server) listGuildWebhooks(w http.ResponseWriter, r *http.Request) {

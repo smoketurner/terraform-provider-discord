@@ -364,6 +364,107 @@ func newEmojisDataSource() datasource.DataSource {
 	}
 }
 
+// Stickers.
+
+type stickersDataModel struct {
+	ServerID types.String       `tfsdk:"server_id"`
+	Stickers []stickerItemModel `tfsdk:"stickers"`
+}
+
+type stickerItemModel struct {
+	ID          types.String `tfsdk:"id"`
+	Name        types.String `tfsdk:"name"`
+	Description types.String `tfsdk:"description"`
+	Tags        types.String `tfsdk:"tags"`
+	FormatType  types.String `tfsdk:"format_type"`
+	Available   types.Bool   `tfsdk:"available"`
+}
+
+func newStickersDataSource() datasource.DataSource {
+	return &listDataSource[stickersDataModel]{
+		name: "stickers",
+		desc: "Lists the custom stickers of a server.",
+		attrs: map[string]schema.Attribute{
+			"stickers": computedList("The stickers.", map[string]schema.Attribute{
+				"id":          computedString("Sticker ID."),
+				"name":        computedString("Sticker name."),
+				"description": computedString("Sticker description."),
+				"tags":        computedString("Autocomplete and suggestion tags."),
+				"format_type": computedString("File format: " + stickerFormatTypes.doc() + "."),
+				"available":   computedBool("Whether the sticker can be used; false when the server lost the boosts it needs."),
+			}),
+		},
+		read: func(ctx context.Context, c *discord.Client, m *stickersDataModel, diags *diag.Diagnostics) {
+			stickers, err := c.ListStickers(ctx, m.ServerID.ValueString())
+			if err != nil {
+				apiError(diags, "list stickers", err)
+				return
+			}
+			m.Stickers = listOf(stickers, func(s discord.Sticker) stickerItemModel {
+				return stickerItemModel{
+					ID:          types.StringValue(s.ID),
+					Name:        types.StringValue(s.Name),
+					Description: stringPtrValue(s.Description),
+					Tags:        types.StringValue(s.Tags),
+					FormatType:  stickerFormatTypes.name(int64(s.FormatType)),
+					Available:   types.BoolValue(s.Available),
+				}
+			})
+		},
+	}
+}
+
+// Soundboard sounds.
+
+type soundboardSoundsDataModel struct {
+	ServerID types.String               `tfsdk:"server_id"`
+	Sounds   []soundboardSoundItemModel `tfsdk:"sounds"`
+}
+
+type soundboardSoundItemModel struct {
+	ID        types.String  `tfsdk:"id"`
+	Name      types.String  `tfsdk:"name"`
+	Volume    types.Float64 `tfsdk:"volume"`
+	EmojiID   types.String  `tfsdk:"emoji_id"`
+	EmojiName types.String  `tfsdk:"emoji_name"`
+	Available types.Bool    `tfsdk:"available"`
+}
+
+func newSoundboardSoundsDataSource() datasource.DataSource {
+	return &listDataSource[soundboardSoundsDataModel]{
+		name: "soundboard_sounds",
+		desc: "Lists the soundboard sounds of a server. Discord's default sounds are listed by " +
+			"`discord_default_soundboard_sounds`.",
+		attrs: map[string]schema.Attribute{
+			"sounds": computedList("The sounds.", map[string]schema.Attribute{
+				"id":         computedString("Sound ID."),
+				"name":       computedString("Sound name."),
+				"volume":     schema.Float64Attribute{MarkdownDescription: "Volume, from 0 to 1.", Computed: true},
+				"emoji_id":   computedString("ID of the sound's custom emoji."),
+				"emoji_name": computedString("Unicode character of the sound's standard emoji."),
+				"available":  computedBool("Whether the sound can be used; false when the server lost the boosts it needs."),
+			}),
+		},
+		read: func(ctx context.Context, c *discord.Client, m *soundboardSoundsDataModel, diags *diag.Diagnostics) {
+			sounds, err := c.ListSoundboardSounds(ctx, m.ServerID.ValueString())
+			if err != nil {
+				apiError(diags, "list soundboard sounds", err)
+				return
+			}
+			m.Sounds = listOf(sounds, func(s discord.SoundboardSound) soundboardSoundItemModel {
+				return soundboardSoundItemModel{
+					ID:        types.StringValue(s.SoundID),
+					Name:      types.StringValue(s.Name),
+					Volume:    types.Float64Value(s.Volume),
+					EmojiID:   stringPtrValue(s.EmojiID),
+					EmojiName: stringPtrValue(s.EmojiName),
+					Available: types.BoolValue(s.Available),
+				}
+			})
+		},
+	}
+}
+
 // Webhooks.
 
 var webhookTypes = enumMapping{"", "incoming", "channel_follower", "application"}
