@@ -123,3 +123,47 @@ func (c *Client) ListDefaultSoundboardSounds(ctx context.Context) ([]SoundboardS
 	var sounds []SoundboardSound
 	return sounds, c.do(ctx, http.MethodGet, "/soundboard-default-sounds", nil, &sounds)
 }
+
+// GetGuildMemberPermissions returns a member's server-level permissions,
+// combining their roles with @everyone, as a decimal bitfield.
+func (c *Client) GetGuildMemberPermissions(ctx context.Context, guildID, userID string) (string, error) {
+	var p ComputedPermissions
+	if err := c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/permissions/member/"+userID, nil, &p); err != nil {
+		return "", err
+	}
+	return p.Permissions, nil
+}
+
+// GetGuildRolePermissions returns the server-level permissions of a role
+// combined with @everyone, as a decimal bitfield.
+func (c *Client) GetGuildRolePermissions(ctx context.Context, guildID, roleID string) (string, error) {
+	var p ComputedPermissions
+	if err := c.do(ctx, http.MethodGet, "/guilds/"+guildID+"/permissions/role/"+roleID, nil, &p); err != nil {
+		return "", err
+	}
+	return p.Permissions, nil
+}
+
+// GetChannelMemberPermissions returns a member's permissions in a channel,
+// applying the channel's overwrites, as a decimal bitfield. With implicit,
+// Discord masks the permissions that a missing VIEW_CHANNEL, or a missing
+// CONNECT in a voice or stage channel, makes unusable.
+func (c *Client) GetChannelMemberPermissions(ctx context.Context, channelID, userID string, implicit bool) (string, error) {
+	var p ComputedPermissions
+	path := "/channels/" + channelID + "/permissions/member/" + userID + "?implicit=" + strconv.FormatBool(implicit)
+	if err := c.do(ctx, http.MethodGet, path, nil, &p); err != nil {
+		return "", err
+	}
+	return p.Permissions, nil
+}
+
+// GetChannelRolePermissions returns the permissions a role and @everyone
+// grant in a channel, applying their overwrites, as a decimal bitfield.
+func (c *Client) GetChannelRolePermissions(ctx context.Context, channelID, roleID string, implicit bool) (string, error) {
+	var p ComputedPermissions
+	path := "/channels/" + channelID + "/permissions/role/" + roleID + "?implicit=" + strconv.FormatBool(implicit)
+	if err := c.do(ctx, http.MethodGet, path, nil, &p); err != nil {
+		return "", err
+	}
+	return p.Permissions, nil
+}

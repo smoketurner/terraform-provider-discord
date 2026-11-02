@@ -47,7 +47,7 @@ resources to this provider without recreating them (Terraform 1.8+).
 | Server | `discord_server_settings`, `discord_server_incident_actions`, `discord_onboarding`, `discord_welcome_screen`, `discord_server_widget`, `discord_server_template`, `data.discord_server`, `data.discord_server_preview`, `data.discord_server_vanity_url`, `data.discord_server_widget`, `data.discord_voice_regions`, `data.discord_audit_log`, `data.discord_integrations`, `data.discord_server_templates` |
 | Roles | `discord_role`, `discord_role_everyone`, `discord_role_positions`, `data.discord_role`, `data.discord_role_member_counts`, `data.discord_roles` |
 | Channels | `discord_category_channel`, `discord_text_channel`, `discord_announcement_channel`, `discord_voice_channel`, `discord_stage_channel`, `discord_forum_channel`, `discord_media_channel`, `discord_channel_positions`, `discord_channel_follower`, `data.discord_channel`, `data.discord_channels` |
-| Permissions | `discord_channel_permission` |
+| Permissions | `discord_channel_permission`, `data.discord_server_member_permissions`, `data.discord_server_role_permissions`, `data.discord_channel_member_permissions`, `data.discord_channel_role_permissions` |
 | Members | `discord_member`, `discord_member_role`, `discord_member_roles`, `discord_ban`, `data.discord_member`, `data.discord_members`, `data.discord_bans` |
 | Users and application | `discord_bot_user`, `discord_bot_member`, `discord_application_settings`, `discord_application_role_connection_metadata`, `discord_application_emoji`, `data.discord_user`, `data.discord_current_user`, `data.discord_current_application` |
 | Webhooks | `discord_webhook`, `discord_webhook_message`, `ephemeral.discord_webhook` (Terraform 1.10+), `data.discord_webhooks` |

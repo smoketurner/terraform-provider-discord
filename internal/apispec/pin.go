@@ -5,6 +5,6 @@ package apispec
 // copy the commit and checksum it prints here, and update coverage.yaml until
 // `make api-coverage` passes.
 const (
-	PinnedCommit = "c0e6a86aca23a40862cc9e58b7ecf60865158854"
-	PinnedSHA256 = "12308009248ae5be59aa27b3539468c9e3fdd8fb433df8430eabf9bbe5a278f7"
+	PinnedCommit = "4e75626a4cedfbc397d66f5491c79a9a62a71fd5"
+	PinnedSHA256 = "281a2bff563d77a19e51fc3bf8bbe3ebcef28e3dc86684ae395b06ac51ba7484"
 )
