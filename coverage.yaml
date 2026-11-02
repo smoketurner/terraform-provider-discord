@@ -117,8 +117,8 @@ operations:
   get_auto_moderation_rule: {status: covered, by: [discord_auto_moderation_rule]}
   get_bot_gateway: {status: out_of_scope, reason: "gateway endpoints are for gateway clients"}
   get_channel: {status: covered, by: [data.discord_channel, discord_announcement_channel, discord_category_channel, discord_channel_permission, discord_channel_positions, discord_forum_channel, discord_media_channel, discord_stage_channel, discord_text_channel, discord_thread, discord_voice_channel]}
-  get_channel_member_permissions: {status: covered, by: [data.discord_member_permissions]}
-  get_channel_role_permissions: {status: covered, by: [data.discord_role_permissions]}
+  get_channel_member_permissions: {status: covered, by: [data.discord_channel_member_permissions]}
+  get_channel_role_permissions: {status: covered, by: [data.discord_channel_role_permissions]}
   get_current_user_application_entitlements: {status: out_of_scope, reason: "OAuth2 user token only; the provider authenticates with a bot token"}
   get_entitlement: {status: covered, by: [data.discord_entitlement, discord_test_entitlement]}
   get_entitlements: {status: covered, by: [data.discord_entitlements]}
@@ -130,11 +130,11 @@ operations:
   get_guild_emoji: {status: covered, by: [discord_emoji]}
   get_guild_join_requests: {status: pending_docs}
   get_guild_member: {status: covered, by: [data.discord_member, discord_bot_member, discord_member, discord_member_role, discord_member_roles, discord_role_positions]}
-  get_guild_member_permissions: {status: covered, by: [data.discord_member_permissions]}
+  get_guild_member_permissions: {status: covered, by: [data.discord_server_member_permissions]}
   get_guild_new_member_welcome: {status: pending_docs}
   get_guild_preview: {status: covered, by: [data.discord_server_preview]}
   get_guild_role: {status: covered, by: [discord_role, discord_role_everyone]}
-  get_guild_role_permissions: {status: covered, by: [data.discord_role_permissions]}
+  get_guild_role_permissions: {status: covered, by: [data.discord_server_role_permissions]}
   get_guild_scheduled_event: {status: covered, by: [discord_scheduled_event]}
   get_guild_soundboard_sound: {status: covered, by: [discord_soundboard_sound]}
   get_guild_sticker: {status: covered, by: [discord_sticker]}

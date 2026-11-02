@@ -3,115 +3,140 @@ package provider
 import (
 	"context"
 
-	"github.com/hashicorp/terraform-plugin-framework-validators/boolvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/smoketurner/terraform-provider-discord/internal/discord"
 )
 
 // computedPermissionsDataSource reads the permissions Discord computes for a
-// member or a role, at the server level or in a channel.
+// member or a role, in a server or in a channel.
 type computedPermissionsDataSource struct {
 	readOnlyDataSource
 	typeName    string
 	description string
-	// idAttribute names the member or role ID attribute; idDescription
-	// documents it.
-	idAttribute   string
-	idDescription string
-	// implicitNote is appended to the implicit attribute's description.
+	// scopeAttribute is server_id or channel_id, and idAttribute user_id or
+	// role_id; idDescription documents idAttribute.
+	scopeAttribute string
+	idAttribute    string
+	idDescription  string
+	// implicitNote is appended to the implicit attribute's description. The
+	// attribute only exists on channel data sources.
 	implicitNote string
 	// action describes the read in error messages.
-	action  string
-	server  func(c *discord.Client, ctx context.Context, serverID, id string) (string, error)
-	channel func(c *discord.Client, ctx context.Context, channelID, id string, implicit bool) (string, error)
+	action string
+	read   func(c *discord.Client, ctx context.Context, scopeID, id string, implicit bool) (string, error)
 }
 
-const computedPermissionsChannelDoc = "When `channel_id` is set, the channel's permission overwrites are applied; threads use " +
-	"their parent channel's overwrites. Reading a channel requires the bot to have `VIEW_CHANNEL` there, " +
+const channelPermissionsDoc = " Threads use their parent channel's overwrites. The bot needs `VIEW_CHANNEL` in the channel, " +
 	"and `CONNECT` as well in voice and stage channels."
 
-func newMemberPermissionsDataSource() datasource.DataSource {
+func newServerMemberPermissionsDataSource() datasource.DataSource {
 	return &computedPermissionsDataSource{
-		typeName: "_member_permissions",
-		description: "Reads a member's permissions as Discord computes them from all of the member's roles and `@everyone`, " +
-			"including member-specific overwrites in a channel. " + computedPermissionsChannelDoc + " " +
-			"See [Get Guild Member Permissions](https://docs.discord.com/developers/resources/guild#get-guild-member-permissions) and " +
-			"[Get Channel Member Permissions](https://docs.discord.com/developers/resources/channel#get-channel-member-permissions).",
-		idAttribute:   "user_id",
-		idDescription: "ID of the member's user.",
-		implicitNote:  " Discord never masks the permissions of bot members.",
-		action:        "read member permissions",
-		server:        (*discord.Client).GetGuildMemberPermissions,
-		channel:       (*discord.Client).GetChannelMemberPermissions,
+		typeName: "_server_member_permissions",
+		description: "Reads a member's server-level permissions as Discord computes them from all of the member's roles and `@everyone`. " +
+			"See [Get Guild Member Permissions](https://docs.discord.com/developers/resources/guild#get-guild-member-permissions).",
+		scopeAttribute: "server_id",
+		idAttribute:    "user_id",
+		idDescription:  "ID of the member's user.",
+		action:         "read server member permissions",
+		read: func(c *discord.Client, ctx context.Context, serverID, userID string, _ bool) (string, error) {
+			return c.GetGuildMemberPermissions(ctx, serverID, userID)
+		},
 	}
 }
 
-func newRolePermissionsDataSource() datasource.DataSource {
+func newServerRolePermissionsDataSource() datasource.DataSource {
 	return &computedPermissionsDataSource{
-		typeName: "_role_permissions",
-		description: "Reads the permissions a role grants together with `@everyone`, as Discord computes them. " +
-			"Other roles and member-specific overwrites are not included. " + computedPermissionsChannelDoc + " " +
-			"See [Get Guild Role Permissions](https://docs.discord.com/developers/resources/guild#get-guild-role-permissions) and " +
-			"[Get Channel Role Permissions](https://docs.discord.com/developers/resources/channel#get-channel-role-permissions).",
-		idAttribute:   "role_id",
-		idDescription: "ID of the role.",
-		action:        "read role permissions",
-		server:        (*discord.Client).GetGuildRolePermissions,
-		channel:       (*discord.Client).GetChannelRolePermissions,
+		typeName: "_server_role_permissions",
+		description: "Reads the server-level permissions a role grants together with `@everyone`, as Discord computes them. " +
+			"Other roles are not included. " +
+			"See [Get Guild Role Permissions](https://docs.discord.com/developers/resources/guild#get-guild-role-permissions).",
+		scopeAttribute: "server_id",
+		idAttribute:    "role_id",
+		idDescription:  "ID of the role.",
+		action:         "read server role permissions",
+		read: func(c *discord.Client, ctx context.Context, serverID, roleID string, _ bool) (string, error) {
+			return c.GetGuildRolePermissions(ctx, serverID, roleID)
+		},
 	}
 }
+
+func newChannelMemberPermissionsDataSource() datasource.DataSource {
+	return &computedPermissionsDataSource{
+		typeName: "_channel_member_permissions",
+		description: "Reads a member's permissions in a channel as Discord computes them from all of the member's roles and `@everyone`, " +
+			"applying the channel's overwrites for them and for the member." + channelPermissionsDoc + " " +
+			"See [Get Channel Member Permissions](https://docs.discord.com/developers/resources/channel#get-channel-member-permissions).",
+		scopeAttribute: "channel_id",
+		idAttribute:    "user_id",
+		idDescription:  "ID of the member's user.",
+		implicitNote:   " Discord never masks the permissions of bot members.",
+		action:         "read channel member permissions",
+		read:           (*discord.Client).GetChannelMemberPermissions,
+	}
+}
+
+func newChannelRolePermissionsDataSource() datasource.DataSource {
+	return &computedPermissionsDataSource{
+		typeName: "_channel_role_permissions",
+		description: "Reads the permissions a role grants together with `@everyone` in a channel, as Discord computes them, " +
+			"applying the channel's overwrites for both. Other roles and member-specific overwrites are not included." +
+			channelPermissionsDoc + " " +
+			"See [Get Channel Role Permissions](https://docs.discord.com/developers/resources/channel#get-channel-role-permissions).",
+		scopeAttribute: "channel_id",
+		idAttribute:    "role_id",
+		idDescription:  "ID of the role.",
+		action:         "read channel role permissions",
+		read:           (*discord.Client).GetChannelRolePermissions,
+	}
+}
+
+func (d *computedPermissionsDataSource) channel() bool { return d.scopeAttribute == "channel_id" }
 
 func (d *computedPermissionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + d.typeName
 }
 
 func (d *computedPermissionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		MarkdownDescription: d.description,
-		Attributes: map[string]schema.Attribute{
-			"server_id":   dsServerID(),
-			d.idAttribute: requiredSnowflake(d.idDescription),
-			"channel_id":  optionalSnowflake("ID of a channel or thread to compute the permissions in. Omit for server-level permissions."),
-			"implicit": schema.BoolAttribute{
-				MarkdownDescription: "Whether Discord masks the permissions that a missing `VIEW_CHANNEL`, or a missing `CONNECT` in a " +
-					"voice or stage channel, makes unusable (see [implicit permissions](https://docs.discord.com/developers/topics/permissions#implicit-permissions)). " +
-					"Requires `channel_id`. Defaults to `true`." + d.implicitNote,
-				Optional:   true,
-				Validators: []validator.Bool{boolvalidator.AlsoRequires(path.MatchRoot("channel_id"))},
-			},
-			"permissions": computedString("The computed permissions as a decimal bitfield string."),
-			"permission_names": schema.SetAttribute{
-				MarkdownDescription: "Names of the permission flags set in `permissions`, such as `VIEW_CHANNEL`. " +
-					"Flags this provider does not know are omitted.",
-				ElementType: types.StringType,
-				Computed:    true,
-			},
+	attrs := map[string]schema.Attribute{
+		d.idAttribute: requiredSnowflake(d.idDescription),
+		"permissions": computedString("The computed permissions as a decimal bitfield string."),
+		"permission_names": schema.SetAttribute{
+			MarkdownDescription: "Names of the permission flags set in `permissions`, such as `VIEW_CHANNEL`. " +
+				"Flags this provider does not know are omitted.",
+			ElementType: types.StringType,
+			Computed:    true,
 		},
 	}
+	if d.channel() {
+		attrs["channel_id"] = requiredSnowflake("ID of the channel or thread.")
+		attrs["implicit"] = schema.BoolAttribute{
+			MarkdownDescription: "Whether Discord masks the permissions that a missing `VIEW_CHANNEL`, or a missing `CONNECT` in a " +
+				"voice or stage channel, makes unusable (see [implicit permissions](https://docs.discord.com/developers/topics/permissions#implicit-permissions)). " +
+				"Defaults to `true`." + d.implicitNote,
+			Optional: true,
+		}
+	} else {
+		attrs["server_id"] = dsServerID()
+	}
+	resp.Schema = schema.Schema{MarkdownDescription: d.description, Attributes: attrs}
 }
 
 func (d *computedPermissionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var serverID, id, channelID types.String
-	var implicit types.Bool
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("server_id"), &serverID)...)
+	var scopeID, id types.String
+	implicit := types.BoolNull()
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(d.scopeAttribute), &scopeID)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(d.idAttribute), &id)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("channel_id"), &channelID)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("implicit"), &implicit)...)
+	if d.channel() {
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("implicit"), &implicit)...)
+	}
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	var bits string
-	var err error
-	if channelID.IsNull() {
-		bits, err = d.server(d.client, ctx, serverID.ValueString(), id.ValueString())
-	} else {
-		bits, err = d.channel(d.client, ctx, channelID.ValueString(), id.ValueString(), implicit.IsNull() || implicit.ValueBool())
-	}
+	bits, err := d.read(d.client, ctx, scopeID.ValueString(), id.ValueString(), implicit.IsNull() || implicit.ValueBool())
 	if err != nil {
 		apiError(&resp.Diagnostics, d.action, err)
 		return
