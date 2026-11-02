@@ -90,6 +90,7 @@ var modelSchemas = map[string]struct {
 	"SoundboardSound":      {reflect.TypeFor[discord.SoundboardSound](), []string{"SoundboardSoundResponse"}},
 	"VoiceRegion":          {reflect.TypeFor[discord.VoiceRegion](), []string{"VoiceRegionResponse"}},
 	"GuildPreview":         {reflect.TypeFor[discord.GuildPreview](), []string{"GuildPreviewResponse"}},
+	"ComputedPermissions":  {reflect.TypeFor[discord.ComputedPermissions](), []string{"PermissionsResponse"}},
 	"VanityURL":            {reflect.TypeFor[discord.VanityURL](), []string{"VanityURLResponse"}},
 	"GuildWidget":          {reflect.TypeFor[discord.GuildWidget](), []string{"WidgetResponse"}},
 	"WidgetChannel":        {reflect.TypeFor[discord.WidgetChannel](), []string{"WidgetChannel"}},

@@ -773,6 +773,12 @@ type GuildPreview struct {
 	Stickers                 []Sticker `json:"stickers"`
 }
 
+// ComputedPermissions is the response of the member and role permission
+// endpoints.
+type ComputedPermissions struct {
+	Permissions string `json:"permissions"`
+}
+
 // VanityURL is a guild's vanity invite. Code is null when none is set.
 type VanityURL struct {
 	Code *string `json:"code"`

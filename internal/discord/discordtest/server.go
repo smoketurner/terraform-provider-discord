@@ -229,6 +229,7 @@ func NewServer() *Server {
 	s.handleReactions(mux)
 	s.handleFollowers(mux)
 	s.handleReadOnly(mux)
+	s.handlePermissions(mux)
 	s.handleMonetization(mux)
 	s.handleUsers(mux)
 	s.handleApplicationCommands(mux)
