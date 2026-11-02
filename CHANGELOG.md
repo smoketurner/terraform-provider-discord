@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/smoketurner/terraform-provider-discord/compare/v0.3.0...v0.4.0) (2026-11-02)
+
+
+### Features
+
+* add server and channel permission data sources ([#100](https://github.com/smoketurner/terraform-provider-discord/issues/100)) ([3f301b1](https://github.com/smoketurner/terraform-provider-discord/commit/3f301b1fbe829bb0dd274eba5db3593f031a2101))
+
 ## [0.3.0](https://github.com/smoketurner/terraform-provider-discord/compare/v0.2.0...v0.3.0) (2026-10-08)
 
 
