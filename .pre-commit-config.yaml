@@ -27,9 +27,9 @@ repos:
         name: actionlint
         entry: actionlint
         language: system
-        files: ^\.github/workflows/
+        files: ^\.github/workflows/.*\.ya?ml$
       - id: zizmor
         name: zizmor
         entry: zizmor --offline
         language: system
-        files: ^\.github/workflows/
+        files: ^\.github/workflows/.*\.ya?ml$
